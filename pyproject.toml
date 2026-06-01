@@ -1,0 +1,23 @@
+[build-system]
+requires = ["setuptools>=69", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "streamer-sidekick"
+version = "0.1.0"
+description = "A modular streamer helper hub for markers, counters, and future tools."
+requires-python = ">=3.9"
+dependencies = [
+  "PySide6>=6.6",
+  "keyboard>=0.13.5",
+  "pyautogui>=0.9.54",
+]
+
+[project.scripts]
+streamer-sidekick = "streamer_sidekick.__main__:main"
+
+[tool.setuptools]
+package-dir = {"" = "src"}
+
+[tool.setuptools.packages.find]
+where = ["src"]
