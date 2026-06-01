@@ -33,3 +33,15 @@ The executable is generated at:
 ```text
 dist\StreamerSidekick\StreamerSidekick.exe
 ```
+
+Create a portable release zip:
+
+```powershell
+.\scripts\package_portable.ps1
+```
+
+Create a Windows installer after installing Inno Setup:
+
+```powershell
+.\scripts\build_installer.ps1
+```
