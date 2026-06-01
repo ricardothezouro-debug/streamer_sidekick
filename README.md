@@ -2,6 +2,15 @@
 
 Streamer Sidekick is a Python desktop hub for stream helper tools.
 
+## License
+
+Streamer Sidekick is licensed under the PolyForm Noncommercial License
+1.0.0. It is free for personal and non-commercial use.
+
+Commercial resale, paid redistribution, or selling modified versions
+requires written permission from the copyright holder. See `LICENSE` and
+`NOTICE`.
+
 Current modules:
 
 - Marker: fast timestamped notes for gameplay and live events.
