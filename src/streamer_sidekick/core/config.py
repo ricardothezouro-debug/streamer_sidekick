@@ -15,6 +15,7 @@ DEFAULT_CONFIG: dict[str, Any] = {
     "marker": {
         "folder": "",
         "active_file": "",
+        "custom_hotkeys": [],
     },
     "counter": {
         "presets_folder": "",

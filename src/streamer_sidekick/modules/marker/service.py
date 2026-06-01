@@ -3,6 +3,7 @@ import json
 import os
 from pathlib import Path
 from typing import Optional
+from uuid import uuid4
 
 from streamer_sidekick.core.config import ConfigStore
 from streamer_sidekick.core.modules import ModuleInfo
@@ -124,6 +125,53 @@ class MarkerService:
             return 0
 
         return sum(1 for line in lines if line.strip())
+
+    def custom_hotkeys(self) -> list[dict[str, str]]:
+        items = self.config.get("marker.custom_hotkeys", [])
+        if not isinstance(items, list):
+            return []
+
+        normalized: list[dict[str, str]] = []
+        for item in items:
+            if not isinstance(item, dict):
+                continue
+            key = str(item.get("key") or "").strip()
+            message = str(item.get("message") or "").strip()
+            sequence = str(item.get("sequence") or "").strip()
+            if not key or not message or not sequence:
+                continue
+            normalized.append({"key": key, "message": message, "sequence": sequence})
+        return normalized
+
+    def custom_hotkey_for_key(self, key: str) -> Optional[dict[str, str]]:
+        for item in self.custom_hotkeys():
+            if item["key"] == key:
+                return item
+        return None
+
+    def add_custom_hotkey(self, message: str, sequence: str) -> dict[str, str]:
+        item = {
+            "key": f"marker.custom.{uuid4().hex}",
+            "message": message.strip(),
+            "sequence": sequence.strip(),
+        }
+        items = self.custom_hotkeys()
+        items.append(item)
+        self.config.set("marker.custom_hotkeys", items)
+        return item
+
+    def remove_custom_hotkey(self, key: str) -> bool:
+        items = self.custom_hotkeys()
+        remaining = [item for item in items if item["key"] != key]
+        if len(remaining) == len(items):
+            return False
+
+        self.config.data.setdefault("marker", {})["custom_hotkeys"] = remaining
+        hotkeys = self.config.data.get("hotkeys", {})
+        if isinstance(hotkeys, dict):
+            hotkeys.pop(key, None)
+        self.config.save()
+        return True
 
     def _legacy_folder(self) -> Optional[Path]:
         appdata = os.getenv("APPDATA")

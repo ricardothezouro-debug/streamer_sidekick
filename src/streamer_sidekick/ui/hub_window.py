@@ -2,7 +2,7 @@ import os
 from typing import Optional
 from pathlib import Path
 
-from PySide6.QtCore import Qt, QTimer, Signal
+from PySide6.QtCore import QEvent, Qt, QTimer, Signal
 from PySide6.QtGui import QAction, QCloseEvent, QColor, QIcon, QKeySequence
 from PySide6.QtWidgets import (
     QAbstractItemView,
@@ -21,8 +21,11 @@ from PySide6.QtWidgets import (
     QMessageBox,
     QPushButton,
     QApplication,
+    QScrollArea,
+    QSizePolicy,
     QStackedWidget,
     QSystemTrayIcon,
+    QToolTip,
     QVBoxLayout,
     QWidget,
     QKeySequenceEdit,
@@ -71,6 +74,10 @@ class HubWindow(QMainWindow):
         self.marker_recent_list: Optional[QListWidget] = None
         self.marker_event_input: Optional[QLineEdit] = None
         self.marker_new_game_input: Optional[QLineEdit] = None
+        self.marker_custom_hotkey_message_input: Optional[QLineEdit] = None
+        self.marker_custom_hotkey_sequence_input: Optional[QKeySequenceEdit] = None
+        self.marker_custom_hotkey_status_label: Optional[QLabel] = None
+        self.marker_custom_hotkeys_list: Optional[QListWidget] = None
         self.quick_marker_dialog: Optional["QuickMarkerDialog"] = None
         self.quick_game_dialog: Optional["QuickGameDialog"] = None
         self.counter_folder_label: Optional[QLabel] = None
@@ -84,10 +91,15 @@ class HubWindow(QMainWindow):
         self.setting_close_to_tray: Optional[QCheckBox] = None
         self.setting_marker_folder: Optional[QLineEdit] = None
         self.setting_counter_folder: Optional[QLineEdit] = None
+        self.hotkeys_grid: Optional[QGridLayout] = None
+        self.hotkey_capture_label: Optional[QLabel] = None
         self.diagnostic_summary_label: Optional[QLabel] = None
         self.diagnostic_list: Optional[QListWidget] = None
         self._last_diagnostics: list[DiagnosticItem] = []
         self._hotkey_status_messages: list[str] = []
+        self._hotkey_capture_editor: Optional[QKeySequenceEdit] = None
+        self._hotkeys_paused_for_capture = False
+        self._marker_custom_callback_keys: set[str] = set()
         self._quitting = False
 
         self.setWindowTitle("Streamer Sidekick")
@@ -99,6 +111,9 @@ class HubWindow(QMainWindow):
         self.setCentralWidget(self._build_shell())
         self._create_tray()
         self._wire_hotkeys()
+        app = QApplication.instance()
+        if app is not None:
+            app.installEventFilter(self)
         self._select_page("home")
 
     def _build_shell(self) -> QWidget:
@@ -145,7 +160,7 @@ class HubWindow(QMainWindow):
 
         layout.addStretch(1)
 
-        footer = QLabel("Base modular v0.1")
+        footer = QLabel("Base modular v0.2")
         footer.setObjectName("Muted")
         layout.addWidget(footer)
         return sidebar
@@ -166,6 +181,15 @@ class HubWindow(QMainWindow):
 
     def _add_page(self, page_id: str, widget: QWidget) -> None:
         self.page_indexes[page_id] = self.pages.addWidget(widget)
+
+    def _scrollable_page(self, content: QWidget) -> QScrollArea:
+        scroll = QScrollArea()
+        scroll.setObjectName("PageScroll")
+        scroll.setWidgetResizable(True)
+        scroll.setFrameShape(QFrame.Shape.NoFrame)
+        scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        scroll.setWidget(content)
+        return scroll
 
     def _home_page(self) -> QWidget:
         page = QWidget()
@@ -198,6 +222,7 @@ class HubWindow(QMainWindow):
     def _marker_page(self) -> QWidget:
         page = QWidget()
         layout = QVBoxLayout(page)
+        layout.setContentsMargins(0, 0, 8, 0)
         layout.setSpacing(18)
 
         title = QLabel("Marcador")
@@ -232,6 +257,7 @@ class HubWindow(QMainWindow):
 
         event_box = self._marker_event_box()
         recent_box = self._marker_recent_box()
+        custom_hotkeys_box = self._marker_custom_hotkeys_box()
         files_box = self._marker_files_box()
 
         marker_grid = QGridLayout()
@@ -247,14 +273,17 @@ class HubWindow(QMainWindow):
         layout.addWidget(self.marker_last_label)
         layout.addLayout(top_actions)
         layout.addLayout(marker_grid)
-        layout.addWidget(files_box, 1)
+        layout.addWidget(custom_hotkeys_box)
+        layout.addWidget(files_box)
         layout.addStretch(1)
         self._refresh_marker_page()
-        return page
+        return self._scrollable_page(page)
 
     def _marker_event_box(self) -> QWidget:
         box = QFrame()
         box.setObjectName("ModuleCard")
+        box.setMinimumHeight(220)
+        box.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Minimum)
         layout = QVBoxLayout(box)
         layout.setContentsMargins(18, 16, 18, 16)
         layout.setSpacing(12)
@@ -291,9 +320,65 @@ class HubWindow(QMainWindow):
         layout.addLayout(game_row)
         return box
 
+    def _marker_custom_hotkeys_box(self) -> QWidget:
+        box = QFrame()
+        box.setObjectName("ModuleCard")
+        box.setMinimumHeight(315)
+        box.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Minimum)
+        layout = QVBoxLayout(box)
+        layout.setContentsMargins(18, 16, 18, 16)
+        layout.setSpacing(12)
+
+        title = QLabel("Hotkeys de mensagem")
+        title.setObjectName("SectionTitle")
+
+        form = QVBoxLayout()
+        form.setSpacing(10)
+        self.marker_custom_hotkey_message_input = QLineEdit()
+        self.marker_custom_hotkey_message_input.setPlaceholderText("Mensagem salva no txt")
+        self.marker_custom_hotkey_message_input.setMinimumHeight(40)
+        self.marker_custom_hotkey_sequence_input = QKeySequenceEdit()
+        self.marker_custom_hotkey_sequence_input.setMinimumWidth(230)
+        self.marker_custom_hotkey_sequence_input.setMinimumHeight(40)
+        self.marker_custom_hotkey_status_label = QLabel("Pronto para gravar uma nova hotkey de mensagem.")
+        self.marker_custom_hotkey_status_label.setObjectName("CaptureStatus")
+        self.marker_custom_hotkey_status_label.setMinimumHeight(38)
+        add = QPushButton("Adicionar")
+        add.setObjectName("PrimaryButton")
+        add.setMinimumWidth(116)
+        add.setMinimumHeight(40)
+        add.clicked.connect(self._add_marker_custom_hotkey)
+        shortcut_row = QHBoxLayout()
+        shortcut_row.addWidget(self.marker_custom_hotkey_sequence_input, 0)
+        shortcut_row.addWidget(add, 0)
+        shortcut_row.addStretch(1)
+        form.addWidget(self.marker_custom_hotkey_message_input)
+        form.addLayout(shortcut_row)
+
+        self.marker_custom_hotkeys_list = QListWidget()
+        self.marker_custom_hotkeys_list.setSelectionMode(QAbstractItemView.SelectionMode.SingleSelection)
+        self.marker_custom_hotkeys_list.setMinimumHeight(105)
+        self.marker_custom_hotkeys_list.setMaximumHeight(130)
+
+        actions = QHBoxLayout()
+        remove = QPushButton("Remover selecionada")
+        remove.setMinimumWidth(180)
+        remove.clicked.connect(self._remove_selected_marker_custom_hotkey)
+        actions.addStretch(1)
+        actions.addWidget(remove)
+
+        layout.addWidget(title)
+        layout.addLayout(form)
+        layout.addWidget(self.marker_custom_hotkey_status_label)
+        layout.addWidget(self.marker_custom_hotkeys_list)
+        layout.addLayout(actions)
+        return box
+
     def _marker_recent_box(self) -> QWidget:
         box = QFrame()
         box.setObjectName("ModuleCard")
+        box.setMinimumHeight(220)
+        box.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Minimum)
         layout = QVBoxLayout(box)
         layout.setContentsMargins(18, 16, 18, 16)
         layout.setSpacing(12)
@@ -318,6 +403,7 @@ class HubWindow(QMainWindow):
     def _marker_files_box(self) -> QWidget:
         box = QFrame()
         box.setObjectName("ModuleCard")
+        box.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Minimum)
         layout = QVBoxLayout(box)
         layout.setContentsMargins(18, 16, 18, 16)
         layout.setSpacing(12)
@@ -333,6 +419,7 @@ class HubWindow(QMainWindow):
 
         self.marker_files_list = QListWidget()
         self.marker_files_list.setSelectionMode(QAbstractItemView.SelectionMode.SingleSelection)
+        self.marker_files_list.setMinimumHeight(95)
         self.marker_files_list.itemDoubleClicked.connect(self._set_marker_active_from_item)
 
         use_selected = QPushButton("Usar selecionado")
@@ -460,8 +547,11 @@ class HubWindow(QMainWindow):
         title.setObjectName("PageTitle")
         subtitle = QLabel("Os conflitos sao bloqueados antes de salvar. O novo padrao evita o antigo choque do Ctrl+Alt+N.")
         subtitle.setObjectName("Muted")
+        self.hotkey_capture_label = QLabel("Pronto para gravar atalhos.")
+        self.hotkey_capture_label.setObjectName("CaptureStatus")
         layout.addWidget(title)
         layout.addWidget(subtitle)
+        layout.addWidget(self.hotkey_capture_label)
 
         panel = QFrame()
         panel.setObjectName("ModuleCard")
@@ -469,40 +559,9 @@ class HubWindow(QMainWindow):
         grid.setContentsMargins(18, 16, 18, 16)
         grid.setHorizontalSpacing(16)
         grid.setVerticalSpacing(10)
+        self.hotkeys_grid = grid
 
-        headers = ["Modulo", "Acao", "Atalho", "Ativo", ""]
-        for column, header in enumerate(headers):
-            label = QLabel(header)
-            label.setObjectName("SectionTitle")
-            grid.addWidget(label, 0, column)
-
-        grid.setColumnStretch(0, 0)
-        grid.setColumnStretch(1, 1)
-        grid.setColumnStretch(2, 0)
-        grid.setColumnStretch(3, 0)
-        grid.setColumnStretch(4, 0)
-
-        for row, binding in enumerate(self.hotkeys.all_bindings(), start=1):
-            module_label = QLabel(str(binding["module_id"]))
-            action_label = QLabel(str(binding["label"]))
-            action_label.setMinimumWidth(260)
-            sequence_edit = QKeySequenceEdit(QKeySequence(str(binding["sequence"])))
-            sequence_edit.setFixedWidth(210)
-            enabled = QCheckBox()
-            enabled.setChecked(bool(binding["enabled"]))
-            save = QPushButton("Salvar")
-            save.setFixedWidth(76)
-            save.clicked.connect(
-                lambda checked=False, key=str(binding["key"]), editor=sequence_edit, checkbox=enabled: self._save_hotkey(
-                    key, editor, checkbox
-                )
-            )
-
-            grid.addWidget(module_label, row, 0)
-            grid.addWidget(action_label, row, 1)
-            grid.addWidget(sequence_edit, row, 2)
-            grid.addWidget(enabled, row, 3, alignment=Qt.AlignmentFlag.AlignCenter)
-            grid.addWidget(save, row, 4)
+        self._refresh_hotkeys_page()
 
         layout.addWidget(panel)
         layout.addStretch(1)
@@ -636,6 +695,77 @@ class HubWindow(QMainWindow):
         layout.addStretch(1)
         return page
 
+    def eventFilter(self, watched, event) -> bool:
+        if isinstance(watched, QKeySequenceEdit):
+            if event.type() == QEvent.Type.FocusIn:
+                self._begin_hotkey_capture(watched)
+            elif event.type() in (QEvent.Type.FocusOut, QEvent.Type.Hide):
+                self._finish_hotkey_capture(watched)
+        return super().eventFilter(watched, event)
+
+    def _begin_hotkey_capture(self, editor: QKeySequenceEdit) -> None:
+        if self._hotkey_capture_editor is not editor and self._hotkey_capture_editor is not None:
+            self._mark_hotkey_editor(self._hotkey_capture_editor, False)
+
+        self._hotkey_capture_editor = editor
+        self._mark_hotkey_editor(editor, True)
+        if not self._hotkeys_paused_for_capture:
+            self._pause_hotkey_services_for_capture()
+
+        message = "Gravando hotkey... atalhos globais pausados ate concluir."
+        self._set_hotkey_capture_message(message, True)
+        self.statusBar().showMessage(message)
+        QToolTip.showText(
+            editor.mapToGlobal(editor.rect().bottomLeft()),
+            "Gravando hotkey\nAtalhos globais pausados",
+            editor,
+            editor.rect(),
+            2400,
+        )
+
+    def _finish_hotkey_capture(self, editor: QKeySequenceEdit) -> None:
+        self._mark_hotkey_editor(editor, False)
+        if self._hotkey_capture_editor is editor:
+            self._hotkey_capture_editor = None
+        QTimer.singleShot(120, self._resume_hotkeys_after_capture_if_idle)
+
+    def _resume_hotkeys_after_capture_if_idle(self) -> None:
+        if isinstance(QApplication.focusWidget(), QKeySequenceEdit):
+            return
+
+        if self._hotkeys_paused_for_capture:
+            self._resume_hotkey_services_after_capture()
+        self._set_hotkey_capture_message("Pronto para gravar atalhos.", False)
+        self.statusBar().showMessage("Atalhos globais ativos.", 1800)
+
+    def _pause_hotkey_services_for_capture(self) -> None:
+        self.hotkeys.stop_global_hotkeys()
+        for overlay in self._live_counter_overlays():
+            overlay.pause_hotkey()
+        self._hotkeys_paused_for_capture = True
+
+    def _resume_hotkey_services_after_capture(self) -> None:
+        self.hotkeys.start_global_hotkeys()
+        for overlay in self._live_counter_overlays():
+            overlay.resume_hotkey()
+        self._hotkeys_paused_for_capture = False
+
+    def _mark_hotkey_editor(self, editor: QKeySequenceEdit, recording: bool) -> None:
+        editor.setProperty("recording", "true" if recording else "")
+        self._repolish(editor)
+
+    def _set_hotkey_capture_message(self, message: str, recording: bool) -> None:
+        for label in (self.hotkey_capture_label, self.marker_custom_hotkey_status_label):
+            if label is None:
+                continue
+            label.setText(message)
+            label.setProperty("recording", "true" if recording else "")
+            self._repolish(label)
+
+    def _repolish(self, widget: QWidget) -> None:
+        widget.style().unpolish(widget)
+        widget.style().polish(widget)
+
     def _info_block(self, title: str, body: str) -> QWidget:
         box = QFrame()
         box.setObjectName("ModuleCard")
@@ -659,6 +789,8 @@ class HubWindow(QMainWindow):
             self._refresh_marker_page()
         if page_id == "counter":
             self._refresh_counter_page()
+        if page_id == "hotkeys":
+            self._refresh_hotkeys_page()
         if page_id == "diagnostics":
             self._refresh_diagnostics_page()
         self.pages.setCurrentIndex(self.page_indexes[page_id])
@@ -666,6 +798,50 @@ class HubWindow(QMainWindow):
             button.setProperty("active", item == page_id)
             button.style().unpolish(button)
             button.style().polish(button)
+
+    def _refresh_hotkeys_page(self) -> None:
+        if self.hotkeys_grid is None:
+            return
+
+        while self.hotkeys_grid.count():
+            item = self.hotkeys_grid.takeAt(0)
+            widget = item.widget()
+            if widget is not None:
+                widget.deleteLater()
+
+        headers = ["Modulo", "Acao", "Atalho", "Ativo", ""]
+        for column, header in enumerate(headers):
+            label = QLabel(header)
+            label.setObjectName("SectionTitle")
+            self.hotkeys_grid.addWidget(label, 0, column)
+
+        self.hotkeys_grid.setColumnStretch(0, 0)
+        self.hotkeys_grid.setColumnStretch(1, 1)
+        self.hotkeys_grid.setColumnStretch(2, 0)
+        self.hotkeys_grid.setColumnStretch(3, 0)
+        self.hotkeys_grid.setColumnStretch(4, 0)
+
+        for row, binding in enumerate(self.hotkeys.all_bindings(), start=1):
+            module_label = QLabel(str(binding["module_id"]))
+            action_label = QLabel(str(binding["label"]))
+            action_label.setMinimumWidth(260)
+            sequence_edit = QKeySequenceEdit(QKeySequence(str(binding["sequence"])))
+            sequence_edit.setFixedWidth(210)
+            enabled = QCheckBox()
+            enabled.setChecked(bool(binding["enabled"]))
+            save = QPushButton("Salvar")
+            save.setFixedWidth(76)
+            save.clicked.connect(
+                lambda checked=False, key=str(binding["key"]), editor=sequence_edit, checkbox=enabled: self._save_hotkey(
+                    key, editor, checkbox
+                )
+            )
+
+            self.hotkeys_grid.addWidget(module_label, row, 0)
+            self.hotkeys_grid.addWidget(action_label, row, 1)
+            self.hotkeys_grid.addWidget(sequence_edit, row, 2)
+            self.hotkeys_grid.addWidget(enabled, row, 3, alignment=Qt.AlignmentFlag.AlignCenter)
+            self.hotkeys_grid.addWidget(save, row, 4)
 
     def _refresh_diagnostics_page(self) -> None:
         if self.diagnostic_summary_label is None or self.diagnostic_list is None:
@@ -720,8 +896,15 @@ class HubWindow(QMainWindow):
         conflict = self.hotkeys.set_binding(key, sequence, checkbox.isChecked())
         if conflict:
             QMessageBox.warning(self, "Conflito de atalho", f"Esse atalho ja esta em uso por: {conflict}")
+            editor.setFocus(Qt.FocusReason.ActiveWindowFocusReason)
+            self._begin_hotkey_capture(editor)
             return
-        self.hotkeys.start_global_hotkeys()
+        self._resume_hotkey_services_after_capture()
+        self._hotkey_capture_editor = None
+        self._mark_hotkey_editor(editor, False)
+        self._set_hotkey_capture_message("Atalho salvo. Atalhos globais ativos.", False)
+        self._refresh_marker_custom_hotkeys_list()
+        self._refresh_hotkeys_page()
         QMessageBox.information(self, "Atalho salvo", "Atalho atualizado com sucesso.")
 
     def _create_tray(self) -> None:
@@ -766,7 +949,28 @@ class HubWindow(QMainWindow):
         self.hotkeys.register_callback("marker.new_game", self._open_new_game_dialog)
         self.hotkeys.register_callback("counter.reset_all", self._reset_counter_overlays)
         self.hotkeys.register_callback("counter.close_overlays", self._close_counter_overlays)
+        self._register_marker_custom_hotkeys()
         self.hotkeys.start_global_hotkeys()
+
+    def _register_marker_custom_hotkeys(self) -> None:
+        current_keys = {item["key"] for item in self.marker_service.custom_hotkeys()}
+        for key in list(self._marker_custom_callback_keys - current_keys):
+            self.hotkeys.unregister_callback(key)
+            self._marker_custom_callback_keys.discard(key)
+
+        for key in current_keys:
+            self.hotkeys.register_callback(key, lambda item_key=key: self._save_marker_custom_hotkey(item_key))
+            self._marker_custom_callback_keys.add(key)
+
+    def _save_marker_custom_hotkey(self, key: str) -> None:
+        item = self.marker_service.custom_hotkey_for_key(key)
+        if item is None:
+            return
+
+        target = self.marker_service.save_marker(item["message"])
+        if self.marker_last_label is not None:
+            self.marker_last_label.setText(f"Ultima marcacao salva em: {target.name}")
+        self._refresh_marker_page()
 
     def _on_hotkey_status_changed(self, message: str) -> None:
         self._hotkey_status_messages.append(message)
@@ -827,6 +1031,8 @@ class HubWindow(QMainWindow):
                     self.marker_recent_list.addItem(item)
             else:
                 self.marker_recent_list.addItem("Nenhuma marcacao salva neste arquivo.")
+
+        self._refresh_marker_custom_hotkeys_list()
 
         if self.marker_files_list is None:
             return
@@ -902,6 +1108,88 @@ class HubWindow(QMainWindow):
         if not items:
             return
         self._set_marker_active_from_item(items[0])
+
+    def _refresh_marker_custom_hotkeys_list(self) -> None:
+        if self.marker_custom_hotkeys_list is None:
+            return
+
+        selected_key = None
+        selected = self.marker_custom_hotkeys_list.selectedItems()
+        if selected:
+            selected_key = selected[0].data(Qt.ItemDataRole.UserRole)
+
+        self.marker_custom_hotkeys_list.clear()
+        custom_keys = {item["key"] for item in self.marker_service.custom_hotkeys()}
+        bindings = [binding for binding in self.hotkeys.all_bindings() if binding["key"] in custom_keys]
+
+        if not bindings:
+            empty = QListWidgetItem("Nenhuma hotkey de mensagem criada.")
+            empty.setFlags(empty.flags() & ~Qt.ItemFlag.ItemIsSelectable)
+            self.marker_custom_hotkeys_list.addItem(empty)
+            return
+
+        for binding in bindings:
+            item = QListWidgetItem(
+                f"{binding['sequence']}  |  {str(binding['label']).removeprefix('Mensagem: ')}"
+            )
+            item.setData(Qt.ItemDataRole.UserRole, binding["key"])
+            self.marker_custom_hotkeys_list.addItem(item)
+            if binding["key"] == selected_key:
+                self.marker_custom_hotkeys_list.setCurrentItem(item)
+
+    def _add_marker_custom_hotkey(self) -> None:
+        if self.marker_custom_hotkey_message_input is None or self.marker_custom_hotkey_sequence_input is None:
+            return
+
+        message = self.marker_custom_hotkey_message_input.text().strip()
+        sequence = self.marker_custom_hotkey_sequence_input.keySequence().toString(QKeySequence.SequenceFormat.NativeText).strip()
+        if not message:
+            QMessageBox.warning(self, "Hotkey do marcador", "Digite a mensagem que sera salva no txt.")
+            self.marker_custom_hotkey_message_input.setFocus()
+            return
+        if not sequence:
+            QMessageBox.warning(self, "Hotkey do marcador", "Escolha uma hotkey para essa mensagem.")
+            self.marker_custom_hotkey_sequence_input.setFocus()
+            return
+
+        conflict = self.hotkeys.find_conflict("", sequence)
+        if conflict:
+            QMessageBox.warning(self, "Conflito de atalho", f"Esse atalho ja esta em uso por: {conflict}")
+            self.marker_custom_hotkey_sequence_input.setFocus(Qt.FocusReason.ActiveWindowFocusReason)
+            self._begin_hotkey_capture(self.marker_custom_hotkey_sequence_input)
+            return
+
+        item = self.marker_service.add_custom_hotkey(message, sequence)
+        self._register_marker_custom_hotkeys()
+        self._resume_hotkey_services_after_capture()
+        self._hotkey_capture_editor = None
+        self._mark_hotkey_editor(self.marker_custom_hotkey_sequence_input, False)
+        self._set_hotkey_capture_message("Hotkey criada. Atalhos globais ativos.", False)
+        self.marker_custom_hotkey_message_input.clear()
+        self.marker_custom_hotkey_sequence_input.setKeySequence(QKeySequence())
+        self._refresh_marker_custom_hotkeys_list()
+        self._refresh_hotkeys_page()
+        QMessageBox.information(self, "Hotkey do marcador", f"Hotkey criada: {sequence} -> {item['message']}")
+
+    def _remove_selected_marker_custom_hotkey(self) -> None:
+        if self.marker_custom_hotkeys_list is None:
+            return
+        selected = self.marker_custom_hotkeys_list.selectedItems()
+        if not selected:
+            QMessageBox.information(self, "Hotkey do marcador", "Selecione uma hotkey para remover.")
+            return
+
+        key = selected[0].data(Qt.ItemDataRole.UserRole)
+        if not key:
+            return
+
+        if self.marker_service.remove_custom_hotkey(str(key)):
+            self.hotkeys.unregister_callback(str(key))
+            self._marker_custom_callback_keys.discard(str(key))
+            self._register_marker_custom_hotkeys()
+            self.hotkeys.start_global_hotkeys()
+            self._refresh_marker_custom_hotkeys_list()
+            self._refresh_hotkeys_page()
 
     def _open_quick_marker(self) -> None:
         if self.quick_marker_dialog is not None and self.quick_marker_dialog.isVisible():
@@ -1035,9 +1323,11 @@ class HubWindow(QMainWindow):
             QMessageBox.warning(self, "Backup", f"Nao foi possivel restaurar o backup: {exc}")
             return
 
+        self._register_marker_custom_hotkeys()
         self.hotkeys.start_global_hotkeys()
         self._sync_settings_inputs()
         self._refresh_marker_page()
+        self._refresh_hotkeys_page()
         self._refresh_counter_page()
         QMessageBox.information(
             self,

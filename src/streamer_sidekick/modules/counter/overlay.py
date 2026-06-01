@@ -84,6 +84,8 @@ class CounterOverlay(QWidget):
         self._save_state()
 
     def _register_hotkey(self) -> None:
+        if self._hotkey_handle is not None:
+            return
         if keyboard is None:
             return
 
@@ -95,6 +97,12 @@ class CounterOverlay(QWidget):
             self._hotkey_handle = keyboard.add_hotkey(str(hotkey), self.increment_requested.emit, suppress=False)
         except Exception:
             self._hotkey_handle = None
+
+    def pause_hotkey(self) -> None:
+        self._remove_hotkey()
+
+    def resume_hotkey(self) -> None:
+        self._register_hotkey()
 
     def _handle_hotkey_increment(self) -> None:
         self.increment()

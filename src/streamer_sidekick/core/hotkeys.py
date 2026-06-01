@@ -60,6 +60,21 @@ class HotkeyManager(QObject):
                     "enabled": item.get("enabled", True),
                 }
             )
+        for custom in self._custom_marker_hotkeys():
+            key = custom["key"]
+            item = stored.get(key, {})
+            message = custom["message"]
+            rows.append(
+                {
+                    "key": key,
+                    "module_id": "marker",
+                    "label": f"Mensagem: {message}",
+                    "description": "Salva uma mensagem pre-setada no arquivo ativo do marcador.",
+                    "sequence": item.get("sequence", custom["sequence"]),
+                    "enabled": item.get("enabled", True),
+                    "custom": True,
+                }
+            )
         return rows
 
     def set_binding(self, key: str, sequence: str, enabled: bool = True) -> Optional[str]:
@@ -75,7 +90,7 @@ class HotkeyManager(QObject):
     def set_enabled(self, key: str, enabled: bool) -> None:
         hotkeys = self.config.data.setdefault("hotkeys", {})
         current = hotkeys.get(key, {})
-        sequence = current.get("sequence", self.definitions[key].default_sequence)
+        sequence = current.get("sequence", self._default_sequence_for_key(key))
         hotkeys[key] = {"sequence": sequence, "enabled": enabled}
         self.config.save()
         self.changed.emit()
@@ -93,6 +108,9 @@ class HotkeyManager(QObject):
 
     def register_callback(self, key: str, callback: Callable[[], None]) -> None:
         self._callbacks[key] = callback
+
+    def unregister_callback(self, key: str) -> None:
+        self._callbacks.pop(key, None)
 
     def start_global_hotkeys(self) -> None:
         if keyboard is None:
@@ -126,6 +144,31 @@ class HotkeyManager(QObject):
 
     def registered_sequences(self) -> list[str]:
         return list(self._registered)
+
+    def _default_sequence_for_key(self, key: str) -> str:
+        definition = self.definitions.get(key)
+        if definition is not None:
+            return definition.default_sequence
+        for custom in self._custom_marker_hotkeys():
+            if custom["key"] == key:
+                return custom["sequence"]
+        return ""
+
+    def _custom_marker_hotkeys(self) -> list[dict[str, str]]:
+        items = self.config.get("marker.custom_hotkeys", [])
+        if not isinstance(items, list):
+            return []
+
+        rows: list[dict[str, str]] = []
+        for item in items:
+            if not isinstance(item, dict):
+                continue
+            key = str(item.get("key") or "").strip()
+            message = str(item.get("message") or "").strip()
+            sequence = str(item.get("sequence") or "").strip()
+            if key and message and sequence:
+                rows.append({"key": key, "message": message, "sequence": sequence})
+        return rows
 
     def _wrap_callback(self, key: str) -> Callable[[], None]:
         def callback() -> None:

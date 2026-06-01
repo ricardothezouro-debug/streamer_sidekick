@@ -20,6 +20,38 @@ def apply_theme(app: QApplication) -> None:
             background: #101317;
         }
 
+        QScrollArea#PageScroll {
+            background: transparent;
+            border: 0;
+        }
+
+        QScrollArea#PageScroll > QWidget > QWidget {
+            background: transparent;
+        }
+
+        QScrollBar:vertical {
+            background: transparent;
+            width: 12px;
+            margin: 2px;
+        }
+
+        QScrollBar::handle:vertical {
+            background: #303946;
+            border-radius: 5px;
+            min-height: 36px;
+        }
+
+        QScrollBar::handle:vertical:hover {
+            background: #475467;
+        }
+
+        QScrollBar::add-line:vertical,
+        QScrollBar::sub-line:vertical {
+            height: 0;
+            border: 0;
+            background: transparent;
+        }
+
         QLabel#PageTitle {
             font-size: 28px;
             font-weight: 700;
@@ -149,6 +181,27 @@ def apply_theme(app: QApplication) -> None:
             border-radius: 8px;
             padding: 9px 10px;
             color: #f4f8fb;
+        }
+
+        QKeySequenceEdit[recording="true"] {
+            background: #12261f;
+            border: 1px solid #47d6a7;
+            color: #ffffff;
+        }
+
+        QLabel#CaptureStatus {
+            background: #151b22;
+            border: 1px solid #2b3440;
+            border-radius: 8px;
+            padding: 8px 10px;
+            color: #aab6c2;
+            font-weight: 600;
+        }
+
+        QLabel#CaptureStatus[recording="true"] {
+            background: #12261f;
+            border-color: #47d6a7;
+            color: #93e6c6;
         }
 
         QListWidget {
