@@ -2,8 +2,8 @@ import os
 from typing import Optional
 from pathlib import Path
 
-from PySide6.QtCore import QEvent, Qt, QTimer, Signal
-from PySide6.QtGui import QAction, QCloseEvent, QColor, QIcon, QKeySequence
+from PySide6.QtCore import QEvent, QSize, Qt, QTimer, QUrl, Signal
+from PySide6.QtGui import QAction, QCloseEvent, QColor, QDesktopServices, QIcon, QKeySequence, QPixmap
 from PySide6.QtWidgets import (
     QAbstractItemView,
     QCheckBox,
@@ -41,12 +41,15 @@ from streamer_sidekick.modules.counter.overlay import CounterOverlay
 from streamer_sidekick.modules.counter.service import CounterService
 from streamer_sidekick.modules.marker.service import MarkerService
 from streamer_sidekick.ui.counter_editor import CounterPresetDialog
-from streamer_sidekick.ui.components import ModuleCard
+from streamer_sidekick.ui.components import BrandLogo, ModuleCard, NeonPanel, SectionHeader, neon_qicon
 
 try:
     import pyautogui
 except ImportError:
     pyautogui = None
+
+
+APP_ICON_PATH = Path(__file__).resolve().parents[1] / "assets" / "brand" / "app_icon.ico"
 
 
 class HubWindow(QMainWindow):
@@ -67,6 +70,8 @@ class HubWindow(QMainWindow):
         self.backup_service = BackupService(config, marker_service, counter_service)
         self.diagnostic_service = DiagnosticService(config, hotkeys, marker_service, counter_service)
         self.nav_buttons: dict[str, QPushButton] = {}
+        self.plugin_nav_buttons: dict[str, QPushButton] = {}
+        self.plugin_subnav: Optional[QWidget] = None
         self.marker_active_label: Optional[QLabel] = None
         self.marker_folder_label: Optional[QLabel] = None
         self.marker_last_label: Optional[QLabel] = None
@@ -100,9 +105,14 @@ class HubWindow(QMainWindow):
         self._hotkey_capture_editor: Optional[QKeySequenceEdit] = None
         self._hotkeys_paused_for_capture = False
         self._marker_custom_callback_keys: set[str] = set()
+        self.home_modules_layout: Optional[QGridLayout] = None
+        self.home_module_cards: list[ModuleCard] = []
+        self._home_module_columns = 0
         self._quitting = False
 
         self.setWindowTitle("Streamer Sidekick")
+        if APP_ICON_PATH.exists():
+            self.setWindowIcon(QIcon(str(APP_ICON_PATH)))
         self.resize(1160, 720)
         self.setMinimumSize(980, 620)
 
@@ -132,51 +142,82 @@ class HubWindow(QMainWindow):
     def _build_sidebar(self) -> QWidget:
         sidebar = QFrame()
         sidebar.setObjectName("Sidebar")
-        sidebar.setFixedWidth(236)
+        sidebar.setFixedWidth(232)
 
         layout = QVBoxLayout(sidebar)
-        layout.setContentsMargins(18, 22, 18, 22)
-        layout.setSpacing(8)
+        layout.setContentsMargins(12, 18, 12, 20)
+        layout.setSpacing(9)
 
-        brand = QLabel("Streamer\nSidekick")
-        brand.setObjectName("PageTitle")
-        layout.addWidget(brand)
-        layout.addSpacing(18)
+        layout.addWidget(BrandLogo(compact=True))
+        layout.addSpacing(22)
 
-        for page_id, label in [
-            ("home", "Inicio"),
-            ("marker", "Marcador"),
-            ("counter", "Contador"),
-            ("hotkeys", "Atalhos"),
-            ("diagnostics", "Diagnostico"),
-            ("settings", "Configuracoes"),
+        for page_id, label, icon_id in [
+            ("home", "Início", "home"),
+            ("plugins", "Plugins", "plugins"),
+            ("hotkeys", "Atalhos", "hotkey"),
+            ("diagnostics", "Diagnóstico", "diagnostics"),
+            ("settings", "Configurações", "settings"),
+            ("about", "Sobre", "about"),
         ]:
             button = QPushButton(label)
             button.setObjectName("NavButton")
+            button.setIcon(neon_qicon(icon_id, 22))
+            button.setIconSize(QSize(22, 22))
             button.setCursor(Qt.PointingHandCursor)
-            button.clicked.connect(lambda checked=False, item=page_id: self._select_page(item))
+            if page_id == "plugins":
+                button.clicked.connect(self._toggle_plugins_menu)
+            else:
+                button.clicked.connect(lambda checked=False, item=page_id: self._select_page(item))
             self.nav_buttons[page_id] = button
             layout.addWidget(button)
+            if page_id == "plugins":
+                self.plugin_subnav = self._build_plugin_subnav()
+                layout.addWidget(self.plugin_subnav)
 
         layout.addStretch(1)
 
-        footer = QLabel("Base modular v0.2")
+        footer = QLabel("Online\nBase modular v0.3")
         footer.setObjectName("Muted")
         layout.addWidget(footer)
         return sidebar
 
+    def _build_plugin_subnav(self) -> QWidget:
+        container = QWidget()
+        container.setObjectName("PluginSubnav")
+        container.setVisible(False)
+        layout = QVBoxLayout(container)
+        layout.setContentsMargins(18, 2, 0, 4)
+        layout.setSpacing(6)
+
+        for page_id, label, icon_id in [
+            ("marker", "Marcador", "marker"),
+            ("counter", "Contador", "counter"),
+        ]:
+            button = QPushButton(label)
+            button.setObjectName("SubNavButton")
+            button.setIcon(neon_qicon(icon_id, 18))
+            button.setIconSize(QSize(18, 18))
+            button.setCursor(Qt.PointingHandCursor)
+            button.clicked.connect(lambda checked=False, item=page_id: self._select_page(item))
+            self.plugin_nav_buttons[page_id] = button
+            layout.addWidget(button)
+        return container
+
     def _build_content(self) -> QWidget:
         content = QWidget()
+        content.setObjectName("ContentSurface")
         layout = QVBoxLayout(content)
-        layout.setContentsMargins(30, 26, 30, 26)
+        layout.setContentsMargins(28, 24, 22, 24)
         layout.addWidget(self.pages)
 
         self._add_page("home", self._home_page())
+        self.page_indexes["plugins"] = self.page_indexes["home"]
         self._add_page("marker", self._marker_page())
         self._add_page("counter", self._counter_page())
         self._add_page("hotkeys", self._hotkeys_page())
         self._add_page("diagnostics", self._diagnostics_page())
         self._add_page("settings", self._settings_page())
+        self._add_page("about", self._about_page())
         return content
 
     def _add_page(self, page_id: str, widget: QWidget) -> None:
@@ -187,6 +228,7 @@ class HubWindow(QMainWindow):
         scroll.setObjectName("PageScroll")
         scroll.setWidgetResizable(True)
         scroll.setFrameShape(QFrame.Shape.NoFrame)
+        scroll.setViewportMargins(0, 0, 18, 0)
         scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
         scroll.setWidget(content)
         return scroll
@@ -194,35 +236,56 @@ class HubWindow(QMainWindow):
     def _home_page(self) -> QWidget:
         page = QWidget()
         layout = QVBoxLayout(page)
-        layout.setSpacing(20)
+        layout.setContentsMargins(0, 0, 22, 0)
+        layout.setSpacing(22)
 
-        title = QLabel("Hub de auxilios para streamer")
-        title.setObjectName("PageTitle")
-        subtitle = QLabel("Um lugar para abrir, configurar e expandir suas ferramentas de live.")
-        subtitle.setObjectName("Muted")
+        hero = NeonPanel(accent="#37F2FF", grid=False)
+        hero.setMinimumHeight(230)
+        hero_layout = QGridLayout(hero)
+        hero_layout.setContentsMargins(28, 24, 28, 24)
+        hero_layout.setHorizontalSpacing(24)
+        hero_layout.setVerticalSpacing(12)
 
-        layout.addWidget(title)
-        layout.addWidget(subtitle)
+        hero_logo = BrandLogo()
+        hero_title = QLabel("Hub de ferramentas para streamers")
+        hero_title.setObjectName("PageTitle")
+        hero_title.setWordWrap(True)
+        hero_subtitle = QLabel("Acesso rápido para marcador, contador e hotkeys de live.")
+        hero_subtitle.setObjectName("Muted")
+        hero_subtitle.setWordWrap(True)
+        hero_status = QLabel("Hotkeys unificadas  |  Estrutura modular  |  OBS-friendly")
+        hero_status.setObjectName("StatusPill")
+        hero_status.setWordWrap(True)
+        hero_status.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Minimum)
 
-        grid = QGridLayout()
-        grid.setHorizontalSpacing(18)
-        grid.setVerticalSpacing(18)
+        hero_layout.addWidget(hero_logo, 0, 0, Qt.AlignmentFlag.AlignLeft)
+        hero_layout.addWidget(hero_title, 1, 0)
+        hero_layout.addWidget(hero_subtitle, 2, 0)
+        hero_layout.addWidget(hero_status, 3, 0)
+        hero_layout.setColumnStretch(0, 1)
 
-        for index, module in enumerate(self.modules.all()):
+        layout.addWidget(hero)
+        layout.addWidget(SectionHeader("01", "Plugins"))
+
+        modules_layout = QGridLayout()
+        modules_layout.setHorizontalSpacing(18)
+        modules_layout.setVerticalSpacing(18)
+        self.home_modules_layout = modules_layout
+        self.home_module_cards = []
+        for module in self.modules.all():
             card = ModuleCard(module)
             card.opened.connect(self._select_page)
-            row = index // 2
-            column = index % 2
-            grid.addWidget(card, row, column)
+            self.home_module_cards.append(card)
+        self._reflow_home_modules(force=True)
 
-        layout.addLayout(grid)
+        layout.addLayout(modules_layout)
         layout.addStretch(1)
-        return page
+        return self._scrollable_page(page)
 
     def _marker_page(self) -> QWidget:
         page = QWidget()
         layout = QVBoxLayout(page)
-        layout.setContentsMargins(0, 0, 8, 0)
+        layout.setContentsMargins(0, 0, 22, 0)
         layout.setSpacing(18)
 
         title = QLabel("Marcador")
@@ -233,10 +296,12 @@ class HubWindow(QMainWindow):
         self.marker_active_label.setObjectName("SectionTitle")
         self.marker_folder_label = QLabel()
         self.marker_folder_label.setObjectName("Muted")
-        self.marker_last_label = QLabel("Ultima marcacao: nenhuma nesta sessao")
+        self.marker_last_label = QLabel("Última marcação: nenhuma nesta sessão")
         self.marker_last_label.setObjectName("Muted")
 
-        top_actions = QHBoxLayout()
+        top_actions = QGridLayout()
+        top_actions.setHorizontalSpacing(12)
+        top_actions.setVerticalSpacing(10)
         choose_folder = QPushButton("Trocar pasta")
         choose_folder.clicked.connect(self._choose_marker_folder)
         open_folder = QPushButton("Abrir pasta")
@@ -248,31 +313,22 @@ class HubWindow(QMainWindow):
         quick_marker = QPushButton("Marcar agora")
         quick_marker.setObjectName("PrimaryButton")
         quick_marker.clicked.connect(self._open_quick_marker)
-        top_actions.addWidget(choose_folder)
-        top_actions.addWidget(open_folder)
-        top_actions.addWidget(open_active_file)
-        top_actions.addWidget(new_game)
-        top_actions.addWidget(quick_marker)
-        top_actions.addStretch(1)
+        for index, button in enumerate([choose_folder, open_folder, open_active_file, new_game, quick_marker]):
+            top_actions.addWidget(button, index // 2, index % 2)
+        for column in range(2):
+            top_actions.setColumnStretch(column, 1)
 
         event_box = self._marker_event_box()
         recent_box = self._marker_recent_box()
         custom_hotkeys_box = self._marker_custom_hotkeys_box()
         files_box = self._marker_files_box()
 
-        marker_grid = QGridLayout()
-        marker_grid.setHorizontalSpacing(18)
-        marker_grid.setVerticalSpacing(18)
-        marker_grid.addWidget(event_box, 0, 0)
-        marker_grid.addWidget(recent_box, 0, 1)
-        marker_grid.setColumnStretch(0, 1)
-        marker_grid.setColumnStretch(1, 1)
-
         layout.addWidget(self.marker_active_label)
         layout.addWidget(self.marker_folder_label)
         layout.addWidget(self.marker_last_label)
         layout.addLayout(top_actions)
-        layout.addLayout(marker_grid)
+        layout.addWidget(event_box)
+        layout.addWidget(recent_box)
         layout.addWidget(custom_hotkeys_box)
         layout.addWidget(files_box)
         layout.addStretch(1)
@@ -280,27 +336,29 @@ class HubWindow(QMainWindow):
         return self._scrollable_page(page)
 
     def _marker_event_box(self) -> QWidget:
-        box = QFrame()
-        box.setObjectName("ModuleCard")
-        box.setMinimumHeight(220)
+        box = NeonPanel(accent="#37F2FF")
+        box.setMinimumHeight(250)
         box.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Minimum)
         layout = QVBoxLayout(box)
-        layout.setContentsMargins(18, 16, 18, 16)
-        layout.setSpacing(12)
+        layout.setContentsMargins(18, 18, 18, 18)
+        layout.setSpacing(14)
 
-        title = QLabel("Registro rapido")
+        title = QLabel("Registro rápido")
         title.setObjectName("SectionTitle")
         self.marker_event_input = QLineEdit()
         self.marker_event_input.setPlaceholderText("Descreva o evento da live")
         self.marker_event_input.returnPressed.connect(self._save_marker_from_page)
 
-        save = QPushButton("Salvar marcacao")
+        save = QPushButton("Salvar marcação")
         save.setObjectName("PrimaryButton")
+        save.setMinimumHeight(42)
+        save.setMinimumWidth(150)
         save.clicked.connect(self._save_marker_from_page)
 
-        row = QHBoxLayout()
-        row.addWidget(self.marker_event_input, 1)
-        row.addWidget(save)
+        row = QVBoxLayout()
+        row.setSpacing(12)
+        row.addWidget(self.marker_event_input)
+        row.addWidget(save, 0, Qt.AlignmentFlag.AlignLeft)
 
         new_game_title = QLabel("Novo jogo ou arquivo")
         new_game_title.setObjectName("SectionTitle")
@@ -316,49 +374,48 @@ class HubWindow(QMainWindow):
 
         layout.addWidget(title)
         layout.addLayout(row)
+        layout.addSpacing(10)
         layout.addWidget(new_game_title)
         layout.addLayout(game_row)
         return box
 
     def _marker_custom_hotkeys_box(self) -> QWidget:
-        box = QFrame()
-        box.setObjectName("ModuleCard")
-        box.setMinimumHeight(315)
+        box = NeonPanel(accent="#FF4FD8")
+        box.setMinimumHeight(360)
         box.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Minimum)
         layout = QVBoxLayout(box)
-        layout.setContentsMargins(18, 16, 18, 16)
-        layout.setSpacing(12)
+        layout.setContentsMargins(24, 20, 24, 20)
+        layout.setSpacing(16)
 
         title = QLabel("Hotkeys de mensagem")
         title.setObjectName("SectionTitle")
 
         form = QVBoxLayout()
-        form.setSpacing(10)
+        form.setSpacing(14)
         self.marker_custom_hotkey_message_input = QLineEdit()
         self.marker_custom_hotkey_message_input.setPlaceholderText("Mensagem salva no txt")
-        self.marker_custom_hotkey_message_input.setMinimumHeight(40)
+        self.marker_custom_hotkey_message_input.setMinimumHeight(42)
         self.marker_custom_hotkey_sequence_input = QKeySequenceEdit()
         self.marker_custom_hotkey_sequence_input.setMinimumWidth(230)
-        self.marker_custom_hotkey_sequence_input.setMinimumHeight(40)
+        self.marker_custom_hotkey_sequence_input.setMinimumHeight(42)
         self.marker_custom_hotkey_status_label = QLabel("Pronto para gravar uma nova hotkey de mensagem.")
         self.marker_custom_hotkey_status_label.setObjectName("CaptureStatus")
         self.marker_custom_hotkey_status_label.setMinimumHeight(38)
         add = QPushButton("Adicionar")
         add.setObjectName("PrimaryButton")
-        add.setMinimumWidth(116)
-        add.setMinimumHeight(40)
+        add.setMinimumWidth(130)
+        add.setMinimumHeight(42)
         add.clicked.connect(self._add_marker_custom_hotkey)
         shortcut_row = QHBoxLayout()
-        shortcut_row.addWidget(self.marker_custom_hotkey_sequence_input, 0)
+        shortcut_row.setSpacing(12)
+        shortcut_row.addWidget(self.marker_custom_hotkey_sequence_input, 1)
         shortcut_row.addWidget(add, 0)
-        shortcut_row.addStretch(1)
         form.addWidget(self.marker_custom_hotkey_message_input)
         form.addLayout(shortcut_row)
 
         self.marker_custom_hotkeys_list = QListWidget()
         self.marker_custom_hotkeys_list.setSelectionMode(QAbstractItemView.SelectionMode.SingleSelection)
-        self.marker_custom_hotkeys_list.setMinimumHeight(105)
-        self.marker_custom_hotkeys_list.setMaximumHeight(130)
+        self.marker_custom_hotkeys_list.setMinimumHeight(125)
 
         actions = QHBoxLayout()
         remove = QPushButton("Remover selecionada")
@@ -375,16 +432,15 @@ class HubWindow(QMainWindow):
         return box
 
     def _marker_recent_box(self) -> QWidget:
-        box = QFrame()
-        box.setObjectName("ModuleCard")
-        box.setMinimumHeight(220)
+        box = NeonPanel(accent="#37F2FF", grid=False)
+        box.setMinimumHeight(235)
         box.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Minimum)
         layout = QVBoxLayout(box)
         layout.setContentsMargins(18, 16, 18, 16)
         layout.setSpacing(12)
 
         header = QHBoxLayout()
-        title = QLabel("Marcacoes recentes")
+        title = QLabel("Marcações recentes")
         title.setObjectName("SectionTitle")
         refresh = QPushButton("Atualizar")
         refresh.clicked.connect(self._refresh_marker_page)
@@ -394,22 +450,22 @@ class HubWindow(QMainWindow):
 
         self.marker_recent_list = QListWidget()
         self.marker_recent_list.setSelectionMode(QAbstractItemView.SelectionMode.NoSelection)
-        self.marker_recent_list.setMinimumHeight(190)
+        self.marker_recent_list.setMinimumHeight(120)
+        self.marker_recent_list.setMaximumHeight(150)
 
         layout.addLayout(header)
         layout.addWidget(self.marker_recent_list, 1)
         return box
 
     def _marker_files_box(self) -> QWidget:
-        box = QFrame()
-        box.setObjectName("ModuleCard")
+        box = NeonPanel(accent="#B9FF43")
         box.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Minimum)
         layout = QVBoxLayout(box)
         layout.setContentsMargins(18, 16, 18, 16)
         layout.setSpacing(12)
 
         header = QHBoxLayout()
-        title = QLabel("Arquivos de marcacao")
+        title = QLabel("Arquivos de marcação")
         title.setObjectName("SectionTitle")
         refresh = QPushButton("Atualizar")
         refresh.clicked.connect(self._refresh_marker_page)
@@ -424,7 +480,7 @@ class HubWindow(QMainWindow):
 
         use_selected = QPushButton("Usar selecionado")
         use_selected.clicked.connect(self._set_marker_active_from_selection)
-        hint = QLabel("Clique duas vezes em um arquivo, ou selecione e use o botao.")
+        hint = QLabel("Clique duas vezes em um arquivo, ou selecione e use o botão.")
         hint.setObjectName("Muted")
 
         layout.addLayout(header)
@@ -436,6 +492,7 @@ class HubWindow(QMainWindow):
     def _counter_page(self) -> QWidget:
         page = QWidget()
         layout = QVBoxLayout(page)
+        layout.setContentsMargins(0, 0, 22, 0)
         layout.setSpacing(18)
 
         title = QLabel("Contador")
@@ -449,7 +506,11 @@ class HubWindow(QMainWindow):
         self.counter_status_label = QLabel("Overlays abertos: 0")
         self.counter_status_label.setObjectName("Muted")
 
-        actions = QHBoxLayout()
+        actions_panel = NeonPanel(accent="#FF4FD8")
+        actions = QGridLayout(actions_panel)
+        actions.setContentsMargins(18, 16, 18, 16)
+        actions.setHorizontalSpacing(10)
+        actions.setVerticalSpacing(10)
         create_preset = QPushButton("Criar preset")
         create_preset.clicked.connect(self._create_counter_preset)
         edit_preset = QPushButton("Editar")
@@ -467,18 +528,12 @@ class HubWindow(QMainWindow):
         reset.clicked.connect(self._reset_counter_overlays)
         close = QPushButton("Fechar overlays")
         close.clicked.connect(self._close_counter_overlays)
-        actions.addWidget(create_preset)
-        actions.addWidget(edit_preset)
-        actions.addWidget(duplicate_preset)
-        actions.addWidget(delete_preset)
-        actions.addWidget(choose_folder)
-        actions.addWidget(open_preset)
-        actions.addWidget(reset)
-        actions.addWidget(close)
-        actions.addStretch(1)
+        for index, button in enumerate([create_preset, edit_preset, duplicate_preset, delete_preset, choose_folder, open_preset, reset, close]):
+            actions.addWidget(button, index // 2, index % 2)
+        for column in range(2):
+            actions.setColumnStretch(column, 1)
 
-        active_box = QFrame()
-        active_box.setObjectName("ModuleCard")
+        active_box = NeonPanel(accent="#37F2FF", grid=False)
         active_layout = QVBoxLayout(active_box)
         active_layout.setContentsMargins(18, 16, 18, 16)
         active_layout.setSpacing(12)
@@ -491,19 +546,21 @@ class HubWindow(QMainWindow):
         close_selected = QPushButton("Fechar selecionado")
         close_selected.clicked.connect(self._close_selected_counter_overlay)
         active_header.addWidget(active_title)
-        active_header.addStretch(1)
-        active_header.addWidget(reset_selected)
-        active_header.addWidget(close_selected)
+        active_actions = QHBoxLayout()
+        active_actions.setSpacing(10)
+        active_actions.addWidget(reset_selected)
+        active_actions.addWidget(close_selected)
+        active_actions.addStretch(1)
         self.counter_active_list = QListWidget()
         self.counter_active_list.setSelectionMode(QAbstractItemView.SelectionMode.SingleSelection)
         active_hint = QLabel("Selecione um contador ativo para resetar ou fechar apenas ele.")
         active_hint.setObjectName("Muted")
         active_layout.addLayout(active_header)
+        active_layout.addLayout(active_actions)
         active_layout.addWidget(self.counter_active_list)
         active_layout.addWidget(active_hint)
 
-        presets_box = QFrame()
-        presets_box.setObjectName("ModuleCard")
+        presets_box = NeonPanel(accent="#B9FF43")
         presets_layout = QVBoxLayout(presets_box)
         presets_layout.setContentsMargins(18, 16, 18, 16)
         presets_layout.setSpacing(12)
@@ -531,21 +588,22 @@ class HubWindow(QMainWindow):
         layout.addWidget(self.counter_count_label)
         layout.addWidget(self.counter_folder_label)
         layout.addWidget(self.counter_status_label)
-        layout.addLayout(actions)
+        layout.addWidget(actions_panel)
         layout.addWidget(active_box)
-        layout.addWidget(presets_box, 1)
+        layout.addWidget(presets_box)
         layout.addStretch(1)
         self._refresh_counter_page()
-        return page
+        return self._scrollable_page(page)
 
     def _hotkeys_page(self) -> QWidget:
         page = QWidget()
         layout = QVBoxLayout(page)
+        layout.setContentsMargins(0, 0, 22, 0)
         layout.setSpacing(18)
 
         title = QLabel("Atalhos globais")
         title.setObjectName("PageTitle")
-        subtitle = QLabel("Os conflitos sao bloqueados antes de salvar. O novo padrao evita o antigo choque do Ctrl+Alt+N.")
+        subtitle = QLabel("Os conflitos são bloqueados antes de salvar. O novo padrão evita o antigo choque do Ctrl+Alt+N.")
         subtitle.setObjectName("Muted")
         self.hotkey_capture_label = QLabel("Pronto para gravar atalhos.")
         self.hotkey_capture_label.setObjectName("CaptureStatus")
@@ -553,26 +611,26 @@ class HubWindow(QMainWindow):
         layout.addWidget(subtitle)
         layout.addWidget(self.hotkey_capture_label)
 
-        panel = QFrame()
-        panel.setObjectName("ModuleCard")
+        panel = NeonPanel(accent="#37F2FF", grid=False)
         grid = QGridLayout(panel)
-        grid.setContentsMargins(18, 16, 18, 16)
+        grid.setContentsMargins(18, 18, 18, 18)
         grid.setHorizontalSpacing(16)
-        grid.setVerticalSpacing(10)
+        grid.setVerticalSpacing(12)
         self.hotkeys_grid = grid
 
         self._refresh_hotkeys_page()
 
         layout.addWidget(panel)
         layout.addStretch(1)
-        return page
+        return self._scrollable_page(page)
 
     def _diagnostics_page(self) -> QWidget:
         page = QWidget()
         layout = QVBoxLayout(page)
+        layout.setContentsMargins(0, 0, 22, 0)
         layout.setSpacing(18)
 
-        title = QLabel("Diagnostico")
+        title = QLabel("Diagnóstico")
         title.setObjectName("PageTitle")
         self.diagnostic_summary_label = QLabel()
         self.diagnostic_summary_label.setObjectName("Muted")
@@ -580,14 +638,13 @@ class HubWindow(QMainWindow):
         actions = QHBoxLayout()
         refresh = QPushButton("Atualizar")
         refresh.clicked.connect(self._refresh_diagnostics_page)
-        copy = QPushButton("Copiar relatorio")
+        copy = QPushButton("Copiar relatório")
         copy.clicked.connect(self._copy_diagnostics_report)
         actions.addWidget(refresh)
         actions.addWidget(copy)
         actions.addStretch(1)
 
-        panel = QFrame()
-        panel.setObjectName("ModuleCard")
+        panel = NeonPanel(accent="#B9FF43", grid=False)
         panel_layout = QVBoxLayout(panel)
         panel_layout.setContentsMargins(18, 16, 18, 16)
         panel_layout.setSpacing(12)
@@ -601,19 +658,19 @@ class HubWindow(QMainWindow):
         layout.addLayout(actions)
         layout.addWidget(panel, 1)
         self._refresh_diagnostics_page()
-        return page
+        return self._scrollable_page(page)
 
     def _settings_page(self) -> QWidget:
         page = QWidget()
         layout = QVBoxLayout(page)
+        layout.setContentsMargins(0, 0, 22, 0)
         layout.setSpacing(18)
 
-        title = QLabel("Configuracoes")
+        title = QLabel("Configurações")
         title.setObjectName("PageTitle")
         layout.addWidget(title)
 
-        behavior_box = QFrame()
-        behavior_box.setObjectName("ModuleCard")
+        behavior_box = NeonPanel(accent="#37F2FF")
         behavior_layout = QVBoxLayout(behavior_box)
         behavior_layout.setContentsMargins(18, 16, 18, 16)
         behavior_layout.setSpacing(12)
@@ -628,8 +685,7 @@ class HubWindow(QMainWindow):
         behavior_layout.addWidget(self.setting_start_minimized)
         behavior_layout.addWidget(self.setting_close_to_tray)
 
-        folders_box = QFrame()
-        folders_box.setObjectName("ModuleCard")
+        folders_box = NeonPanel(accent="#FF4FD8")
         folders_layout = QVBoxLayout(folders_box)
         folders_layout.setContentsMargins(18, 16, 18, 16)
         folders_layout.setSpacing(12)
@@ -661,8 +717,7 @@ class HubWindow(QMainWindow):
         folders_layout.addLayout(marker_row)
         folders_layout.addLayout(counter_row)
 
-        backup_box = QFrame()
-        backup_box.setObjectName("ModuleCard")
+        backup_box = NeonPanel(accent="#B9FF43")
         backup_layout = QVBoxLayout(backup_box)
         backup_layout.setContentsMargins(18, 16, 18, 16)
         backup_layout.setSpacing(12)
@@ -682,7 +737,7 @@ class HubWindow(QMainWindow):
 
         save_row = QHBoxLayout()
         save_row.addStretch(1)
-        save_button = QPushButton("Salvar configuracoes")
+        save_button = QPushButton("Salvar configurações")
         save_button.setObjectName("PrimaryButton")
         save_button.clicked.connect(self._save_settings)
         save_row.addWidget(save_button)
@@ -691,9 +746,93 @@ class HubWindow(QMainWindow):
         layout.addWidget(folders_box)
         layout.addWidget(backup_box)
         layout.addLayout(save_row)
-        layout.addWidget(self._info_block("Dados do app", f"Configuracao central: {self.config.path}"))
+        layout.addWidget(self._info_block("Dados do app", f"Configuração central: {self.config.path}"))
         layout.addStretch(1)
-        return page
+        return self._scrollable_page(page)
+
+    def _about_page(self) -> QWidget:
+        page = QWidget()
+        layout = QVBoxLayout(page)
+        layout.setContentsMargins(0, 0, 22, 0)
+        layout.setSpacing(18)
+
+        title = QLabel("Sobre")
+        title.setObjectName("PageTitle")
+        layout.addWidget(title)
+
+        app_panel = NeonPanel(accent="#37F2FF")
+        app_layout = QVBoxLayout(app_panel)
+        app_layout.setContentsMargins(22, 20, 22, 20)
+        app_layout.setSpacing(12)
+
+        app_title = QLabel("Streamer Sidekick")
+        app_title.setObjectName("SectionTitle")
+        app_text = QLabel(
+            "Um hub modular para reunir ferramentas rápidas de live e pós-produção. "
+            "Hoje ele centraliza o Marcador e o Contador, com hotkeys configuráveis, "
+            "integração com a bandeja do Windows e uma base preparada para receber novos plugins."
+        )
+        app_text.setObjectName("Muted")
+        app_text.setWordWrap(True)
+        app_layout.addWidget(app_title)
+        app_layout.addWidget(app_text)
+
+        profile_panel = NeonPanel(accent="#FF4FD8")
+        profile_layout = QGridLayout(profile_panel)
+        profile_layout.setContentsMargins(22, 20, 22, 20)
+        profile_layout.setHorizontalSpacing(24)
+        profile_layout.setVerticalSpacing(12)
+
+        avatar = QLabel()
+        avatar.setObjectName("AvatarImage")
+        avatar.setFixedSize(180, 180)
+        avatar.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        avatar_path = Path(__file__).resolve().parents[1] / "assets" / "brand" / "gamox_icon.png"
+        avatar_pixmap = QPixmap(str(avatar_path))
+        if not avatar_pixmap.isNull():
+            avatar.setPixmap(
+                avatar_pixmap.scaled(
+                    166,
+                    166,
+                    Qt.AspectRatioMode.KeepAspectRatio,
+                    Qt.TransformationMode.SmoothTransformation,
+                )
+            )
+
+        about_title = QLabel('Ricardo "Gamox"')
+        about_title.setObjectName("SectionTitle")
+        about_text = QLabel(
+            "Me chamo Ricardo, mas na internet sou conhecido como Gamox. "
+            "Sou desenvolvedor júnior, gosto de platinar jogos e compartilho vídeos no meu canal. "
+            "Se você curtir esse tipo de conteúdo ou quiser acompanhar meus projetos, se inscreva por lá."
+        )
+        about_text.setObjectName("Muted")
+        about_text.setWordWrap(True)
+
+        channel_button = QPushButton("Abrir canal no YouTube")
+        channel_button.setObjectName("PrimaryButton")
+        channel_button.setIcon(neon_qicon("about", 20))
+        channel_button.setIconSize(QSize(20, 20))
+        channel_button.clicked.connect(self._open_youtube_channel)
+
+        text_box = QVBoxLayout()
+        text_box.setSpacing(12)
+        text_box.addWidget(about_title)
+        text_box.addWidget(about_text)
+        text_box.addWidget(channel_button, 0, Qt.AlignmentFlag.AlignLeft)
+        text_box.addStretch(1)
+
+        profile_layout.addWidget(avatar, 0, 0, Qt.AlignmentFlag.AlignTop)
+        profile_layout.addLayout(text_box, 0, 1)
+        profile_layout.setColumnStretch(1, 1)
+
+        layout.addWidget(app_panel)
+        layout.addWidget(profile_panel)
+        layout.addStretch(1)
+        return self._scrollable_page(page)
+
+    def _open_youtube_channel(self) -> None:
+        QDesktopServices.openUrl(QUrl("https://www.youtube.com/@Gamoxkun"))
 
     def eventFilter(self, watched, event) -> bool:
         if isinstance(watched, QKeySequenceEdit):
@@ -767,8 +906,7 @@ class HubWindow(QMainWindow):
         widget.style().polish(widget)
 
     def _info_block(self, title: str, body: str) -> QWidget:
-        box = QFrame()
-        box.setObjectName("ModuleCard")
+        box = NeonPanel(accent="#37F2FF")
         layout = QVBoxLayout(box)
         layout.setContentsMargins(18, 16, 18, 16)
 
@@ -785,6 +923,8 @@ class HubWindow(QMainWindow):
     def _select_page(self, page_id: str) -> None:
         if page_id not in self.page_indexes:
             return
+        if page_id in {"plugins", "marker", "counter"}:
+            self._set_plugins_menu_visible(True)
         if page_id == "marker":
             self._refresh_marker_page()
         if page_id == "counter":
@@ -794,10 +934,27 @@ class HubWindow(QMainWindow):
         if page_id == "diagnostics":
             self._refresh_diagnostics_page()
         self.pages.setCurrentIndex(self.page_indexes[page_id])
+        active_page = "plugins" if page_id in {"marker", "counter"} else page_id
         for item, button in self.nav_buttons.items():
+            button.setProperty("active", item == active_page)
+            button.style().unpolish(button)
+            button.style().polish(button)
+        for item, button in self.plugin_nav_buttons.items():
             button.setProperty("active", item == page_id)
             button.style().unpolish(button)
             button.style().polish(button)
+
+    def _toggle_plugins_menu(self) -> None:
+        is_visible = self.plugin_subnav is not None and self.plugin_subnav.isVisible()
+        self._set_plugins_menu_visible(not is_visible)
+        if not is_visible:
+            self._select_page("plugins")
+        elif self.pages.currentIndex() == self.page_indexes.get("plugins"):
+            self._select_page("home")
+
+    def _set_plugins_menu_visible(self, visible: bool) -> None:
+        if self.plugin_subnav is not None:
+            self.plugin_subnav.setVisible(visible)
 
     def _refresh_hotkeys_page(self) -> None:
         if self.hotkeys_grid is None:
@@ -809,7 +966,7 @@ class HubWindow(QMainWindow):
             if widget is not None:
                 widget.deleteLater()
 
-        headers = ["Modulo", "Acao", "Atalho", "Ativo", ""]
+        headers = ["Módulo", "Ação", "Atalho", "Ativo", ""]
         for column, header in enumerate(headers):
             label = QLabel(header)
             label.setObjectName("SectionTitle")
@@ -883,10 +1040,10 @@ class HubWindow(QMainWindow):
         if not self._last_diagnostics:
             self._refresh_diagnostics_page()
         QApplication.clipboard().setText(self._diagnostics_report_text())
-        QMessageBox.information(self, "Diagnostico", "Relatorio copiado.")
+        QMessageBox.information(self, "Diagnóstico", "Relatório copiado.")
 
     def _diagnostics_report_text(self) -> str:
-        lines = ["Streamer Sidekick - Diagnostico"]
+        lines = ["Streamer Sidekick - Diagnóstico"]
         for item in self._last_diagnostics:
             lines.append(f"{item.status.upper()} | {item.title} | {item.detail}")
         return "\n".join(lines)
@@ -895,7 +1052,7 @@ class HubWindow(QMainWindow):
         sequence = editor.keySequence().toString(QKeySequence.SequenceFormat.NativeText)
         conflict = self.hotkeys.set_binding(key, sequence, checkbox.isChecked())
         if conflict:
-            QMessageBox.warning(self, "Conflito de atalho", f"Esse atalho ja esta em uso por: {conflict}")
+            QMessageBox.warning(self, "Conflito de atalho", f"Esse atalho já está em uso por: {conflict}")
             editor.setFocus(Qt.FocusReason.ActiveWindowFocusReason)
             self._begin_hotkey_capture(editor)
             return
@@ -908,7 +1065,8 @@ class HubWindow(QMainWindow):
         QMessageBox.information(self, "Atalho salvo", "Atalho atualizado com sucesso.")
 
     def _create_tray(self) -> None:
-        self.tray = QSystemTrayIcon(self.style().standardIcon(QStyle.StandardPixmap.SP_ComputerIcon), self)
+        tray_icon = QIcon(str(APP_ICON_PATH)) if APP_ICON_PATH.exists() else self.style().standardIcon(QStyle.StandardPixmap.SP_ComputerIcon)
+        self.tray = QSystemTrayIcon(tray_icon, self)
         self.tray.setToolTip("Streamer Sidekick")
 
         menu = QMenu()
@@ -969,7 +1127,7 @@ class HubWindow(QMainWindow):
 
         target = self.marker_service.save_marker(item["message"])
         if self.marker_last_label is not None:
-            self.marker_last_label.setText(f"Ultima marcacao salva em: {target.name}")
+            self.marker_last_label.setText(f"Última marcação salva em: {target.name}")
         self._refresh_marker_page()
 
     def _on_hotkey_status_changed(self, message: str) -> None:
@@ -1012,13 +1170,31 @@ class HubWindow(QMainWindow):
             event.ignore()
             QTimer.singleShot(0, self._quit_from_tray)
 
+    def resizeEvent(self, event) -> None:
+        super().resizeEvent(event)
+        self._reflow_home_modules()
+
+    def _reflow_home_modules(self, force: bool = False) -> None:
+        if self.home_modules_layout is None:
+            return
+        columns = 1 if self.width() < 1120 else 2
+        if not force and columns == self._home_module_columns:
+            return
+        while self.home_modules_layout.count():
+            self.home_modules_layout.takeAt(0)
+        for index, card in enumerate(self.home_module_cards):
+            self.home_modules_layout.addWidget(card, index // columns, index % columns)
+        for column in range(2):
+            self.home_modules_layout.setColumnStretch(column, 1 if column < columns else 0)
+        self._home_module_columns = columns
+
     def _refresh_marker_page(self) -> None:
         if self.marker_active_label is None or self.marker_folder_label is None:
             return
 
         active_name = self.marker_service.active_file().name
         marker_count = self.marker_service.marker_count()
-        self.marker_active_label.setText(f"Arquivo ativo: {active_name}  |  {marker_count} marcacoes")
+        self.marker_active_label.setText(f"Arquivo ativo: {active_name}  |  {marker_count} marcações")
         self.marker_folder_label.setText(f"Pasta atual: {self.marker_service.folder()}")
 
         if self.marker_recent_list is not None:
@@ -1030,7 +1206,7 @@ class HubWindow(QMainWindow):
                     item.setToolTip(line)
                     self.marker_recent_list.addItem(item)
             else:
-                self.marker_recent_list.addItem("Nenhuma marcacao salva neste arquivo.")
+                self.marker_recent_list.addItem("Nenhuma marcação salva neste arquivo.")
 
         self._refresh_marker_custom_hotkeys_list()
 
@@ -1039,20 +1215,25 @@ class HubWindow(QMainWindow):
         self.marker_files_list.clear()
         current = self.marker_service.active_file().name
         for path in self.marker_service.files():
-            label = f"> {path.name}" if path.name == current else path.name
+            label = f"{path.name}    | ativo" if path.name == current else path.name
             item = QListWidgetItem(label)
             item.setData(Qt.ItemDataRole.UserRole, path.name)
+            if path.name == current:
+                item.setForeground(QColor("#B9FF43"))
+                item.setToolTip("Arquivo ativo")
             self.marker_files_list.addItem(item)
+            if path.name == current:
+                self.marker_files_list.setCurrentItem(item)
 
     def _choose_marker_folder(self) -> None:
-        folder = QFileDialog.getExistingDirectory(self, "Escolher pasta de marcacoes", str(self.marker_service.folder()))
+        folder = QFileDialog.getExistingDirectory(self, "Escolher pasta de marcações", str(self.marker_service.folder()))
         if not folder:
             return
         self.config.set("marker.folder", folder)
         self._refresh_marker_page()
 
     def _open_marker_folder(self) -> None:
-        self._open_path(self.marker_service.folder(), "pasta de marcacoes")
+        self._open_path(self.marker_service.folder(), "pasta de marcações")
 
     def _open_active_marker_file(self) -> None:
         path = self.marker_service.active_file()
@@ -1060,7 +1241,7 @@ class HubWindow(QMainWindow):
             path.parent.mkdir(parents=True, exist_ok=True)
             path.touch(exist_ok=True)
         except OSError as exc:
-            QMessageBox.warning(self, "Marcador", f"Nao foi possivel preparar o arquivo ativo: {exc}")
+            QMessageBox.warning(self, "Marcador", f"Não foi possível preparar o arquivo ativo: {exc}")
             return
         self._open_path(path, "arquivo ativo")
 
@@ -1068,7 +1249,7 @@ class HubWindow(QMainWindow):
         try:
             os.startfile(str(path))
         except (AttributeError, OSError) as exc:
-            QMessageBox.warning(self, "Marcador", f"Nao foi possivel abrir {label}: {exc}")
+            QMessageBox.warning(self, "Marcador", f"Não foi possível abrir {label}: {exc}")
 
     def _save_marker_from_page(self) -> None:
         if self.marker_event_input is None:
@@ -1079,7 +1260,7 @@ class HubWindow(QMainWindow):
         target = self.marker_service.save_marker(text)
         self.marker_event_input.clear()
         if self.marker_last_label is not None:
-            self.marker_last_label.setText(f"Ultima marcacao salva em: {target.name}")
+            self.marker_last_label.setText(f"Última marcação salva em: {target.name}")
         self._refresh_marker_page()
 
     def _create_marker_game(self) -> None:
@@ -1217,7 +1398,7 @@ class HubWindow(QMainWindow):
 
     def _on_quick_marker_saved(self, file_name: str) -> None:
         if self.marker_last_label is not None:
-            self.marker_last_label.setText(f"Ultima marcacao salva em: {file_name}")
+            self.marker_last_label.setText(f"Última marcação salva em: {file_name}")
         self._refresh_marker_page()
 
     def _on_game_created(self, file_name: str) -> None:
@@ -1258,7 +1439,7 @@ class HubWindow(QMainWindow):
     def _choose_settings_marker_folder(self) -> None:
         if self.setting_marker_folder is None:
             return
-        folder = QFileDialog.getExistingDirectory(self, "Escolher pasta de marcacoes", self.setting_marker_folder.text())
+        folder = QFileDialog.getExistingDirectory(self, "Escolher pasta de marcações", self.setting_marker_folder.text())
         if folder:
             self.setting_marker_folder.setText(folder)
 
@@ -1287,13 +1468,13 @@ class HubWindow(QMainWindow):
         try:
             summary = self.backup_service.export_backup(path)
         except (BackupError, OSError, ValueError) as exc:
-            QMessageBox.warning(self, "Backup", f"Nao foi possivel exportar o backup: {exc}")
+            QMessageBox.warning(self, "Backup", f"Não foi possível exportar o backup: {exc}")
             return
 
         QMessageBox.information(
             self,
             "Backup",
-            f"Backup salvo em:\n{path}\n\nMarcacoes: {summary.marker_files}\nArquivos do contador: {summary.counter_files}",
+            f"Backup salvo em:\n{path}\n\nMarcações: {summary.marker_files}\nArquivos do contador: {summary.counter_files}",
         )
 
     def _restore_backup(self) -> None:
@@ -1309,7 +1490,7 @@ class HubWindow(QMainWindow):
         answer = QMessageBox.question(
             self,
             "Restaurar backup",
-            "Restaurar esse backup agora? Configuracoes e arquivos com o mesmo nome podem ser sobrescritos.",
+            "Restaurar esse backup agora? Configurações e arquivos com o mesmo nome podem ser sobrescritos.",
             QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
             QMessageBox.StandardButton.No,
         )
@@ -1320,7 +1501,7 @@ class HubWindow(QMainWindow):
         try:
             summary = self.backup_service.restore_backup(Path(source))
         except (BackupError, OSError, ValueError) as exc:
-            QMessageBox.warning(self, "Backup", f"Nao foi possivel restaurar o backup: {exc}")
+            QMessageBox.warning(self, "Backup", f"Não foi possível restaurar o backup: {exc}")
             return
 
         self._register_marker_custom_hotkeys()
@@ -1332,7 +1513,7 @@ class HubWindow(QMainWindow):
         QMessageBox.information(
             self,
             "Backup",
-            f"Backup restaurado.\n\nMarcacoes: {summary.marker_files}\nArquivos do contador: {summary.counter_files}",
+            f"Backup restaurado.\n\nMarcações: {summary.marker_files}\nArquivos do contador: {summary.counter_files}",
         )
 
     def _sync_settings_inputs(self) -> None:
@@ -1367,7 +1548,7 @@ class HubWindow(QMainWindow):
 
         self._refresh_marker_page()
         self._refresh_counter_page()
-        QMessageBox.information(self, "Configuracoes", "Configuracoes salvas.")
+        QMessageBox.information(self, "Configurações", "Configurações salvas.")
 
     def _open_selected_counter_preset(self) -> None:
         preset_path = self._selected_counter_preset_path()
@@ -1376,11 +1557,11 @@ class HubWindow(QMainWindow):
         try:
             configs = self.counter_service.load_preset(preset_path)
         except (OSError, ValueError) as exc:
-            QMessageBox.warning(self, "Preset invalido", f"Nao foi possivel abrir o preset: {exc}")
+            QMessageBox.warning(self, "Preset inválido", f"Não foi possível abrir o preset: {exc}")
             return
 
         if not configs:
-            QMessageBox.warning(self, "Preset vazio", "Esse arquivo nao tem contadores validos.")
+            QMessageBox.warning(self, "Preset vazio", "Esse arquivo não tem contadores válidos.")
             return
 
         if not self._can_open_counter_configs(configs):
@@ -1423,7 +1604,7 @@ class HubWindow(QMainWindow):
         try:
             configs = self.counter_service.load_preset(preset_path)
         except (OSError, ValueError) as exc:
-            QMessageBox.warning(self, "Preset invalido", f"Nao foi possivel editar o preset: {exc}")
+            QMessageBox.warning(self, "Preset inválido", f"Não foi possível editar o preset: {exc}")
             return
 
         dialog = CounterPresetDialog(
@@ -1454,7 +1635,7 @@ class HubWindow(QMainWindow):
         try:
             configs = self.counter_service.load_preset(preset_path)
         except (OSError, ValueError) as exc:
-            QMessageBox.warning(self, "Preset invalido", f"Nao foi possivel duplicar o preset: {exc}")
+            QMessageBox.warning(self, "Preset inválido", f"Não foi possível duplicar o preset: {exc}")
             return
 
         copy_name = self._counter_preset_copy_name(preset_path.stem)
@@ -1478,7 +1659,7 @@ class HubWindow(QMainWindow):
         try:
             return self.marker_service.create_file(name).name
         except OSError as exc:
-            QMessageBox.warning(self, "Marcador", f"Nao foi possivel criar o txt: {exc}")
+            QMessageBox.warning(self, "Marcador", f"Não foi possível criar o txt: {exc}")
             return ""
 
     def _can_open_counter_configs(self, configs: list[dict[str, object]]) -> bool:
@@ -1511,7 +1692,7 @@ class HubWindow(QMainWindow):
             try:
                 self.marker_service.create_file(marker_file)
             except OSError as exc:
-                QMessageBox.warning(self, "Marcador", f"Nao foi possivel preparar {marker_file}: {exc}")
+                QMessageBox.warning(self, "Marcador", f"Não foi possível preparar {marker_file}: {exc}")
                 return False
         return True
 
@@ -1684,7 +1865,7 @@ class HubWindow(QMainWindow):
 
     def _on_counter_marker_saved(self, file_name: str) -> None:
         if self.marker_last_label is not None:
-            self.marker_last_label.setText(f"Ultima marcacao salva em: {file_name}")
+            self.marker_last_label.setText(f"Última marcação salva em: {file_name}")
         self._refresh_marker_page()
 
     def _refresh_counter_active_list(self) -> None:

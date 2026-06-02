@@ -1,5 +1,5 @@
 #define MyAppName "Streamer Sidekick"
-#define MyAppVersion "0.2.0"
+#define MyAppVersion "0.3.0"
 #define MyAppPublisher "Ricardo The Zouro"
 #define MyAppExeName "StreamerSidekick.exe"
 
@@ -13,6 +13,7 @@ DefaultGroupName={#MyAppName}
 DisableProgramGroupPage=yes
 OutputDir=..\..\release
 OutputBaseFilename=StreamerSidekick-{#MyAppVersion}-Setup
+SetupIconFile=..\..\src\streamer_sidekick\assets\brand\app_icon.ico
 Compression=lzma
 SolidCompression=yes
 WizardStyle=modern

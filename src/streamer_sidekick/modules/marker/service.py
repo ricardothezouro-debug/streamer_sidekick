@@ -19,7 +19,7 @@ class MarkerService:
         return ModuleInfo(
             module_id="marker",
             title="Marcador",
-            subtitle="Registre eventos da live com horario e arquivo por jogo.",
+            subtitle="Registre eventos da live com horário e arquivo por jogo.",
             status=active_file,
             accent="#47d6a7",
         )

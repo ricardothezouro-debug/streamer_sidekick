@@ -5,13 +5,16 @@ from pathlib import Path
 
 ROOT = Path.cwd()
 SRC = ROOT / "src"
+APP_ICON = SRC / "streamer_sidekick" / "assets" / "brand" / "app_icon.ico"
 
 
 a = Analysis(
     [str(SRC / "streamer_sidekick" / "__main__.py")],
     pathex=[str(SRC)],
     binaries=[],
-    datas=[],
+    datas=[
+        (str(SRC / "streamer_sidekick" / "assets"), "streamer_sidekick/assets"),
+    ],
     hiddenimports=[
         "keyboard",
         "pyautogui",
@@ -41,6 +44,7 @@ exe = EXE(
     target_arch=None,
     codesign_identity=None,
     entitlements_file=None,
+    icon=str(APP_ICON),
 )
 
 coll = COLLECT(
