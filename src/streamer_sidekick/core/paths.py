@@ -1,16 +1,31 @@
 import os
+import sys
 from pathlib import Path
 
 
 APP_NAME = "StreamerSidekick"
 
 
+def _platform_candidates() -> list[Path]:
+    """Diretorios de dados preferenciais por sistema operacional."""
+    home = Path.home()
+    if sys.platform == "win32":
+        candidates: list[Path] = []
+        if os.getenv("APPDATA"):
+            candidates.append(Path(os.getenv("APPDATA", "")) / APP_NAME)
+        if os.getenv("LOCALAPPDATA"):
+            candidates.append(Path(os.getenv("LOCALAPPDATA", "")) / APP_NAME)
+        return candidates
+    if sys.platform == "darwin":
+        return [home / "Library" / "Application Support" / APP_NAME]
+    # Linux e outros: segue o XDG Base Directory.
+    xdg = os.getenv("XDG_CONFIG_HOME")
+    base = Path(xdg) if xdg else home / ".config"
+    return [base / APP_NAME]
+
+
 def app_data_dir() -> Path:
-    candidates: list[Path] = []
-    if os.getenv("APPDATA"):
-        candidates.append(Path(os.getenv("APPDATA", "")) / APP_NAME)
-    if os.getenv("LOCALAPPDATA"):
-        candidates.append(Path(os.getenv("LOCALAPPDATA", "")) / APP_NAME)
+    candidates: list[Path] = _platform_candidates()
     candidates.append(Path.cwd() / ".streamer_sidekick")
 
     for path in candidates:

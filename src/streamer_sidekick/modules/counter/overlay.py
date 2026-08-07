@@ -5,10 +5,7 @@ from typing import Any, Optional
 from PySide6.QtCore import Qt, Signal
 from PySide6.QtWidgets import QLabel, QVBoxLayout, QWidget
 
-try:
-    import keyboard
-except ImportError:
-    keyboard = None
+from streamer_sidekick.core import hotkey_backend
 
 
 class CounterOverlay(QWidget):
@@ -86,7 +83,7 @@ class CounterOverlay(QWidget):
     def _register_hotkey(self) -> None:
         if self._hotkey_handle is not None:
             return
-        if keyboard is None:
+        if not hotkey_backend.is_available():
             return
 
         hotkey = self.config.get("hotkey")
@@ -94,7 +91,7 @@ class CounterOverlay(QWidget):
             return
 
         try:
-            self._hotkey_handle = keyboard.add_hotkey(str(hotkey), self.increment_requested.emit, suppress=False)
+            self._hotkey_handle = hotkey_backend.register(str(hotkey), self.increment_requested.emit)
         except Exception:
             self._hotkey_handle = None
 
@@ -112,12 +109,9 @@ class CounterOverlay(QWidget):
             self.marker_saved.emit(target.name)
 
     def _remove_hotkey(self) -> None:
-        if keyboard is None or self._hotkey_handle is None:
+        if self._hotkey_handle is None:
             return
-        try:
-            keyboard.remove_hotkey(self._hotkey_handle)
-        except Exception:
-            pass
+        hotkey_backend.unregister(self._hotkey_handle)
         self._hotkey_handle = None
 
     def _update_text(self) -> None:

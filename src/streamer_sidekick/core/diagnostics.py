@@ -2,6 +2,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
+from streamer_sidekick.core import hotkey_backend
 from streamer_sidekick.core.config import ConfigStore
 from streamer_sidekick.core.hotkeys import HotkeyManager
 from streamer_sidekick.modules.counter.service import CounterService
@@ -97,7 +98,13 @@ class DiagnosticService:
     def _hotkey_items(self) -> list[DiagnosticItem]:
         items: list[DiagnosticItem] = []
         if not self.hotkeys.keyboard_available():
-            return [DiagnosticItem("error", "Hotkeys", "Pacote keyboard nao esta disponivel")]
+            return [
+                DiagnosticItem(
+                    "error",
+                    "Hotkeys",
+                    f"Backend de hotkeys ({hotkey_backend.backend_name()}) nao esta disponivel",
+                )
+            ]
 
         enabled = [binding for binding in self.hotkeys.all_bindings() if binding["enabled"] and binding["sequence"]]
         registered = self.hotkeys.registered_sequences()

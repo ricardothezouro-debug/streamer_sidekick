@@ -5,11 +5,7 @@ from typing import Callable, Optional
 from PySide6.QtCore import QObject, Signal
 
 from streamer_sidekick.core.config import ConfigStore
-
-try:
-    import keyboard
-except ImportError:
-    keyboard = None
+from streamer_sidekick.core import hotkey_backend
 
 
 @dataclass(frozen=True)
@@ -40,7 +36,7 @@ class HotkeyManager(QObject):
         self.config = config
         self.definitions = {item.key: item for item in DEFAULT_HOTKEYS}
         self._callbacks: dict[str, Callable[[], None]] = {}
-        self._registered: list[str] = []
+        self._registered: list[tuple[str, object]] = []
         self._last_fire: dict[str, float] = {}
         self._debounce_seconds = 0.6
         self.action_requested.connect(self._dispatch_requested)
@@ -113,8 +109,10 @@ class HotkeyManager(QObject):
         self._callbacks.pop(key, None)
 
     def start_global_hotkeys(self) -> None:
-        if keyboard is None:
-            self.status_changed.emit("Pacote keyboard nao encontrado.")
+        if not hotkey_backend.is_available():
+            self.status_changed.emit(
+                f"Backend de hotkeys ({hotkey_backend.backend_name()}) nao encontrado."
+            )
             return
 
         self.stop_global_hotkeys()
@@ -124,26 +122,21 @@ class HotkeyManager(QObject):
             if not binding["enabled"] or not sequence or key not in self._callbacks:
                 continue
             try:
-                keyboard.add_hotkey(sequence, self._wrap_callback(key), suppress=False)
-                self._registered.append(sequence)
+                handle = hotkey_backend.register(sequence, self._wrap_callback(key))
+                self._registered.append((sequence, handle))
             except Exception as exc:
                 self.status_changed.emit(f"Nao foi possivel registrar {sequence}: {exc}")
 
     def stop_global_hotkeys(self) -> None:
-        if keyboard is None:
-            return
-        for sequence in self._registered:
-            try:
-                keyboard.remove_hotkey(sequence)
-            except Exception:
-                pass
+        for _sequence, handle in self._registered:
+            hotkey_backend.unregister(handle)
         self._registered.clear()
 
     def keyboard_available(self) -> bool:
-        return keyboard is not None
+        return hotkey_backend.is_available()
 
     def registered_sequences(self) -> list[str]:
-        return list(self._registered)
+        return [sequence for sequence, _handle in self._registered]
 
     def _default_sequence_for_key(self, key: str) -> str:
         definition = self.definitions.get(key)

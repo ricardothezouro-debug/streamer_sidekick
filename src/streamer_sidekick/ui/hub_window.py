@@ -37,6 +37,7 @@ from streamer_sidekick.core.backup import BackupError, BackupService
 from streamer_sidekick.core.diagnostics import DiagnosticItem, DiagnosticService
 from streamer_sidekick.core.hotkeys import HotkeyManager
 from streamer_sidekick.core.modules import ModuleRegistry
+from streamer_sidekick.core.platform_utils import app_icon_path, open_path
 from streamer_sidekick.modules.counter.overlay import CounterOverlay
 from streamer_sidekick.modules.counter.service import CounterService
 from streamer_sidekick.modules.marker.service import MarkerService
@@ -49,7 +50,7 @@ except ImportError:
     pyautogui = None
 
 
-APP_ICON_PATH = Path(__file__).resolve().parents[1] / "assets" / "brand" / "app_icon.ico"
+APP_ICON_PATH = app_icon_path()
 
 
 class HubWindow(QMainWindow):
@@ -1247,7 +1248,7 @@ class HubWindow(QMainWindow):
 
     def _open_path(self, path: Path, label: str) -> None:
         try:
-            os.startfile(str(path))
+            open_path(path)
         except (AttributeError, OSError) as exc:
             QMessageBox.warning(self, "Marcador", f"Não foi possível abrir {label}: {exc}")
 

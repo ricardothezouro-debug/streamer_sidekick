@@ -1,10 +1,10 @@
 import sys
-from pathlib import Path
 
 from PySide6.QtGui import QIcon
 from PySide6.QtWidgets import QApplication
 
 from streamer_sidekick.core.config import ConfigStore
+from streamer_sidekick.core.platform_utils import app_icon_path
 from streamer_sidekick.core.hotkeys import HotkeyManager
 from streamer_sidekick.core.modules import ModuleRegistry
 from streamer_sidekick.modules.counter.service import CounterService
@@ -18,7 +18,7 @@ def run() -> int:
     app.setApplicationName("Streamer Sidekick")
     app.setOrganizationName("Streamer Sidekick")
     app.setStyle("Fusion")
-    icon_path = Path(__file__).resolve().parent / "assets" / "brand" / "app_icon.ico"
+    icon_path = app_icon_path()
     if icon_path.exists():
         app.setWindowIcon(QIcon(str(icon_path)))
     apply_theme(app)
