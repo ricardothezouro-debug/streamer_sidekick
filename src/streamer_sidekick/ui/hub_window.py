@@ -185,7 +185,7 @@ class HubWindow(QMainWindow):
 
         layout.addStretch(1)
 
-        footer = QLabel("Online\nBase modular v0.3")
+        footer = QLabel("Online\nBase modular v0.4")
         footer.setObjectName("Muted")
         layout.addWidget(footer)
         return sidebar
