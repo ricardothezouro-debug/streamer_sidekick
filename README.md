@@ -2,6 +2,17 @@
 
 Streamer Sidekick is a Python desktop hub for stream helper tools.
 
+## ⬇️ Baixar (Windows)
+
+**➡️ [Baixe a versão mais recente na página de Releases](https://github.com/ricardothezouro-debug/streamer_sidekick/releases/latest)**
+
+Baixe o arquivo `StreamerSidekick-*-portable.zip`, **extraia a pasta inteira** e
+execute o `StreamerSidekick.exe`. Não precisa instalar nada — e o app se atualiza
+sozinho quando sair uma versão nova.
+
+Todas as versões (incluindo as anteriores) ficam em
+**[Releases](https://github.com/ricardothezouro-debug/streamer_sidekick/releases)**.
+
 ## License
 
 Streamer Sidekick is licensed under the PolyForm Noncommercial License

@@ -928,6 +928,27 @@ class HubWindow(QMainWindow):
         update_row.addWidget(self.app_update_status_label, 1)
         app_layout.addLayout(update_row)
 
+        donate_panel = NeonPanel(accent="#B9FF43")
+        donate_layout = QVBoxLayout(donate_panel)
+        donate_layout.setContentsMargins(22, 20, 22, 20)
+        donate_layout.setSpacing(12)
+        donate_title = QLabel("Apoie o projeto")
+        donate_title.setObjectName("SectionTitle")
+        donate_text = QLabel(
+            "O Streamer Sidekick é gratuito e feito com carinho. Se ele te ajuda na sua "
+            "live, considere apoiar com o quanto você acha que ele vale — cada "
+            "contribuição ajuda a manter o projeto vivo e a trazer novos plugins."
+        )
+        donate_text.setObjectName("Muted")
+        donate_text.setWordWrap(True)
+        donate_button = QPushButton("❤  Doar")
+        donate_button.setObjectName("PrimaryButton")
+        donate_button.setCursor(Qt.CursorShape.PointingHandCursor)
+        donate_button.clicked.connect(self._open_livepix)
+        donate_layout.addWidget(donate_title)
+        donate_layout.addWidget(donate_text)
+        donate_layout.addWidget(donate_button, 0, Qt.AlignmentFlag.AlignLeft)
+
         profile_panel = NeonPanel(accent="#FF4FD8")
         profile_layout = QGridLayout(profile_panel)
         profile_layout.setContentsMargins(22, 20, 22, 20)
@@ -978,12 +999,16 @@ class HubWindow(QMainWindow):
         profile_layout.setColumnStretch(1, 1)
 
         layout.addWidget(app_panel)
+        layout.addWidget(donate_panel)
         layout.addWidget(profile_panel)
         layout.addStretch(1)
         return self._scrollable_page(page)
 
     def _open_youtube_channel(self) -> None:
         QDesktopServices.openUrl(QUrl("https://www.youtube.com/@Gamoxkun"))
+
+    def _open_livepix(self) -> None:
+        QDesktopServices.openUrl(QUrl("https://livepix.gg/gamoxkun"))
 
     def eventFilter(self, watched, event) -> bool:
         if isinstance(watched, QKeySequenceEdit):

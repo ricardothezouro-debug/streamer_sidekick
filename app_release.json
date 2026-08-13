@@ -1,5 +1,5 @@
 {
-  "version": "0.4.0",
-  "zip_url": "https://github.com/ricardothezouro-debug/streamer_sidekick/releases/download/v0.4.0/StreamerSidekick-0.4.0-portable.zip",
-  "notes": "Suporte a macOS, sistema de plugins com marketplace (card +), ícone próprio dos plugins, changelog e auto-atualização do app."
+  "version": "0.4.1",
+  "zip_url": "https://github.com/ricardothezouro-debug/streamer_sidekick/releases/download/v0.4.1/StreamerSidekick-0.4.1-portable.zip",
+  "notes": "Agora você pode apoiar o projeto: a tela Sobre tem um botão Doar. Link de download destacado no README."
 }
