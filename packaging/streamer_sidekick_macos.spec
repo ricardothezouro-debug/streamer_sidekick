@@ -72,8 +72,8 @@ app = BUNDLE(
     info_plist={
         "CFBundleName": "Streamer Sidekick",
         "CFBundleDisplayName": "Streamer Sidekick",
-        "CFBundleShortVersionString": "0.3.0",
-        "CFBundleVersion": "0.3.0",
+        "CFBundleShortVersionString": "0.4.0",
+        "CFBundleVersion": "0.4.0",
         "NSHighResolutionCapable": True,
         # Texto exibido pelo macOS ao pedir permissao de Acessibilidade,
         # necessaria para os atalhos globais (pynput) e o clique (pyautogui).

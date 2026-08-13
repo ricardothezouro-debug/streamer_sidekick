@@ -351,7 +351,7 @@ class ModuleTile(NeonPanel):
         root.setSpacing(14)
 
         header = QHBoxLayout()
-        icon = NeonIcon(module.module_id, accent=accent, size=96)
+        icon = _make_module_icon(module, accent, size=96)
         title_box = QVBoxLayout()
         title = QLabel(module.title)
         title.setObjectName("CardTitle")
@@ -462,6 +462,38 @@ def neon_qicon(icon_id: str, size: int = 22) -> QIcon:
     pixmap.fill(Qt.GlobalColor.transparent)
     icon.render(pixmap)
     return QIcon(pixmap)
+
+
+def _load_pixmap(path: str, size: int) -> Optional[QPixmap]:
+    if not path or not Path(path).exists():
+        return None
+    pixmap = QPixmap(path)
+    if pixmap.isNull():
+        return None
+    return pixmap.scaled(
+        size, size, Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation
+    )
+
+
+def _make_module_icon(module: ModuleInfo, accent: str, size: int = 96) -> QWidget:
+    """Icone do card: usa o PNG do plugin (module.icon) quando existir; senao o
+    icone vetorial padrao por module_id."""
+    pixmap = _load_pixmap(getattr(module, "icon", "") or "", size)
+    if pixmap is not None:
+        label = QLabel()
+        label.setFixedSize(size, size)
+        label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        label.setPixmap(pixmap)
+        return label
+    return NeonIcon(module.module_id, accent=accent, size=size)
+
+
+def plugin_qicon(icon_path: str, fallback_id: str = "plugin", size: int = 18) -> QIcon:
+    """QIcon para a subnav: PNG do plugin quando existir, senao o icone vetorial."""
+    pixmap = _load_pixmap(icon_path or "", size)
+    if pixmap is not None:
+        return QIcon(pixmap)
+    return neon_qicon(fallback_id, size)
 
 
 def _asset_pixmap(name: str) -> Optional[QPixmap]:

@@ -58,6 +58,8 @@ class CatalogEntry:
     src_subdir: str = "src"
     module: str = ""
     accent: str = "#37F2FF"
+    icon: str = ""  # caminho do PNG relativo a raiz do plugin
+    changelog: str = ""  # o que ha de novo nesta versao
 
     @staticmethod
     def from_dict(data: dict[str, Any]) -> Optional["CatalogEntry"]:
@@ -72,6 +74,8 @@ class CatalogEntry:
                 src_subdir=str(data.get("src_subdir") or "").strip(),
                 module=str(data.get("module") or "").strip(),
                 accent=str(data.get("accent") or "#37F2FF").strip(),
+                icon=str(data.get("icon") or "").strip(),
+                changelog=str(data.get("changelog") or "").strip(),
             )
         except (KeyError, TypeError):
             return None
@@ -89,6 +93,8 @@ class InstalledPlugin:
     version: str
     path: Path
     accent: str = "#37F2FF"
+    icon_path: Optional[str] = None
+    help: str = ""
     module_info: Any = None
     build_page: Optional[Callable[..., Any]] = None
     error: Optional[str] = None
@@ -142,9 +148,17 @@ class PluginManager:
         accent = str(manifest.get("accent") or "#37F2FF").strip()
         src_subdir = str(manifest.get("src_subdir") or "").strip()
         module_name = str(manifest.get("module") or "").strip()
+        icon_rel = str(manifest.get("icon") or "").strip()
+
+        icon_path: Optional[str] = None
+        if icon_rel:
+            candidate = folder / icon_rel
+            if candidate.exists():
+                icon_path = str(candidate)
 
         plugin = InstalledPlugin(
             id=plugin_id, name=name, version=version, path=folder, accent=accent,
+            icon_path=icon_path,
         )
 
         if not module_name:
@@ -176,6 +190,11 @@ class PluginManager:
             return
         plugin.module_info = info
         plugin.build_page = build_page
+        if hasattr(module, "help_text"):
+            try:
+                plugin.help = str(module.help_text() or "").strip()
+            except Exception:
+                plugin.help = ""
         if info is not None:
             # Mantem id/nome/accent alinhados com o que o plugin declara.
             plugin.accent = getattr(info, "accent", plugin.accent) or plugin.accent
@@ -299,6 +318,7 @@ class PluginManager:
             "src_subdir": entry.src_subdir,
             "module": entry.module,
             "accent": entry.accent,
+            "icon": entry.icon,
             "repo": entry.repo,
             "ref": entry.ref,
         }

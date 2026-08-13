@@ -43,10 +43,25 @@ Cada plugin instalado guarda sua versao; quando o catalogo anuncia uma versao
 mais nova, o card "+" mostra um aviso de **atualizacao disponivel**.
 
 Para adicionar um plugin ao catalogo, basta editar `plugins.json` no repositorio
-— nenhuma nova versao do app e necessaria.
+— nenhuma nova versao do app e necessaria. Cada plugin traz seu proprio icone
+(PNG) e uma `version`; quando o catalogo anuncia uma versao mais nova, o card "+"
+mostra o aviso e o marketplace exibe o **changelog**. Ao atualizar, a pagina do
+plugin e recarregada **sem reiniciar** o app.
 
-> Seguranca: instalar um plugin baixa e executa codigo Python. O catalogo deve
-> apontar apenas para repositorios confiaveis.
+Quer criar um plugin? O padrao completo (contrato, manifesto, icone, design
+system e regras) esta em **[PLUGIN_STANDARD.md](PLUGIN_STANDARD.md)** — um
+arquivo pensado para ser entregue a uma IA junto da ideia do plugin.
+
+> Seguranca: instalar um plugin baixa e executa codigo Python. O catalogo e
+> curado: so aparecem no "+" os repositorios listados no `plugins.json`.
+
+## Atualizacao do app
+
+O proprio Streamer Sidekick se atualiza. A versao portable (Windows) verifica um
+manifesto remoto (`app_release.json`) ao abrir e, se houver versao nova, mostra o
+que mudou e oferece **Atualizar agora** — baixa, troca os arquivos e reabre
+sozinho. Tambem da para checar manualmente na tela **Sobre**. Rodando do codigo,
+a atualizacao e via `git pull`.
 
 ## Platforms
 

@@ -8,6 +8,7 @@ class ModuleInfo:
     subtitle: str
     status: str
     accent: str
+    icon: str = ""  # caminho opcional para um PNG (usado por plugins no card)
 
 
 class ModuleRegistry:
