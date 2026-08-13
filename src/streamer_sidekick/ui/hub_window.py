@@ -123,6 +123,7 @@ class HubWindow(QMainWindow):
         self._app_update_worker: Optional[AppUpdateCheckWorker] = None
         self._app_update_shown = False
         self.app_update_status_label: Optional[QLabel] = None
+        self.help_layout: Optional[QVBoxLayout] = None
         self._quitting = False
 
         self.setWindowTitle("Streamer Sidekick")
@@ -173,6 +174,7 @@ class HubWindow(QMainWindow):
             ("hotkeys", "Atalhos", "hotkey"),
             ("diagnostics", "Diagnóstico", "diagnostics"),
             ("settings", "Configurações", "settings"),
+            ("help", "Ajuda", "help"),
             ("about", "Sobre", "about"),
         ]:
             button = QPushButton(label)
@@ -253,6 +255,7 @@ class HubWindow(QMainWindow):
         self._add_page("hotkeys", self._hotkeys_page())
         self._add_page("diagnostics", self._diagnostics_page())
         self._add_page("settings", self._settings_page())
+        self._add_page("help", self._help_page())
         self._add_page("about", self._about_page())
         for plugin in self.plugin_manager.installed():
             self._add_plugin_page(plugin)
@@ -313,6 +316,8 @@ class HubWindow(QMainWindow):
             info = plugin.module_info
             button.setText(getattr(info, "title", plugin.name) or plugin.name)
             button.setIcon(plugin_qicon(plugin.icon_path or "", "plugin", 18))
+
+        self._refresh_help_page()
 
     def _plugin_error_page(self, plugin: InstalledPlugin, message: str) -> QWidget:
         page = QWidget()
@@ -1080,6 +1085,8 @@ class HubWindow(QMainWindow):
             self._refresh_hotkeys_page()
         if page_id == "diagnostics":
             self._refresh_diagnostics_page()
+        if page_id == "help":
+            self._refresh_help_page()
         self.pages.setCurrentIndex(self.page_indexes[page_id])
         active_page = "plugins" if in_plugins_group else page_id
         for item, button in self.nav_buttons.items():
@@ -1373,6 +1380,7 @@ class HubWindow(QMainWindow):
         self._append_plugin_card(plugin)
         self._add_plugin_subnav_button(plugin)
         self._reflow_home_modules(force=True)
+        self._refresh_help_page()
         QMessageBox.information(
             self,
             "Plugin instalado",
@@ -1423,6 +1431,123 @@ class HubWindow(QMainWindow):
             return
         self._app_update_shown = True
         AppUpdateDialog(release, on_quit=self._quit_from_tray, parent=self).exec()
+
+    # ---- Ajuda ----------------------------------------------------------
+
+    _BUILTIN_HELP = [
+        (
+            "Marcador",
+            "#37F2FF",
+            "Registra eventos da sua live com data/hora em um arquivo de texto por jogo.\n\n"
+            "• \"Marcar agora\" ou a hotkey salvam uma anotação no arquivo ativo.\n"
+            "• \"Novo jogo\" cria/troca o arquivo ativo (um txt por jogo/sessão).\n"
+            "• Você pode criar mensagens pré-setadas com hotkey própria.\n"
+            "• Ótimo para marcar melhores momentos e cortar depois pelo horário.",
+        ),
+        (
+            "Contador",
+            "#FF4FD8",
+            "Overlays de contador transparentes, prontos para o OBS.\n\n"
+            "• Crie presets com título, prefixo, limite, fonte e ícone.\n"
+            "• Cada contador pode ter uma hotkey que incrementa (e opcionalmente\n"
+            "  salva uma marcação no Marcador).\n"
+            "• Abra os overlays e capture as janelas no OBS; resete ou feche pelo hub\n"
+            "  ou pelas hotkeys globais.",
+        ),
+        (
+            "Atalhos (Hotkeys)",
+            "#B9FF43",
+            "Atalhos globais funcionam mesmo com o jogo em foco.\n\n"
+            "• Configure cada ação na tela \"Atalhos\"; conflitos são detectados.\n"
+            "• No Windows use o pacote keyboard; no macOS, o pynput (exige permissão\n"
+            "  de Acessibilidade).",
+        ),
+    ]
+
+    def _help_page(self) -> QWidget:
+        page = QWidget()
+        layout = QVBoxLayout(page)
+        layout.setContentsMargins(0, 0, 22, 0)
+        layout.setSpacing(16)
+
+        title = QLabel("Ajuda")
+        title.setObjectName("PageTitle")
+        intro = QLabel(
+            "O que cada ferramenta faz. Ao instalar um plugin, a ajuda dele aparece "
+            "aqui automaticamente."
+        )
+        intro.setObjectName("Muted")
+        intro.setWordWrap(True)
+        layout.addWidget(title)
+        layout.addWidget(intro)
+
+        container = QWidget()
+        self.help_layout = QVBoxLayout(container)
+        self.help_layout.setContentsMargins(0, 0, 0, 0)
+        self.help_layout.setSpacing(16)
+        layout.addWidget(container)
+        layout.addStretch(1)
+
+        self._refresh_help_page()
+        return self._scrollable_page(page)
+
+    def _help_panel(self, title: str, body: str, accent: str, icon_path: str = "") -> QWidget:
+        panel = NeonPanel(accent=accent)
+        panel_layout = QVBoxLayout(panel)
+        panel_layout.setContentsMargins(18, 16, 18, 16)
+        panel_layout.setSpacing(8)
+
+        header = QHBoxLayout()
+        header.setSpacing(10)
+        if icon_path and Path(icon_path).exists():
+            pixmap = QPixmap(icon_path)
+            if not pixmap.isNull():
+                icon_label = QLabel()
+                icon_label.setFixedSize(28, 28)
+                icon_label.setPixmap(
+                    pixmap.scaled(
+                        28, 28, Qt.AspectRatioMode.KeepAspectRatio,
+                        Qt.TransformationMode.SmoothTransformation,
+                    )
+                )
+                header.addWidget(icon_label, 0)
+        title_label = QLabel(title)
+        title_label.setObjectName("SectionTitle")
+        header.addWidget(title_label, 1)
+        panel_layout.addLayout(header)
+
+        body_label = QLabel(body)
+        body_label.setObjectName("Muted")
+        body_label.setWordWrap(True)
+        panel_layout.addWidget(body_label)
+        return panel
+
+    def _refresh_help_page(self) -> None:
+        if self.help_layout is None:
+            return
+        while self.help_layout.count():
+            item = self.help_layout.takeAt(0)
+            widget = item.widget()
+            if widget is not None:
+                widget.deleteLater()
+
+        for title, accent, body in self._BUILTIN_HELP:
+            self.help_layout.addWidget(self._help_panel(title, body, accent))
+
+        plugins = self.plugin_manager.installed()
+        if plugins:
+            divider = QLabel("Plugins instalados")
+            divider.setObjectName("SectionTitle")
+            self.help_layout.addWidget(divider)
+        for plugin in plugins:
+            info = plugin.module_info
+            name = (getattr(info, "title", "") or plugin.name)
+            body = plugin.help or (
+                getattr(info, "subtitle", "") or "Este plugin não forneceu texto de ajuda."
+            )
+            self.help_layout.addWidget(
+                self._help_panel(name, body, plugin.accent, icon_path=plugin.icon_path or "")
+            )
 
     def _refresh_marker_page(self) -> None:
         if self.marker_active_label is None or self.marker_folder_label is None:

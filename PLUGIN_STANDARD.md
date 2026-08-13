@@ -46,6 +46,22 @@ def build_page(config=None):
     - O tema é global (QApplication), então a página já herda o visual."""
 ```
 
+### Opcional: `help_text()`
+
+Se o módulo expuser `help_text() -> str`, o Sidekick mostra esse texto na tela
+**Ajuda**, numa seção com o nome e o ícone do plugin (aparece automaticamente
+quando o plugin é instalado). Use texto simples com quebras de linha (`\n`).
+
+```python
+def help_text() -> str:
+    return (
+        "O que o plugin faz, em uma frase.\n\n"
+        "Como usar:\n"
+        "• Passo 1...\n"
+        "• Passo 2..."
+    )
+```
+
 ### Campos de `module_info()`
 
 | Campo | Tipo | Descrição |
@@ -265,6 +281,7 @@ repositórios confiáveis e mantenha-os sob seu controle.
 - [ ] Repositório público no GitHub, `src/<pacote>/module.py` com `module_info()` e `build_page()`.
 - [ ] `module_info()` funciona com e sem o Sidekick importável.
 - [ ] `build_page(config=None)` devolve um `QWidget`, sem trabalho pesado.
+- [ ] *(Opcional)* `help_text()` com uma explicação para a tela Ajuda.
 - [ ] Só PySide6/stdlib como dependência (ou documentado o contrário).
 - [ ] Config/estado do usuário fora da pasta do plugin.
 - [ ] `assets/brand/icon.png` (PNG transparente ~256px) **versionado**.

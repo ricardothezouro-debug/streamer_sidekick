@@ -94,6 +94,7 @@ class InstalledPlugin:
     path: Path
     accent: str = "#37F2FF"
     icon_path: Optional[str] = None
+    help: str = ""
     module_info: Any = None
     build_page: Optional[Callable[..., Any]] = None
     error: Optional[str] = None
@@ -189,6 +190,11 @@ class PluginManager:
             return
         plugin.module_info = info
         plugin.build_page = build_page
+        if hasattr(module, "help_text"):
+            try:
+                plugin.help = str(module.help_text() or "").strip()
+            except Exception:
+                plugin.help = ""
         if info is not None:
             # Mantem id/nome/accent alinhados com o que o plugin declara.
             plugin.accent = getattr(info, "accent", plugin.accent) or plugin.accent
