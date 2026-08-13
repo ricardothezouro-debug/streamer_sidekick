@@ -39,12 +39,14 @@ from streamer_sidekick.core.hotkeys import HotkeyManager
 from streamer_sidekick.core.modules import ModuleInfo, ModuleRegistry
 from streamer_sidekick.core.platform_utils import app_icon_path, open_path
 from streamer_sidekick.core.plugins import InstalledPlugin, PluginManager
+from streamer_sidekick.core import app_update
 from streamer_sidekick.modules.counter.overlay import CounterOverlay
 from streamer_sidekick.modules.counter.service import CounterService
 from streamer_sidekick.modules.marker.service import MarkerService
 from streamer_sidekick.ui.counter_editor import CounterPresetDialog
-from streamer_sidekick.ui.components import AddPluginTile, BrandLogo, ModuleCard, NeonPanel, SectionHeader, neon_qicon
+from streamer_sidekick.ui.components import AddPluginTile, BrandLogo, ModuleCard, NeonPanel, SectionHeader, neon_qicon, plugin_qicon
 from streamer_sidekick.ui.plugin_marketplace import PluginMarketplaceDialog, _CatalogWorker
+from streamer_sidekick.ui.app_update import AppUpdateCheckWorker, AppUpdateDialog
 
 try:
     import pyautogui
@@ -116,7 +118,11 @@ class HubWindow(QMainWindow):
         self.add_plugin_card: Optional[AddPluginTile] = None
         self.plugin_subnav_layout: Optional[QVBoxLayout] = None
         self._plugin_page_ids: set[str] = set()
+        self._plugin_page_containers: dict[str, QWidget] = {}
         self._plugin_update_worker: Optional[_CatalogWorker] = None
+        self._app_update_worker: Optional[AppUpdateCheckWorker] = None
+        self._app_update_shown = False
+        self.app_update_status_label: Optional[QLabel] = None
         self._quitting = False
 
         self.setWindowTitle("Streamer Sidekick")
@@ -134,6 +140,7 @@ class HubWindow(QMainWindow):
         if app is not None:
             app.installEventFilter(self)
         self._select_page("home")
+        self._check_app_update_async(auto=True)
 
     def _build_shell(self) -> QWidget:
         shell = QWidget()
@@ -225,7 +232,7 @@ class HubWindow(QMainWindow):
             label = getattr(info, "title", plugin.name) or plugin.name
         button = QPushButton(label)
         button.setObjectName("SubNavButton")
-        button.setIcon(neon_qicon("plugin", 18))
+        button.setIcon(plugin_qicon(plugin.icon_path or "", "plugin", 18))
         button.setIconSize(QSize(18, 18))
         button.setCursor(Qt.PointingHandCursor)
         button.clicked.connect(lambda checked=False, item=plugin.id: self._select_page(item))
@@ -252,18 +259,60 @@ class HubWindow(QMainWindow):
         return content
 
     def _add_plugin_page(self, plugin: InstalledPlugin) -> bool:
-        """Monta a pagina de um plugin (via build_page) e a registra no stack."""
+        """Monta a pagina de um plugin dentro de um container fixo no stack.
+
+        O container mantem um indice estavel no QStackedWidget; ao atualizar o
+        plugin, so o conteudo do container e trocado (ver _reload_plugin), sem
+        remover widgets do stack (o que embaralharia os indices das paginas)."""
         if plugin.id in self._plugin_page_ids:
             return True
         if not plugin.loaded or plugin.build_page is None:
             return False
-        try:
-            page = plugin.build_page()
-        except Exception as exc:  # pagina de terceiro: nao pode derrubar o hub
-            page = self._plugin_error_page(plugin, str(exc))
-        self._add_page(plugin.id, page)
+        container = QWidget()
+        layout = QVBoxLayout(container)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.addWidget(self._build_plugin_inner_page(plugin))
+        self._add_page(plugin.id, container)
+        self._plugin_page_containers[plugin.id] = container
         self._plugin_page_ids.add(plugin.id)
         return True
+
+    def _build_plugin_inner_page(self, plugin: InstalledPlugin) -> QWidget:
+        if plugin.build_page is None:
+            return self._plugin_error_page(plugin, "plugin sem build_page")
+        try:
+            return plugin.build_page()
+        except Exception as exc:  # pagina de terceiro: nao pode derrubar o hub
+            return self._plugin_error_page(plugin, str(exc))
+
+    def _reload_plugin(self, plugin: InstalledPlugin) -> None:
+        """Recarrega pagina + card + subnav de um plugin ja integrado (pos-update)."""
+        container = self._plugin_page_containers.get(plugin.id)
+        if container is not None:
+            layout = container.layout()
+            while layout.count():
+                item = layout.takeAt(0)
+                widget = item.widget()
+                if widget is not None:
+                    widget.deleteLater()
+            layout.addWidget(self._build_plugin_inner_page(plugin))
+
+        # Recria o card (titulo/subtitulo/icone podem ter mudado).
+        for index, card in enumerate(self.home_module_cards):
+            if getattr(card.module, "module_id", None) == plugin.id:
+                new_card = ModuleCard(self._plugin_card_info(plugin))
+                new_card.opened.connect(self._select_page)
+                self.home_module_cards[index] = new_card
+                card.deleteLater()
+                self._reflow_home_modules(force=True)
+                break
+
+        # Atualiza rotulo/icone do botao da subnav.
+        button = self.plugin_nav_buttons.get(plugin.id)
+        if button is not None:
+            info = plugin.module_info
+            button.setText(getattr(info, "title", plugin.name) or plugin.name)
+            button.setIcon(plugin_qicon(plugin.icon_path or "", "plugin", 18))
 
     def _plugin_error_page(self, plugin: InstalledPlugin, message: str) -> QWidget:
         page = QWidget()
@@ -357,6 +406,7 @@ class HubWindow(QMainWindow):
             subtitle=(getattr(info, "subtitle", "") or "Plugin instalado."),
             status=(getattr(info, "status", "") or "Pronto"),
             accent=plugin.accent,
+            icon=plugin.icon_path or "",
         )
 
     def _append_plugin_card(self, plugin: InstalledPlugin) -> None:
@@ -859,6 +909,20 @@ class HubWindow(QMainWindow):
         app_layout.addWidget(app_title)
         app_layout.addWidget(app_text)
 
+        version_label = QLabel(f"Versão {app_update.current_version()}")
+        version_label.setObjectName("StatusPill")
+        app_layout.addWidget(version_label)
+
+        update_row = QHBoxLayout()
+        check_update_button = QPushButton("Verificar atualizações")
+        check_update_button.clicked.connect(lambda: self._check_app_update_async(auto=False))
+        self.app_update_status_label = QLabel("")
+        self.app_update_status_label.setObjectName("Muted")
+        self.app_update_status_label.setWordWrap(True)
+        update_row.addWidget(check_update_button, 0)
+        update_row.addWidget(self.app_update_status_label, 1)
+        app_layout.addLayout(update_row)
+
         profile_panel = NeonPanel(accent="#FF4FD8")
         profile_layout = QGridLayout(profile_panel)
         profile_layout.setContentsMargins(22, 20, 22, 20)
@@ -1285,15 +1349,15 @@ class HubWindow(QMainWindow):
         if not isinstance(plugin, InstalledPlugin):
             return
         if plugin.id in self._plugin_page_ids:
-            # Atualizacao de um plugin ja carregado: a pagina antiga segue no
-            # stack. Reiniciar aplica a nova versao por completo.
+            # Atualizacao de um plugin ja carregado: recarrega no lugar, sem
+            # precisar reiniciar o app.
+            self._reload_plugin(plugin)
+            self._refresh_add_plugin_badge(0)
             QMessageBox.information(
                 self,
                 "Plugin atualizado",
-                f"{plugin.name} foi atualizado para a v{plugin.version}.\n"
-                "Reinicie o Streamer Sidekick para aplicar a nova versão.",
+                f"{plugin.name} foi atualizado para a v{plugin.version} e recarregado.",
             )
-            self._refresh_add_plugin_badge(0)
             return
         self._integrate_new_plugin(plugin)
 
@@ -1330,6 +1394,35 @@ class HubWindow(QMainWindow):
     def _refresh_add_plugin_badge(self, count: int) -> None:
         if self.add_plugin_card is not None:
             self.add_plugin_card.set_update_badge(count)
+
+    # ---- Auto-update do app --------------------------------------------
+
+    def _check_app_update_async(self, auto: bool = False) -> None:
+        if self._app_update_worker is not None and self._app_update_worker.isRunning():
+            return
+        if not auto and self.app_update_status_label is not None:
+            self.app_update_status_label.setText("Verificando atualizações...")
+        worker = AppUpdateCheckWorker()
+        worker.result.connect(lambda release, is_auto=auto: self._on_app_update_result(release, is_auto))
+        self._app_update_worker = worker
+        worker.start()
+
+    def _on_app_update_result(self, release: object, auto: bool) -> None:
+        if release is None:
+            if not auto and self.app_update_status_label is not None:
+                self.app_update_status_label.setText(
+                    f"Você está na versão mais recente (v{app_update.current_version()})."
+                )
+            return
+        if self.app_update_status_label is not None:
+            self.app_update_status_label.setText(
+                f"Atualização disponível: v{getattr(release, 'version', '?')}"
+            )
+        # No boot (auto) só abre sozinho no portable congelado, uma vez.
+        if auto and (not app_update.is_frozen() or self._app_update_shown):
+            return
+        self._app_update_shown = True
+        AppUpdateDialog(release, on_quit=self._quit_from_tray, parent=self).exec()
 
     def _refresh_marker_page(self) -> None:
         if self.marker_active_label is None or self.marker_folder_label is None:

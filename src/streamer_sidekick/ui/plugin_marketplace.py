@@ -79,8 +79,14 @@ class _PluginRow(QFrame):
         self.desc_label = QLabel(entry.description)
         self.desc_label.setObjectName("Muted")
         self.desc_label.setWordWrap(True)
+        self.changelog_label = QLabel("")
+        self.changelog_label.setObjectName("Muted")
+        self.changelog_label.setWordWrap(True)
+        self.changelog_label.setStyleSheet("color: #B9FF43;")
+        self.changelog_label.setVisible(False)
         text_box.addWidget(self.name_label)
         text_box.addWidget(self.desc_label)
+        text_box.addWidget(self.changelog_label)
 
         self.status_label = QLabel("")
         self.status_label.setObjectName("Muted")
@@ -102,16 +108,23 @@ class _PluginRow(QFrame):
             self.action_button.setText("Instalar")
             self.action_button.setEnabled(True)
             self.status_label.setText("")
+            self.changelog_label.setVisible(False)
         elif self.manager.has_update(self.entry):
             self.action_button.setText("Atualizar")
             self.action_button.setEnabled(True)
             self.status_label.setText(f"v{installed.version} → v{self.entry.version}")
             self.status_label.setStyleSheet("color: #B9FF43;")
+            if self.entry.changelog:
+                self.changelog_label.setText(f"Novidades: {self.entry.changelog}")
+                self.changelog_label.setVisible(True)
+            else:
+                self.changelog_label.setVisible(False)
         else:
             self.action_button.setText("Instalado")
             self.action_button.setEnabled(False)
             self.status_label.setText(f"v{installed.version}")
             self.status_label.setStyleSheet("")
+            self.changelog_label.setVisible(False)
 
     def set_busy(self, message: str) -> None:
         self.action_button.setEnabled(False)
