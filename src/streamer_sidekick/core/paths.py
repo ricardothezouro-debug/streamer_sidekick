@@ -48,3 +48,10 @@ def user_data_dir(name: str) -> Path:
     path = app_data_dir() / name
     path.mkdir(parents=True, exist_ok=True)
     return path
+
+
+def plugins_dir() -> Path:
+    """Pasta onde os plugins instalados ficam (um subdiretorio por plugin)."""
+    path = app_data_dir() / "plugins"
+    path.mkdir(parents=True, exist_ok=True)
+    return path

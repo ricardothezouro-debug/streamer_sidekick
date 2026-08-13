@@ -1,0 +1,15 @@
+{
+  "plugins": [
+    {
+      "id": "launcher",
+      "name": "Ligar Live (StreamOn)",
+      "description": "Abre NVIDIA Broadcast, OBS, Streamer Sidekick e os dashboards (YouTube Studio e Twitch) em sequencia, com um clique.",
+      "repo": "ricardothezouro-debug/StreamOn",
+      "ref": "main",
+      "version": "1.0.0",
+      "src_subdir": "src",
+      "module": "stream_ligar.module",
+      "accent": "#37F2FF"
+    }
+  ]
+}

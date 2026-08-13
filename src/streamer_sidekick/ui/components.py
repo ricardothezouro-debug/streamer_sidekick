@@ -334,7 +334,12 @@ class ModuleTile(NeonPanel):
     opened = Signal(str)
 
     def __init__(self, module: ModuleInfo, parent: Optional[QWidget] = None) -> None:
-        accent = ELECTRIC_CYAN if module.module_id == "marker" else NEON_MAGENTA if module.module_id == "counter" else ACID_LIME
+        if module.module_id == "marker":
+            accent = ELECTRIC_CYAN
+        elif module.module_id == "counter":
+            accent = NEON_MAGENTA
+        else:
+            accent = getattr(module, "accent", "") or ACID_LIME
         super().__init__(parent, accent=accent, grid=False)
         self.module = module
         self.setMinimumHeight(230)
@@ -395,6 +400,57 @@ class FutureModuleTile(NeonPanel):
         layout.addWidget(text)
         layout.addStretch(1)
         layout.addWidget(pill)
+
+
+class AddPluginTile(NeonPanel):
+    """Card com um "+" que abre o marketplace de plugins."""
+
+    clicked = Signal()
+
+    def __init__(self, parent: Optional[QWidget] = None) -> None:
+        super().__init__(parent, accent=ACID_LIME, grid=False)
+        self.setMinimumHeight(230)
+        self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Minimum)
+        self.setCursor(Qt.CursorShape.PointingHandCursor)
+
+        root = QVBoxLayout(self)
+        root.setContentsMargins(22, 20, 22, 20)
+        root.setSpacing(8)
+
+        plus = QLabel("+")
+        plus.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        plus.setStyleSheet("font-size: 60px; font-weight: 700; color: #B9FF43; background: transparent;")
+        title = QLabel("Adicionar plugin")
+        title.setObjectName("CardTitle")
+        title.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        subtitle = QLabel("Explore e instale novas ferramentas")
+        subtitle.setObjectName("Muted")
+        subtitle.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        subtitle.setWordWrap(True)
+
+        self.badge = QLabel("")
+        self.badge.setObjectName("StatusPill")
+        self.badge.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.badge.setVisible(False)
+
+        root.addStretch(1)
+        root.addWidget(plus)
+        root.addWidget(title)
+        root.addWidget(subtitle)
+        root.addWidget(self.badge)
+        root.addStretch(1)
+
+    def mousePressEvent(self, event) -> None:
+        if event.button() == Qt.MouseButton.LeftButton:
+            self.clicked.emit()
+            event.accept()
+
+    def set_update_badge(self, count: int) -> None:
+        if count > 0:
+            self.badge.setText(f"{count} atualização(ões) disponível(is)")
+            self.badge.setVisible(True)
+        else:
+            self.badge.setVisible(False)
 
 
 ModuleCard = ModuleTile

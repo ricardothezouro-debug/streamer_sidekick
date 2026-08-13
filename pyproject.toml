@@ -24,4 +24,4 @@ package-dir = {"" = "src"}
 where = ["src"]
 
 [tool.setuptools.package-data]
-streamer_sidekick = ["assets/brand/*.png", "assets/brand/*.ico", "assets/fonts/*"]
+streamer_sidekick = ["assets/brand/*.png", "assets/brand/*.ico", "assets/fonts/*", "assets/*.json"]

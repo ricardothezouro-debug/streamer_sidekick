@@ -36,13 +36,15 @@ from streamer_sidekick.core.config import ConfigStore
 from streamer_sidekick.core.backup import BackupError, BackupService
 from streamer_sidekick.core.diagnostics import DiagnosticItem, DiagnosticService
 from streamer_sidekick.core.hotkeys import HotkeyManager
-from streamer_sidekick.core.modules import ModuleRegistry
+from streamer_sidekick.core.modules import ModuleInfo, ModuleRegistry
 from streamer_sidekick.core.platform_utils import app_icon_path, open_path
+from streamer_sidekick.core.plugins import InstalledPlugin, PluginManager
 from streamer_sidekick.modules.counter.overlay import CounterOverlay
 from streamer_sidekick.modules.counter.service import CounterService
 from streamer_sidekick.modules.marker.service import MarkerService
 from streamer_sidekick.ui.counter_editor import CounterPresetDialog
-from streamer_sidekick.ui.components import BrandLogo, ModuleCard, NeonPanel, SectionHeader, neon_qicon
+from streamer_sidekick.ui.components import AddPluginTile, BrandLogo, ModuleCard, NeonPanel, SectionHeader, neon_qicon
+from streamer_sidekick.ui.plugin_marketplace import PluginMarketplaceDialog, _CatalogWorker
 
 try:
     import pyautogui
@@ -61,6 +63,7 @@ class HubWindow(QMainWindow):
         modules: ModuleRegistry,
         marker_service: MarkerService,
         counter_service: CounterService,
+        plugin_manager: Optional[PluginManager] = None,
     ) -> None:
         super().__init__()
         self.config = config
@@ -68,6 +71,7 @@ class HubWindow(QMainWindow):
         self.modules = modules
         self.marker_service = marker_service
         self.counter_service = counter_service
+        self.plugin_manager = plugin_manager or PluginManager()
         self.backup_service = BackupService(config, marker_service, counter_service)
         self.diagnostic_service = DiagnosticService(config, hotkeys, marker_service, counter_service)
         self.nav_buttons: dict[str, QPushButton] = {}
@@ -109,6 +113,10 @@ class HubWindow(QMainWindow):
         self.home_modules_layout: Optional[QGridLayout] = None
         self.home_module_cards: list[ModuleCard] = []
         self._home_module_columns = 0
+        self.add_plugin_card: Optional[AddPluginTile] = None
+        self.plugin_subnav_layout: Optional[QVBoxLayout] = None
+        self._plugin_page_ids: set[str] = set()
+        self._plugin_update_worker: Optional[_CatalogWorker] = None
         self._quitting = False
 
         self.setWindowTitle("Streamer Sidekick")
@@ -190,6 +198,7 @@ class HubWindow(QMainWindow):
         layout.setContentsMargins(18, 2, 0, 4)
         layout.setSpacing(6)
 
+        self.plugin_subnav_layout = layout
         for page_id, label, icon_id in [
             ("marker", "Marcador", "marker"),
             ("counter", "Contador", "counter"),
@@ -202,7 +211,26 @@ class HubWindow(QMainWindow):
             button.clicked.connect(lambda checked=False, item=page_id: self._select_page(item))
             self.plugin_nav_buttons[page_id] = button
             layout.addWidget(button)
+
+        for plugin in self.plugin_manager.installed():
+            self._add_plugin_subnav_button(plugin)
         return container
+
+    def _add_plugin_subnav_button(self, plugin: InstalledPlugin) -> None:
+        if self.plugin_subnav_layout is None or plugin.id in self.plugin_nav_buttons:
+            return
+        label = plugin.name
+        info = plugin.module_info
+        if info is not None:
+            label = getattr(info, "title", plugin.name) or plugin.name
+        button = QPushButton(label)
+        button.setObjectName("SubNavButton")
+        button.setIcon(neon_qicon("plugin", 18))
+        button.setIconSize(QSize(18, 18))
+        button.setCursor(Qt.PointingHandCursor)
+        button.clicked.connect(lambda checked=False, item=plugin.id: self._select_page(item))
+        self.plugin_nav_buttons[plugin.id] = button
+        self.plugin_subnav_layout.addWidget(button)
 
     def _build_content(self) -> QWidget:
         content = QWidget()
@@ -219,7 +247,37 @@ class HubWindow(QMainWindow):
         self._add_page("diagnostics", self._diagnostics_page())
         self._add_page("settings", self._settings_page())
         self._add_page("about", self._about_page())
+        for plugin in self.plugin_manager.installed():
+            self._add_plugin_page(plugin)
         return content
+
+    def _add_plugin_page(self, plugin: InstalledPlugin) -> bool:
+        """Monta a pagina de um plugin (via build_page) e a registra no stack."""
+        if plugin.id in self._plugin_page_ids:
+            return True
+        if not plugin.loaded or plugin.build_page is None:
+            return False
+        try:
+            page = plugin.build_page()
+        except Exception as exc:  # pagina de terceiro: nao pode derrubar o hub
+            page = self._plugin_error_page(plugin, str(exc))
+        self._add_page(plugin.id, page)
+        self._plugin_page_ids.add(plugin.id)
+        return True
+
+    def _plugin_error_page(self, plugin: InstalledPlugin, message: str) -> QWidget:
+        page = QWidget()
+        layout = QVBoxLayout(page)
+        layout.setContentsMargins(0, 0, 22, 0)
+        title = QLabel(f"{plugin.name}")
+        title.setObjectName("PageTitle")
+        detail = QLabel(f"Não foi possível carregar este plugin:\n{message}")
+        detail.setObjectName("Muted")
+        detail.setWordWrap(True)
+        layout.addWidget(title)
+        layout.addWidget(detail)
+        layout.addStretch(1)
+        return self._scrollable_page(page)
 
     def _add_page(self, page_id: str, widget: QWidget) -> None:
         self.page_indexes[page_id] = self.pages.addWidget(widget)
@@ -277,11 +335,34 @@ class HubWindow(QMainWindow):
             card = ModuleCard(module)
             card.opened.connect(self._select_page)
             self.home_module_cards.append(card)
+        for plugin in self.plugin_manager.installed():
+            self._append_plugin_card(plugin)
+
+        self.add_plugin_card = AddPluginTile()
+        self.add_plugin_card.clicked.connect(self._open_marketplace)
+
         self._reflow_home_modules(force=True)
 
         layout.addLayout(modules_layout)
         layout.addStretch(1)
+        self._check_plugin_updates_async()
         return self._scrollable_page(page)
+
+    def _plugin_card_info(self, plugin: InstalledPlugin) -> ModuleInfo:
+        """ModuleInfo com module_id alinhado ao id do plugin (garante navegacao)."""
+        info = plugin.module_info
+        return ModuleInfo(
+            module_id=plugin.id,
+            title=(getattr(info, "title", "") or plugin.name),
+            subtitle=(getattr(info, "subtitle", "") or "Plugin instalado."),
+            status=(getattr(info, "status", "") or "Pronto"),
+            accent=plugin.accent,
+        )
+
+    def _append_plugin_card(self, plugin: InstalledPlugin) -> None:
+        card = ModuleCard(self._plugin_card_info(plugin))
+        card.opened.connect(self._select_page)
+        self.home_module_cards.append(card)
 
     def _marker_page(self) -> QWidget:
         page = QWidget()
@@ -924,7 +1005,8 @@ class HubWindow(QMainWindow):
     def _select_page(self, page_id: str) -> None:
         if page_id not in self.page_indexes:
             return
-        if page_id in {"plugins", "marker", "counter"}:
+        in_plugins_group = page_id in {"marker", "counter"} or page_id in self.plugin_nav_buttons
+        if page_id == "plugins" or in_plugins_group:
             self._set_plugins_menu_visible(True)
         if page_id == "marker":
             self._refresh_marker_page()
@@ -935,7 +1017,7 @@ class HubWindow(QMainWindow):
         if page_id == "diagnostics":
             self._refresh_diagnostics_page()
         self.pages.setCurrentIndex(self.page_indexes[page_id])
-        active_page = "plugins" if page_id in {"marker", "counter"} else page_id
+        active_page = "plugins" if in_plugins_group else page_id
         for item, button in self.nav_buttons.items():
             button.setProperty("active", item == active_page)
             button.style().unpolish(button)
@@ -1183,11 +1265,71 @@ class HubWindow(QMainWindow):
             return
         while self.home_modules_layout.count():
             self.home_modules_layout.takeAt(0)
-        for index, card in enumerate(self.home_module_cards):
+        cards: list[QWidget] = list(self.home_module_cards)
+        if self.add_plugin_card is not None:
+            cards.append(self.add_plugin_card)
+        for index, card in enumerate(cards):
             self.home_modules_layout.addWidget(card, index // columns, index % columns)
         for column in range(2):
             self.home_modules_layout.setColumnStretch(column, 1 if column < columns else 0)
         self._home_module_columns = columns
+
+    # ---- Plugins / marketplace -----------------------------------------
+
+    def _open_marketplace(self) -> None:
+        dialog = PluginMarketplaceDialog(self.plugin_manager, self)
+        dialog.plugin_installed.connect(self._on_plugin_installed)
+        dialog.exec()
+
+    def _on_plugin_installed(self, plugin: object) -> None:
+        if not isinstance(plugin, InstalledPlugin):
+            return
+        if plugin.id in self._plugin_page_ids:
+            # Atualizacao de um plugin ja carregado: a pagina antiga segue no
+            # stack. Reiniciar aplica a nova versao por completo.
+            QMessageBox.information(
+                self,
+                "Plugin atualizado",
+                f"{plugin.name} foi atualizado para a v{plugin.version}.\n"
+                "Reinicie o Streamer Sidekick para aplicar a nova versão.",
+            )
+            self._refresh_add_plugin_badge(0)
+            return
+        self._integrate_new_plugin(plugin)
+
+    def _integrate_new_plugin(self, plugin: InstalledPlugin) -> None:
+        if not self._add_plugin_page(plugin):
+            QMessageBox.warning(
+                self,
+                "Plugin",
+                f"{plugin.name} foi baixado, mas não pôde ser carregado:\n"
+                f"{plugin.error or 'erro desconhecido'}",
+            )
+            return
+        self._append_plugin_card(plugin)
+        self._add_plugin_subnav_button(plugin)
+        self._reflow_home_modules(force=True)
+        QMessageBox.information(
+            self,
+            "Plugin instalado",
+            f"{plugin.name} foi instalado e já está disponível no hub.",
+        )
+
+    def _check_plugin_updates_async(self) -> None:
+        if not self.plugin_manager.installed():
+            return
+        worker = _CatalogWorker(self.plugin_manager)
+        worker.loaded.connect(self._on_updates_checked)
+        self._plugin_update_worker = worker
+        worker.start()
+
+    def _on_updates_checked(self, entries: list) -> None:
+        updates = self.plugin_manager.updates_available(entries)
+        self._refresh_add_plugin_badge(len(updates))
+
+    def _refresh_add_plugin_badge(self, count: int) -> None:
+        if self.add_plugin_card is not None:
+            self.add_plugin_card.set_update_badge(count)
 
     def _refresh_marker_page(self) -> None:
         if self.marker_active_label is None or self.marker_folder_label is None:

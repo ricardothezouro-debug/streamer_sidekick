@@ -23,6 +23,31 @@ Initial goals:
 - Central hotkey registry with conflict checks.
 - Modular structure for future streamer tools.
 
+## Plugins
+
+O hub tem um sistema de plugins instalaveis. Na secao **Plugins** ha um card
+**"+"** que abre o marketplace: os plugins disponiveis vem de um catalogo
+(`plugins.json`, buscado remotamente do repositorio, com fallback embutido em
+`assets/plugins_catalog.json`). Ao clicar em **Instalar**, o plugin e baixado
+direto do GitHub como `.zip` (sem precisar de `git`), extraido para
+`<app_data>/plugins/<id>/` e carregado no hub na hora.
+
+Um plugin e um repositorio que expoe, em um modulo, o contrato:
+
+```python
+def module_info() -> ModuleInfo: ...      # dados do card
+def build_page(config=None) -> QWidget: ...  # pagina embutida no hub
+```
+
+Cada plugin instalado guarda sua versao; quando o catalogo anuncia uma versao
+mais nova, o card "+" mostra um aviso de **atualizacao disponivel**.
+
+Para adicionar um plugin ao catalogo, basta editar `plugins.json` no repositorio
+— nenhuma nova versao do app e necessaria.
+
+> Seguranca: instalar um plugin baixa e executa codigo Python. O catalogo deve
+> apontar apenas para repositorios confiaveis.
+
 ## Platforms
 
 Streamer Sidekick roda no Windows e no macOS (e, com esforco menor, em
