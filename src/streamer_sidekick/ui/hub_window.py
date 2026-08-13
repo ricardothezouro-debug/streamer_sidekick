@@ -1350,6 +1350,7 @@ class HubWindow(QMainWindow):
     def _open_marketplace(self) -> None:
         dialog = PluginMarketplaceDialog(self.plugin_manager, self)
         dialog.plugin_installed.connect(self._on_plugin_installed)
+        dialog.plugin_removed.connect(self._on_plugin_removed)
         dialog.exec()
 
     def _on_plugin_installed(self, plugin: object) -> None:
@@ -1386,6 +1387,38 @@ class HubWindow(QMainWindow):
             "Plugin instalado",
             f"{plugin.name} foi instalado e já está disponível no hub.",
         )
+
+    def _on_plugin_removed(self, plugin_id: str) -> None:
+        """Tira card, pagina e subnav de um plugin removido (sem reiniciar)."""
+        # Se a pagina do plugin esta em foco, volta para o inicio.
+        if self.pages.currentIndex() == self.page_indexes.get(plugin_id):
+            self._select_page("home")
+
+        for index, card in enumerate(list(self.home_module_cards)):
+            if getattr(card.module, "module_id", None) == plugin_id:
+                self.home_module_cards.pop(index)
+                card.deleteLater()
+                break
+
+        # O container fica no stack, mas e esvaziado e sai da navegacao (remover
+        # do QStackedWidget embaralharia os indices das outras paginas).
+        container = self._plugin_page_containers.pop(plugin_id, None)
+        if container is not None:
+            layout = container.layout()
+            while layout is not None and layout.count():
+                item = layout.takeAt(0)
+                widget = item.widget()
+                if widget is not None:
+                    widget.deleteLater()
+        self._plugin_page_ids.discard(plugin_id)
+        self.page_indexes.pop(plugin_id, None)
+
+        button = self.plugin_nav_buttons.pop(plugin_id, None)
+        if button is not None:
+            button.deleteLater()
+
+        self._reflow_home_modules(force=True)
+        self._refresh_help_page()
 
     def _check_plugin_updates_async(self) -> None:
         if not self.plugin_manager.installed():
