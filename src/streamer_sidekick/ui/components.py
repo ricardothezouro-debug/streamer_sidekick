@@ -1,7 +1,7 @@
 from pathlib import Path
 from typing import Optional
 
-from PySide6.QtCore import QPointF, QRectF, QSize, Qt, Signal
+from PySide6.QtCore import QPointF, QRectF, QSize, Qt, QTimer, Signal
 from PySide6.QtGui import QBrush, QColor, QFont, QFontMetrics, QIcon, QLinearGradient, QPainter, QPainterPath, QPen, QPixmap
 from PySide6.QtWidgets import QFrame, QHBoxLayout, QLabel, QPushButton, QSizePolicy, QVBoxLayout, QWidget
 
@@ -454,6 +454,92 @@ class AddPluginTile(NeonPanel):
 
 
 ModuleCard = ModuleTile
+
+
+class NeonProgressBar(QWidget):
+    """Barra de progresso pintada à mão: gradiente neon ciano→lime→magenta,
+    com um brilho passando por cima (igual à prévia) e um modo indeterminado
+    (segmento correndo) para fases sem porcentagem."""
+
+    def __init__(self, parent: Optional[QWidget] = None) -> None:
+        super().__init__(parent)
+        self._value = 0.0          # 0..1
+        self._indeterminate = False
+        self._phase = 0.0          # 0..1, fase da animação
+        self.setMinimumHeight(22)
+        self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
+        self._timer = QTimer(self)
+        self._timer.setInterval(33)  # ~30 fps
+        self._timer.timeout.connect(self._tick)
+        self._timer.start()
+
+    def _tick(self) -> None:
+        self._phase = (self._phase + 0.02) % 1.0
+        self.update()
+
+    def setValue(self, value: float) -> None:
+        self._indeterminate = False
+        self._value = max(0.0, min(1.0, value / 100.0))
+        self.update()
+
+    def setIndeterminate(self, on: bool = True) -> None:
+        self._indeterminate = bool(on)
+        self.update()
+
+    def paintEvent(self, event) -> None:
+        painter = QPainter(self)
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+        w = float(self.width())
+        h = float(self.height())
+        radius = h / 2.0 - 1.0
+
+        track = QRectF(0.6, 0.6, w - 1.2, h - 1.2)
+        track_path = QPainterPath()
+        track_path.addRoundedRect(track, radius, radius)
+        painter.setPen(Qt.PenStyle.NoPen)
+        painter.setBrush(QColor("#0B111A"))
+        painter.drawPath(track_path)
+
+        painter.save()
+        painter.setClipPath(track_path)
+        if self._indeterminate:
+            seg = w * 0.35
+            x = -seg + (w + seg) * self._phase
+            fill = QRectF(x, 1.0, seg, h - 2.0)
+        else:
+            fill = QRectF(1.0, 1.0, max(0.0, (w - 2.0) * self._value), h - 2.0)
+
+        if fill.width() > 0.5:
+            fill_radius = min(radius, fill.height() / 2.0)
+            fill_path = QPainterPath()
+            fill_path.addRoundedRect(fill, fill_radius, fill_radius)
+            grad = QLinearGradient(0.0, 0.0, w, 0.0)
+            grad.setColorAt(0.0, QColor(ELECTRIC_CYAN))
+            grad.setColorAt(0.5, QColor(ACID_LIME))
+            grad.setColorAt(1.0, QColor(NEON_MAGENTA))
+            painter.setBrush(QBrush(grad))
+            painter.drawPath(fill_path)
+
+            # Brilho passando (shimmer), recortado à área preenchida.
+            painter.setClipPath(fill_path)
+            band = max(24.0, w * 0.22)
+            sx = fill.left() - band + (fill.width() + band * 2.0) * self._phase
+            shim = QLinearGradient(sx, 0.0, sx + band, 0.0)
+            shim.setColorAt(0.0, QColor(255, 255, 255, 0))
+            shim.setColorAt(0.5, QColor(255, 255, 255, 95))
+            shim.setColorAt(1.0, QColor(255, 255, 255, 0))
+            painter.setBrush(QBrush(shim))
+            painter.drawRect(QRectF(sx, 1.0, band, h - 2.0))
+        painter.restore()
+
+        painter.setBrush(Qt.BrushStyle.NoBrush)
+        painter.setPen(QPen(QColor("#273140"), 1.0))
+        painter.drawPath(track_path)
+
+        if not self._indeterminate:
+            painter.setPen(QColor(SOFT_WHITE))
+            painter.setFont(QFont("Bahnschrift", 9, QFont.Weight.Bold))
+            painter.drawText(self.rect(), Qt.AlignmentFlag.AlignCenter, f"{int(self._value * 100)}%")
 
 
 def neon_qicon(icon_id: str, size: int = 22) -> QIcon:
