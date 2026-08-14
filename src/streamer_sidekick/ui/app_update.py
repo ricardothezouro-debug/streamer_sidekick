@@ -9,10 +9,28 @@ from PySide6.QtWidgets import (
     QHBoxLayout,
     QLabel,
     QMessageBox,
+    QProgressBar,
     QPushButton,
     QVBoxLayout,
     QWidget,
 )
+
+_NEON_PROGRESS_QSS = """
+QProgressBar {
+    background: #0B111A;
+    border: 1px solid #273140;
+    border-radius: 9px;
+    min-height: 20px;
+    text-align: center;
+    color: #F3F6FF;
+    font-weight: 600;
+}
+QProgressBar::chunk {
+    border-radius: 8px;
+    background: qlineargradient(x1:0, y1:0, x2:1, y2:0,
+        stop:0 #37F2FF, stop:0.5 #B9FF43, stop:1 #FF4FD8);
+}
+"""
 
 from streamer_sidekick.core import app_update
 from streamer_sidekick.core.app_update import AppRelease
@@ -33,6 +51,7 @@ class AppUpdateCheckWorker(QThread):
 
 class _AppInstallWorker(QThread):
     progress = Signal(str)
+    progress_value = Signal(float)  # 0..1 durante o download; -1 = indeterminado
     finished_ok = Signal()
     failed = Signal(str)
 
@@ -41,8 +60,12 @@ class _AppInstallWorker(QThread):
         self._release = release
 
     def run(self) -> None:
+        def report(message: str, fraction) -> None:
+            self.progress.emit(message)
+            self.progress_value.emit(fraction if fraction is not None else -1.0)
+
         try:
-            app_update.download_and_apply(self._release, progress=self.progress.emit)
+            app_update.download_and_apply(self._release, progress=report)
         except Exception as exc:
             self.failed.emit(str(exc))
             return
@@ -90,6 +113,14 @@ class AppUpdateDialog(QDialog):
             layout.addWidget(notes_title)
             layout.addWidget(notes)
 
+        self.progress_bar = QProgressBar()
+        self.progress_bar.setStyleSheet(_NEON_PROGRESS_QSS)
+        self.progress_bar.setTextVisible(True)
+        self.progress_bar.setRange(0, 100)
+        self.progress_bar.setValue(0)
+        self.progress_bar.setVisible(False)
+        layout.addWidget(self.progress_bar)
+
         self.status_label = QLabel("")
         self.status_label.setObjectName("Muted")
         self.status_label.setWordWrap(True)
@@ -118,21 +149,69 @@ class AppUpdateDialog(QDialog):
             return
         self.update_button.setEnabled(False)
         self.later_button.setEnabled(False)
-        self.status_label.setText("Iniciando...")
+        self.status_label.setText("Iniciando…")
+        self.progress_bar.setVisible(True)
+        self.progress_bar.setRange(0, 0)  # indeterminado até começar o download
 
         worker = _AppInstallWorker(self.release)
         worker.progress.connect(self.status_label.setText)
+        worker.progress_value.connect(self._on_progress_value)
         worker.finished_ok.connect(self._on_finished)
         worker.failed.connect(self._on_failed)
         self._worker = worker
         worker.start()
 
+    def _on_progress_value(self, fraction: float) -> None:
+        if fraction < 0:
+            # Fase sem porcentagem: barra "correndo" (animação indeterminada).
+            self.progress_bar.setRange(0, 0)
+        else:
+            self.progress_bar.setRange(0, 100)
+            self.progress_bar.setValue(int(fraction * 100))
+
     def _on_finished(self) -> None:
         # Updater disparado: encerra o app para liberar os arquivos.
-        self.status_label.setText("Reiniciando para concluir...")
+        self.progress_bar.setRange(0, 0)
+        self.status_label.setText("Aplicando atualização… o app vai reabrir sozinho.")
         self._on_quit()
 
     def _on_failed(self, message: str) -> None:
         self.update_button.setEnabled(True)
         self.later_button.setEnabled(True)
+        self.progress_bar.setVisible(False)
         self.status_label.setText(f"Falha ao atualizar: {message}")
+
+
+class AppUpdatedDialog(QDialog):
+    """Confirmação neon mostrada uma vez após o app ser atualizado."""
+
+    def __init__(self, version: str, parent: Optional[QWidget] = None) -> None:
+        super().__init__(parent)
+        self.setWindowTitle("Atualizado")
+        self.setMinimumWidth(380)
+
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(24, 22, 24, 22)
+        layout.setSpacing(12)
+
+        title = QLabel(f"🎉 Atualizado para a v{version}!")
+        title.setObjectName("PageTitle")
+        title.setStyleSheet("font-size: 24px;")
+        title.setWordWrap(True)
+        message = QLabel(
+            "O Streamer Sidekick foi atualizado com sucesso. Confira as novidades na "
+            "tela Sobre e bons streams!"
+        )
+        message.setObjectName("Muted")
+        message.setWordWrap(True)
+
+        row = QHBoxLayout()
+        row.addStretch(1)
+        ok = QPushButton("Show!")
+        ok.setObjectName("PrimaryButton")
+        ok.clicked.connect(self.accept)
+        row.addWidget(ok)
+
+        layout.addWidget(title)
+        layout.addWidget(message)
+        layout.addLayout(row)
