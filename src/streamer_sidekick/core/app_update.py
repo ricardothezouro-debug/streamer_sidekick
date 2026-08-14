@@ -99,16 +99,19 @@ def _fetch_manifest() -> Optional[dict[str, Any]]:
 
 def download_and_apply(
     release: AppRelease,
-    progress: Optional[Callable[[str], None]] = None,
+    progress: Optional[Callable[[str, Optional[float]], None]] = None,
 ) -> None:
     """Baixa a versão nova e dispara o updater. Lança RuntimeError se não aplicável.
+
+    ``progress(message, fraction)``: fraction em 0..1 durante o download, ou None
+    (indeterminado) nas demais fases.
 
     Depois desta chamada retornar, quem chama DEVE encerrar o app imediatamente
     para liberar os arquivos (o updater espera o processo sair antes de copiar).
     """
-    def report(message: str) -> None:
+    def report(message: str, fraction: Optional[float] = None) -> None:
         if progress is not None:
-            progress(message)
+            progress(message, fraction)
 
     if not is_frozen():
         raise RuntimeError(
@@ -117,8 +120,14 @@ def download_and_apply(
     if sys.platform != "win32":
         raise RuntimeError("Auto-update automático está disponível apenas no Windows por enquanto.")
 
-    report("Baixando a nova versão...")
-    payload = _download(release.zip_url)
+    report("Baixando a nova versão...", 0.0)
+    payload = _download(
+        release.zip_url,
+        on_progress=lambda read, total: report(
+            _download_message(read, total),
+            (read / total) if total else None,
+        ),
+    )
 
     report("Preparando arquivos...")
     staging = Path(tempfile.mkdtemp(prefix="ssk_update_"))
@@ -140,10 +149,28 @@ def download_and_apply(
     )
 
 
-def _download(url: str) -> bytes:
+def _download(url: str, on_progress: Optional[Callable[[int, int], None]] = None) -> bytes:
     request = urllib.request.Request(url, headers={"User-Agent": _USER_AGENT})
+    parts: list[bytes] = []
     with urllib.request.urlopen(request, timeout=_HTTP_TIMEOUT) as response:
-        return response.read()
+        total = int(response.headers.get("Content-Length") or 0)
+        read = 0
+        while True:
+            chunk = response.read(65536)
+            if not chunk:
+                break
+            parts.append(chunk)
+            read += len(chunk)
+            if on_progress is not None:
+                on_progress(read, total)
+    return b"".join(parts)
+
+
+def _download_message(read: int, total: int) -> str:
+    mb = read / (1024 * 1024)
+    if total:
+        return f"Baixando… {mb:.0f} MB de {total / (1024 * 1024):.0f} MB"
+    return f"Baixando… {mb:.0f} MB"
 
 
 def _single_top_dir(extracted: Path) -> Path:

@@ -38,7 +38,7 @@ from streamer_sidekick.core.diagnostics import DiagnosticItem, DiagnosticService
 from streamer_sidekick.core.hotkeys import HotkeyManager
 from streamer_sidekick.core.modules import ModuleInfo, ModuleRegistry
 from streamer_sidekick.core.platform_utils import app_icon_path, open_path
-from streamer_sidekick.core.plugins import InstalledPlugin, PluginManager
+from streamer_sidekick.core.plugins import InstalledPlugin, PluginManager, version_tuple
 from streamer_sidekick.core import app_update
 from streamer_sidekick.modules.counter.overlay import CounterOverlay
 from streamer_sidekick.modules.counter.service import CounterService
@@ -46,7 +46,7 @@ from streamer_sidekick.modules.marker.service import MarkerService
 from streamer_sidekick.ui.counter_editor import CounterPresetDialog
 from streamer_sidekick.ui.components import AddPluginTile, BrandLogo, ModuleCard, NeonPanel, SectionHeader, neon_qicon, plugin_qicon
 from streamer_sidekick.ui.plugin_marketplace import PluginMarketplaceDialog, _CatalogWorker
-from streamer_sidekick.ui.app_update import AppUpdateCheckWorker, AppUpdateDialog
+from streamer_sidekick.ui.app_update import AppUpdateCheckWorker, AppUpdateDialog, AppUpdatedDialog
 
 try:
     import pyautogui
@@ -141,6 +141,7 @@ class HubWindow(QMainWindow):
         if app is not None:
             app.installEventFilter(self)
         self._select_page("home")
+        self._maybe_show_updated_toast()
         self._check_app_update_async(auto=True)
 
     def _build_shell(self) -> QWidget:
@@ -1462,6 +1463,14 @@ class HubWindow(QMainWindow):
             self.add_plugin_card.set_update_badge(count)
 
     # ---- Auto-update do app --------------------------------------------
+
+    def _maybe_show_updated_toast(self) -> None:
+        """Mostra uma confirmação quando o app subiu de versão desde a última vez."""
+        current = app_update.current_version()
+        last = str(self.config.get("app.last_version", "") or "")
+        self.config.set("app.last_version", current)
+        if last and last != current and version_tuple(current) > version_tuple(last):
+            AppUpdatedDialog(current, parent=self).exec()
 
     def _check_app_update_async(self, auto: bool = False) -> None:
         if self._app_update_worker is not None and self._app_update_worker.isRunning():
