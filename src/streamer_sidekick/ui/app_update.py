@@ -9,28 +9,12 @@ from PySide6.QtWidgets import (
     QHBoxLayout,
     QLabel,
     QMessageBox,
-    QProgressBar,
     QPushButton,
     QVBoxLayout,
     QWidget,
 )
 
-_NEON_PROGRESS_QSS = """
-QProgressBar {
-    background: #0B111A;
-    border: 1px solid #273140;
-    border-radius: 9px;
-    min-height: 20px;
-    text-align: center;
-    color: #F3F6FF;
-    font-weight: 600;
-}
-QProgressBar::chunk {
-    border-radius: 8px;
-    background: qlineargradient(x1:0, y1:0, x2:1, y2:0,
-        stop:0 #37F2FF, stop:0.5 #B9FF43, stop:1 #FF4FD8);
-}
-"""
+from streamer_sidekick.ui.components import NeonProgressBar
 
 from streamer_sidekick.core import app_update
 from streamer_sidekick.core.app_update import AppRelease
@@ -113,10 +97,7 @@ class AppUpdateDialog(QDialog):
             layout.addWidget(notes_title)
             layout.addWidget(notes)
 
-        self.progress_bar = QProgressBar()
-        self.progress_bar.setStyleSheet(_NEON_PROGRESS_QSS)
-        self.progress_bar.setTextVisible(True)
-        self.progress_bar.setRange(0, 100)
+        self.progress_bar = NeonProgressBar()
         self.progress_bar.setValue(0)
         self.progress_bar.setVisible(False)
         layout.addWidget(self.progress_bar)
@@ -151,7 +132,7 @@ class AppUpdateDialog(QDialog):
         self.later_button.setEnabled(False)
         self.status_label.setText("Iniciando…")
         self.progress_bar.setVisible(True)
-        self.progress_bar.setRange(0, 0)  # indeterminado até começar o download
+        self.progress_bar.setIndeterminate(True)  # indeterminado até começar o download
 
         worker = _AppInstallWorker(self.release)
         worker.progress.connect(self.status_label.setText)
@@ -164,14 +145,13 @@ class AppUpdateDialog(QDialog):
     def _on_progress_value(self, fraction: float) -> None:
         if fraction < 0:
             # Fase sem porcentagem: barra "correndo" (animação indeterminada).
-            self.progress_bar.setRange(0, 0)
+            self.progress_bar.setIndeterminate(True)
         else:
-            self.progress_bar.setRange(0, 100)
-            self.progress_bar.setValue(int(fraction * 100))
+            self.progress_bar.setValue(fraction * 100)
 
     def _on_finished(self) -> None:
         # Updater disparado: encerra o app para liberar os arquivos.
-        self.progress_bar.setRange(0, 0)
+        self.progress_bar.setIndeterminate(True)
         self.status_label.setText("Aplicando atualização… o app vai reabrir sozinho.")
         self._on_quit()
 
