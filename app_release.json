@@ -1,5 +1,5 @@
 {
-  "version": "0.4.2",
-  "zip_url": "https://github.com/ricardothezouro-debug/streamer_sidekick/releases/download/v0.4.2/StreamerSidekick-0.4.2-portable.zip",
-  "notes": "Correção do auto-updater: agora ele espera o app fechar de forma confiável, roda oculto (sem janela de console) e conclui a troca de arquivos sozinho."
+  "version": "0.4.3",
+  "zip_url": "https://github.com/ricardothezouro-debug/streamer_sidekick/releases/download/v0.4.3/StreamerSidekick-0.4.3-portable.zip",
+  "notes": "Atualização com visual novo: barra de progresso neon animada durante o download e uma confirmação estilosa quando o app reabre."
 }
