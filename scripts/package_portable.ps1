@@ -3,7 +3,9 @@ $ErrorActionPreference = "Stop"
 $ProjectRoot = Resolve-Path (Join-Path $PSScriptRoot "..")
 $DistFolder = Join-Path $ProjectRoot "dist\StreamerSidekick"
 $ReleaseFolder = Join-Path $ProjectRoot "release"
-$Version = "0.4.3"
+$InitFile = Join-Path $ProjectRoot "src\streamer_sidekick\__init__.py"
+$Version = ([regex]::Match((Get-Content -Raw $InitFile), '__version__\s*=\s*"([^"]+)"')).Groups[1].Value
+if (-not $Version) { throw "Nao foi possivel ler a versao de $InitFile" }
 $PackageName = "StreamerSidekick-$Version-portable"
 $StageFolder = Join-Path $ReleaseFolder $PackageName
 $ZipPath = Join-Path $ReleaseFolder "$PackageName.zip"

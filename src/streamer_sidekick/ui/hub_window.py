@@ -39,7 +39,7 @@ from streamer_sidekick.core.hotkeys import HotkeyManager
 from streamer_sidekick.core.modules import ModuleInfo, ModuleRegistry
 from streamer_sidekick.core.platform_utils import app_icon_path, open_path
 from streamer_sidekick.core.plugins import InstalledPlugin, PluginManager, version_tuple
-from streamer_sidekick.core import app_update
+from streamer_sidekick.core import app_update, startup
 from streamer_sidekick.modules.counter.overlay import CounterOverlay
 from streamer_sidekick.modules.counter.service import CounterService
 from streamer_sidekick.modules.marker.service import MarkerService
@@ -47,6 +47,7 @@ from streamer_sidekick.ui.counter_editor import CounterPresetDialog
 from streamer_sidekick.ui.components import AddPluginTile, BrandLogo, ModuleCard, NeonPanel, SectionHeader, neon_qicon, plugin_qicon
 from streamer_sidekick.ui.plugin_marketplace import PluginMarketplaceDialog, _CatalogWorker
 from streamer_sidekick.ui.app_update import AppUpdateCheckWorker, AppUpdateDialog, AppUpdatedDialog
+from streamer_sidekick.ui.welcome import WelcomeDialog
 
 try:
     import pyautogui
@@ -101,6 +102,7 @@ class HubWindow(QMainWindow):
         self.tray_counter_menu: Optional[QMenu] = None
         self.setting_start_minimized: Optional[QCheckBox] = None
         self.setting_close_to_tray: Optional[QCheckBox] = None
+        self.setting_run_at_startup: Optional[QCheckBox] = None
         self.setting_marker_folder: Optional[QLineEdit] = None
         self.setting_counter_folder: Optional[QLineEdit] = None
         self.hotkeys_grid: Optional[QGridLayout] = None
@@ -141,6 +143,12 @@ class HubWindow(QMainWindow):
         if app is not None:
             app.installEventFilter(self)
         self._select_page("home")
+        # Roda os diálogos de abertura depois que a janela aparece (não bloqueia
+        # o construtor antes do show()).
+        QTimer.singleShot(0, self._run_startup_dialogs)
+
+    def _run_startup_dialogs(self) -> None:
+        self._maybe_show_onboarding()
         self._maybe_show_updated_toast()
         self._check_app_update_async(auto=True)
 
@@ -819,9 +827,12 @@ class HubWindow(QMainWindow):
         self.setting_start_minimized.setChecked(bool(self.config.get("hub.start_minimized", False)))
         self.setting_close_to_tray = QCheckBox("Ao clicar no X, minimizar para a bandeja")
         self.setting_close_to_tray.setChecked(bool(self.config.get("hub.close_to_tray", True)))
+        self.setting_run_at_startup = QCheckBox("Iniciar com o Windows")
+        self.setting_run_at_startup.setChecked(bool(self.config.get("hub.run_at_startup", False)))
         behavior_layout.addWidget(behavior_title)
         behavior_layout.addWidget(self.setting_start_minimized)
         behavior_layout.addWidget(self.setting_close_to_tray)
+        behavior_layout.addWidget(self.setting_run_at_startup)
 
         folders_box = NeonPanel(accent="#FF4FD8")
         folders_layout = QVBoxLayout(folders_box)
@@ -1464,6 +1475,13 @@ class HubWindow(QMainWindow):
 
     # ---- Auto-update do app --------------------------------------------
 
+    def _maybe_show_onboarding(self) -> None:
+        """Mostra o tour de boas-vindas na primeira execução."""
+        if self.config.get("hub.onboarded", False):
+            return
+        WelcomeDialog(self).exec()
+        self.config.set("hub.onboarded", True)
+
     def _maybe_show_updated_toast(self) -> None:
         """Mostra uma confirmação quando o app subiu de versão desde a última vez."""
         current = app_update.current_version()
@@ -1949,6 +1967,8 @@ class HubWindow(QMainWindow):
             self.setting_start_minimized.setChecked(bool(self.config.get("hub.start_minimized", False)))
         if self.setting_close_to_tray is not None:
             self.setting_close_to_tray.setChecked(bool(self.config.get("hub.close_to_tray", True)))
+        if self.setting_run_at_startup is not None:
+            self.setting_run_at_startup.setChecked(bool(self.config.get("hub.run_at_startup", False)))
         if self.setting_marker_folder is not None:
             self.setting_marker_folder.setText(str(self.marker_service.folder()))
         if self.setting_counter_folder is not None:
@@ -1973,6 +1993,10 @@ class HubWindow(QMainWindow):
 
         self.config.set("hub.start_minimized", self.setting_start_minimized.isChecked())
         self.config.set("hub.close_to_tray", self.setting_close_to_tray.isChecked())
+        if self.setting_run_at_startup is not None:
+            run_at_startup = self.setting_run_at_startup.isChecked()
+            self.config.set("hub.run_at_startup", run_at_startup)
+            startup.set_enabled(run_at_startup)
 
         self._refresh_marker_page()
         self._refresh_counter_page()

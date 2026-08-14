@@ -31,6 +31,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Callable, Optional
 
+from streamer_sidekick import __version__ as APP_VERSION
 from streamer_sidekick.core.paths import plugins_dir
 
 
@@ -60,6 +61,7 @@ class CatalogEntry:
     accent: str = "#37F2FF"
     icon: str = ""  # caminho do PNG relativo a raiz do plugin
     changelog: str = ""  # o que ha de novo nesta versao
+    min_sidekick_version: str = ""  # versao minima do Sidekick exigida
 
     @staticmethod
     def from_dict(data: dict[str, Any]) -> Optional["CatalogEntry"]:
@@ -76,6 +78,7 @@ class CatalogEntry:
                 accent=str(data.get("accent") or "#37F2FF").strip(),
                 icon=str(data.get("icon") or "").strip(),
                 changelog=str(data.get("changelog") or "").strip(),
+                min_sidekick_version=str(data.get("min_sidekick_version") or "").strip(),
             )
         except (KeyError, TypeError):
             return None
@@ -149,6 +152,7 @@ class PluginManager:
         src_subdir = str(manifest.get("src_subdir") or "").strip()
         module_name = str(manifest.get("module") or "").strip()
         icon_rel = str(manifest.get("icon") or "").strip()
+        min_version = str(manifest.get("min_sidekick_version") or "").strip()
 
         icon_path: Optional[str] = None
         if icon_rel:
@@ -160,6 +164,13 @@ class PluginManager:
             id=plugin_id, name=name, version=version, path=folder, accent=accent,
             icon_path=icon_path,
         )
+
+        if min_version and version_tuple(min_version) > version_tuple(APP_VERSION):
+            plugin.error = (
+                f"Requer o Streamer Sidekick v{min_version} ou superior "
+                f"(você está na v{APP_VERSION})."
+            )
+            return plugin
 
         if not module_name:
             plugin.error = "Manifesto sem campo 'module'."
@@ -223,6 +234,19 @@ class PluginManager:
     def updates_available(self, catalog: list[CatalogEntry]) -> list[CatalogEntry]:
         return [entry for entry in catalog if self.has_update(entry)]
 
+    def incompatibility_reason(self, entry: CatalogEntry) -> Optional[str]:
+        """Motivo de o plugin ser incompativel com esta versao do app, ou None."""
+        minimum = (entry.min_sidekick_version or "").strip()
+        if minimum and version_tuple(minimum) > version_tuple(APP_VERSION):
+            return (
+                f"Requer o Streamer Sidekick v{minimum} ou superior "
+                f"(você está na v{APP_VERSION})."
+            )
+        return None
+
+    def is_compatible(self, entry: CatalogEntry) -> bool:
+        return self.incompatibility_reason(entry) is None
+
     # ---- Catalogo -------------------------------------------------------
 
     def fetch_catalog(self) -> list[CatalogEntry]:
@@ -262,6 +286,10 @@ class PluginManager:
         def report(message: str) -> None:
             if progress is not None:
                 progress(message)
+
+        incompatibility = self.incompatibility_reason(entry)
+        if incompatibility:
+            raise RuntimeError(incompatibility)
 
         report("Baixando do GitHub...")
         payload = self._download_zip(entry.zip_url())
@@ -319,6 +347,7 @@ class PluginManager:
             "module": entry.module,
             "accent": entry.accent,
             "icon": entry.icon,
+            "min_sidekick_version": entry.min_sidekick_version,
             "repo": entry.repo,
             "ref": entry.ref,
         }

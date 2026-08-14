@@ -8,6 +8,7 @@ from streamer_sidekick.core.platform_utils import app_icon_path
 from streamer_sidekick.core.hotkeys import HotkeyManager
 from streamer_sidekick.core.modules import ModuleRegistry
 from streamer_sidekick.core.plugins import PluginManager
+from streamer_sidekick.core import startup
 from streamer_sidekick.modules.counter.service import CounterService
 from streamer_sidekick.modules.marker.service import MarkerService
 from streamer_sidekick.ui.hub_window import HubWindow
@@ -25,6 +26,9 @@ def run() -> int:
     apply_theme(app)
 
     config = ConfigStore()
+    # Mantem o registro de inicio automatico em sincronia com o caminho atual
+    # do exe (o portable pode ter sido movido de pasta).
+    startup.set_enabled(bool(config.get("hub.run_at_startup", False)))
     hotkeys = HotkeyManager(config)
     marker = MarkerService(config)
     counter = CounterService(config)

@@ -152,6 +152,7 @@ repositório do Sidekick:
 | `accent` | não | Cor de destaque (padrão `#37F2FF`). |
 | `icon` | não | Caminho do PNG **relativo à raiz do repositório**. |
 | `changelog` | não | Mostrado quando há atualização. |
+| `min_sidekick_version` | não | Versão mínima do Sidekick (SemVer). Se o app for mais antigo, o "+" mostra **Incompatível** e não instala. |
 
 Aumente `version` a cada release para disparar o selo de **atualização
 disponível** e mostrar o `changelog`.

@@ -114,7 +114,15 @@ class _PluginRow(QFrame):
         installed = self.manager.get(self.entry.id)
         self.remove_button.setVisible(installed is not None)
         self.remove_button.setEnabled(installed is not None)
-        if installed is None:
+        incompatibility = self.manager.incompatibility_reason(self.entry)
+        if installed is None and incompatibility:
+            self.action_button.setText("Incompatível")
+            self.action_button.setEnabled(False)
+            self.status_label.setText("")
+            self.changelog_label.setStyleSheet("color: #FF4FD8;")
+            self.changelog_label.setText(incompatibility)
+            self.changelog_label.setVisible(True)
+        elif installed is None:
             self.action_button.setText("Instalar")
             self.action_button.setEnabled(True)
             self.status_label.setText("")

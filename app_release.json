@@ -1,5 +1,5 @@
 {
-  "version": "0.4.3",
-  "zip_url": "https://github.com/ricardothezouro-debug/streamer_sidekick/releases/download/v0.4.3/StreamerSidekick-0.4.3-portable.zip",
-  "notes": "Atualização com visual novo: barra de progresso neon animada durante o download e uma confirmação estilosa quando o app reabre."
+  "version": "0.5.0",
+  "zip_url": "https://github.com/ricardothezouro-debug/streamer_sidekick/releases/download/v0.5.0/StreamerSidekick-0.5.0-portable.zip",
+  "notes": "Boas-vindas na primeira execução, opção de iniciar junto com o Windows, e o marketplace agora avisa quando um plugin exige uma versão mais nova do app."
 }

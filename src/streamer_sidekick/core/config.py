@@ -11,6 +11,8 @@ DEFAULT_CONFIG: dict[str, Any] = {
     "hub": {
         "start_minimized": False,
         "close_to_tray": True,
+        "run_at_startup": False,
+        "onboarded": False,
     },
     "marker": {
         "folder": "",

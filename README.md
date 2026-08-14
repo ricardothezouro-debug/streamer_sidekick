@@ -76,8 +76,11 @@ a atualizacao e via `git pull`.
 
 ## Platforms
 
-Streamer Sidekick roda no Windows e no macOS (e, com esforco menor, em
-Linux). A camada de atalhos globais escolhe o backend certo por sistema:
+**Plataforma suportada hoje: Windows** (é onde as releases são publicadas e
+testadas). O suporte a **macOS/Linux existe no código, mas é experimental** e
+ainda não foi validado/lançado — será retomado no futuro.
+
+A camada de atalhos globais escolhe o backend certo por sistema:
 
 - Windows: pacote `keyboard`.
 - macOS / Linux: pacote `pynput`.
