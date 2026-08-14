@@ -1,5 +1,5 @@
 #define MyAppName "Streamer Sidekick"
-#define MyAppVersion "0.4.1"
+#define MyAppVersion "0.4.2"
 #define MyAppPublisher "Ricardo The Zouro"
 #define MyAppExeName "StreamerSidekick.exe"
 
