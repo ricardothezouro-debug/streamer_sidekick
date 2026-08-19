@@ -60,6 +60,19 @@ def test_updater_script_is_powershell():
     assert "timeout /t" not in script
 
 
+def test_updater_script_renames_portable_folder():
+    script = app_update.build_updater_script(
+        Path("C:/base/StreamerSidekick-0.4.2-portable"),  # new_root (irrelevante aqui)
+        Path("C:/base/StreamerSidekick-0.4.2-portable"),  # target: nome padrão
+        Path("C:/staging"), 1, new_version="0.5.0",
+    )
+    assert "Rename-Item" in script
+    assert "StreamerSidekick-0.5.0-portable" in script
+    # sem new_version -> não renomeia
+    plain = app_update.build_updater_script(Path("C:/new"), Path("C:/app"), Path("C:/s"), 1)
+    assert "Rename-Item" not in plain
+
+
 def test_plugin_discovery(tmp_path, monkeypatch):
     import streamer_sidekick.core.plugins as plugins_mod
     monkeypatch.setattr(plugins_mod, "plugins_dir", lambda: tmp_path)

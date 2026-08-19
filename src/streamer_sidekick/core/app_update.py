@@ -136,7 +136,7 @@ def download_and_apply(
     new_root = _single_top_dir(staging)
 
     target = install_dir()
-    ps_path = _write_updater_ps1(new_root, target, staging, os.getpid())
+    ps_path = _write_updater_ps1(new_root, target, staging, os.getpid(), release.version)
 
     report("Reiniciando para concluir a atualização...")
     subprocess.Popen(
@@ -187,35 +187,66 @@ def _ps_quote(value: str) -> str:
     return "'" + str(value).replace("'", "''") + "'"
 
 
-def build_updater_script(new_root: Path, target: Path, staging: Path, pid: int) -> str:
+def build_updater_script(
+    new_root: Path, target: Path, staging: Path, pid: int, new_version: str = ""
+) -> str:
     """Conteúdo do updater em PowerShell. Separado para poder ser testado.
 
     Usa ``Wait-Process`` (espera o app sair de forma confiável, sem depender de
     ``tasklist``/``timeout`` que falham num processo sem console), ``robocopy``
     para trocar os arquivos e ``Start-Process`` para reabrir. Ao final limpa o
     diretório temporário e a si mesmo.
+
+    Se ``new_version`` for informado e a pasta de instalação ainda tiver o nome
+    padrão (``StreamerSidekick-<versão>-portable``), ela é renomeada para refletir
+    a nova versão — e o app reabre a partir do novo caminho. Pastas com nome
+    customizado pelo usuário são preservadas.
     """
     new_root_q = _ps_quote(str(new_root))
     target_q = _ps_quote(str(target))
     staging_q = _ps_quote(str(staging))
-    exe_q = _ps_quote(str(Path(target) / EXE_NAME))
-    return (
-        "$ErrorActionPreference = 'SilentlyContinue'\r\n"
-        f"Wait-Process -Id {int(pid)} -Timeout 120\r\n"
-        "Start-Sleep -Seconds 1\r\n"
-        f"$null = robocopy {new_root_q} {target_q} /E /IS /IT /R:3 /W:2 /NFL /NDL /NJH /NJS\r\n"
-        f"Start-Process -FilePath {exe_q}\r\n"
-        "Start-Sleep -Seconds 1\r\n"
-        f"Remove-Item -LiteralPath {staging_q} -Recurse -Force\r\n"
-        "Remove-Item -LiteralPath $PSCommandPath -Force\r\n"
-    )
+    version = str(new_version).strip()
+
+    lines = [
+        "$ErrorActionPreference = 'SilentlyContinue'",
+        f"Wait-Process -Id {int(pid)} -Timeout 120",
+        "Start-Sleep -Seconds 1",
+        f"$null = robocopy {new_root_q} {target_q} /E /IS /IT /R:3 /W:2 /NFL /NDL /NJH /NJS",
+        f"$finalTarget = {target_q}",
+    ]
+    if version:
+        lines += [
+            f"$leaf = Split-Path -Leaf {target_q}",
+            f"$parent = Split-Path -Parent {target_q}",
+            "if ($leaf -match '^StreamerSidekick-.*-portable$') {",
+            f"  $newName = 'StreamerSidekick-{version}-portable'",
+            "  if ($leaf -ne $newName) {",
+            "    $candidate = Join-Path $parent $newName",
+            "    if (-not (Test-Path -LiteralPath $candidate)) {",
+            f"      Rename-Item -LiteralPath {target_q} -NewName $newName",
+            "      if (Test-Path -LiteralPath $candidate) { $finalTarget = $candidate }",
+            "    }",
+            "  }",
+            "}",
+        ]
+    lines += [
+        f"Start-Process -FilePath (Join-Path $finalTarget '{EXE_NAME}')",
+        "Start-Sleep -Seconds 1",
+        f"Remove-Item -LiteralPath {staging_q} -Recurse -Force",
+        "Remove-Item -LiteralPath $PSCommandPath -Force",
+    ]
+    return "\r\n".join(lines) + "\r\n"
 
 
-def _write_updater_ps1(new_root: Path, target: Path, staging: Path, pid: int) -> Path:
+def _write_updater_ps1(
+    new_root: Path, target: Path, staging: Path, pid: int, new_version: str = ""
+) -> Path:
     # O .ps1 fica FORA de staging para poder apagar staging e a si mesmo.
     # utf-8-sig (BOM) para o Windows PowerShell 5.1 ler o arquivo corretamente.
     fd, path = tempfile.mkstemp(prefix="ssk_apply_", suffix=".ps1")
     os.close(fd)
     ps_path = Path(path)
-    ps_path.write_text(build_updater_script(new_root, target, staging, pid), encoding="utf-8-sig")
+    ps_path.write_text(
+        build_updater_script(new_root, target, staging, pid, new_version), encoding="utf-8-sig"
+    )
     return ps_path
