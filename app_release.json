@@ -1,5 +1,5 @@
 {
-  "version": "0.5.0",
-  "zip_url": "https://github.com/ricardothezouro-debug/streamer_sidekick/releases/download/v0.5.0/StreamerSidekick-0.5.0-portable.zip",
-  "notes": "Boas-vindas na primeira execução, opção de iniciar junto com o Windows, e o marketplace agora avisa quando um plugin exige uma versão mais nova do app."
+  "version": "0.5.1",
+  "zip_url": "https://github.com/ricardothezouro-debug/streamer_sidekick/releases/download/v0.5.1/StreamerSidekick-0.5.1-portable.zip",
+  "notes": "Ao atualizar, a pasta portable passa a refletir a versão nova automaticamente, e o rodapé mostra a versão certa."
 }
