@@ -20,15 +20,14 @@ O build e a publicação da Release são **automáticos** via GitHub Actions
 
 3. **PR `develop` → `main`** e faça o merge (**Create a merge commit**).
 
-4. **Crie e envie a tag:**
-   ```bash
-   git checkout main && git pull
-   git tag v0.4.4
-   git push origin v0.4.4
-   ```
-   O workflow **Release** então: confere que a tag bate com `__version__`
-   (falha se você esqueceu o bump), roda os testes, builda o portable e
-   **cria a Release já com o zip anexado**.
+   **É só isso.** Ao entrar na `main`, o workflow **Release** roda sozinho: lê a
+   versão do código e, se ainda **não existir** uma Release para ela, roda os
+   testes, builda o portable e **publica a Release já com o zip e a tag
+   `vX.Y.Z`** — sem você criar tag na mão. Se a Release já existir (ex.: um commit
+   na main que não mudou a versão), ele não faz nada.
+
+   > Ou seja: **bump → PR → merge**. A tag e a publicação são automáticas.
+   > (Não esqueça de bumpar a versão no passo 2, senão a Release nova não sai.)
 
 ## Sobre o auto-update (ordem importa)
 
