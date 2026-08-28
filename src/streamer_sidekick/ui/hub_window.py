@@ -172,12 +172,18 @@ class HubWindow(QMainWindow):
         sidebar.setObjectName("Sidebar")
         sidebar.setFixedWidth(232)
 
-        layout = QVBoxLayout(sidebar)
-        layout.setContentsMargins(12, 18, 12, 20)
-        layout.setSpacing(9)
+        outer = QVBoxLayout(sidebar)
+        outer.setContentsMargins(12, 18, 12, 20)
+        outer.setSpacing(14)
+        outer.addWidget(BrandLogo(compact=True))
 
-        layout.addWidget(BrandLogo(compact=True))
-        layout.addSpacing(22)
+        # Navegação num scroll: com muitos itens (Platinas + submenu de plugins),
+        # nada fica espremido/cortado — quando não cabe, aparece a rolagem.
+        nav = QWidget()
+        nav.setStyleSheet("background: transparent;")
+        layout = QVBoxLayout(nav)
+        layout.setContentsMargins(0, 4, 0, 0)
+        layout.setSpacing(9)
 
         for page_id, label, icon_id in [
             ("home", "Início", "home"),
@@ -206,9 +212,17 @@ class HubWindow(QMainWindow):
 
         layout.addStretch(1)
 
+        scroll = QScrollArea()
+        scroll.setWidgetResizable(True)
+        scroll.setFrameShape(QFrame.Shape.NoFrame)
+        scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        scroll.setStyleSheet("QScrollArea{background:transparent;border:0}")
+        scroll.setWidget(nav)
+        outer.addWidget(scroll, 1)
+
         footer = QLabel(f"Online\nBase modular v{app_update.current_version()}")
         footer.setObjectName("Muted")
-        layout.addWidget(footer)
+        outer.addWidget(footer)
         return sidebar
 
     def _build_plugin_subnav(self) -> QWidget:
