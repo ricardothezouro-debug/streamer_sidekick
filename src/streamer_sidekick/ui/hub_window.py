@@ -38,7 +38,7 @@ from streamer_sidekick.core.diagnostics import DiagnosticItem, DiagnosticService
 from streamer_sidekick.core.hotkeys import HotkeyManager
 from streamer_sidekick.core.modules import ModuleInfo, ModuleRegistry
 from streamer_sidekick.core.platform_utils import app_icon_path, open_path
-from streamer_sidekick.core.plugins import InstalledPlugin, PluginManager, version_tuple
+from streamer_sidekick.core.plugins import CATEGORY_TOOL, InstalledPlugin, PluginManager, version_tuple
 from streamer_sidekick.core import app_update, startup
 from streamer_sidekick.modules.counter.overlay import CounterOverlay
 from streamer_sidekick.modules.counter.service import CounterService
@@ -48,6 +48,7 @@ from streamer_sidekick.ui.components import AddPluginTile, BrandLogo, ModuleCard
 from streamer_sidekick.ui.plugin_marketplace import PluginMarketplaceDialog, _CatalogWorker
 from streamer_sidekick.ui.app_update import AppUpdateCheckWorker, AppUpdateDialog, AppUpdatedDialog
 from streamer_sidekick.ui.welcome import WelcomeDialog
+from streamer_sidekick.ui.platinas_page import PlatinasPage
 
 try:
     import pyautogui
@@ -126,6 +127,7 @@ class HubWindow(QMainWindow):
         self._app_update_shown = False
         self.app_update_status_label: Optional[QLabel] = None
         self.help_layout: Optional[QVBoxLayout] = None
+        self.platinas_page: Optional[PlatinasPage] = None
         self._quitting = False
 
         self.setWindowTitle("Streamer Sidekick")
@@ -180,6 +182,7 @@ class HubWindow(QMainWindow):
         for page_id, label, icon_id in [
             ("home", "Início", "home"),
             ("plugins", "Plugins", "plugins"),
+            ("platinas", "Platinas", "platinas"),
             ("hotkeys", "Atalhos", "hotkey"),
             ("diagnostics", "Diagnóstico", "diagnostics"),
             ("settings", "Configurações", "settings"),
@@ -230,7 +233,7 @@ class HubWindow(QMainWindow):
             self.plugin_nav_buttons[page_id] = button
             layout.addWidget(button)
 
-        for plugin in self.plugin_manager.installed():
+        for plugin in self.plugin_manager.installed(CATEGORY_TOOL):
             self._add_plugin_subnav_button(plugin)
         return container
 
@@ -266,7 +269,9 @@ class HubWindow(QMainWindow):
         self._add_page("settings", self._settings_page())
         self._add_page("help", self._help_page())
         self._add_page("about", self._about_page())
-        for plugin in self.plugin_manager.installed():
+        self.platinas_page = PlatinasPage(self.plugin_manager)
+        self._add_page("platinas", self.platinas_page)
+        for plugin in self.plugin_manager.installed(CATEGORY_TOOL):
             self._add_plugin_page(plugin)
         return content
 
@@ -398,7 +403,7 @@ class HubWindow(QMainWindow):
             card = ModuleCard(module)
             card.opened.connect(self._select_page)
             self.home_module_cards.append(card)
-        for plugin in self.plugin_manager.installed():
+        for plugin in self.plugin_manager.installed(CATEGORY_TOOL):
             self._append_plugin_card(plugin)
 
         self.add_plugin_card = AddPluginTile()
@@ -1124,6 +1129,8 @@ class HubWindow(QMainWindow):
             self._refresh_diagnostics_page()
         if page_id == "help":
             self._refresh_help_page()
+        if page_id == "platinas" and self.platinas_page is not None:
+            self.platinas_page.refresh()
         self.pages.setCurrentIndex(self.page_indexes[page_id])
         active_page = "plugins" if in_plugins_group else page_id
         for item, button in self.nav_buttons.items():
@@ -1458,7 +1465,7 @@ class HubWindow(QMainWindow):
         self._refresh_help_page()
 
     def _check_plugin_updates_async(self) -> None:
-        if not self.plugin_manager.installed():
+        if not self.plugin_manager.installed(CATEGORY_TOOL):
             return
         worker = _CatalogWorker(self.plugin_manager)
         worker.loaded.connect(self._on_updates_checked)
@@ -1619,7 +1626,7 @@ class HubWindow(QMainWindow):
         for title, accent, body in self._BUILTIN_HELP:
             self.help_layout.addWidget(self._help_panel(title, body, accent))
 
-        plugins = self.plugin_manager.installed()
+        plugins = self.plugin_manager.installed(CATEGORY_TOOL)
         if plugins:
             divider = QLabel("Plugins instalados")
             divider.setObjectName("SectionTitle")

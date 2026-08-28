@@ -21,19 +21,20 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from streamer_sidekick.core.plugins import CatalogEntry, PluginManager
+from streamer_sidekick.core.plugins import CATEGORY_TOOL, CatalogEntry, PluginManager
 
 
 class _CatalogWorker(QThread):
     loaded = Signal(list)
 
-    def __init__(self, manager: PluginManager) -> None:
+    def __init__(self, manager: PluginManager, category: str = CATEGORY_TOOL) -> None:
         super().__init__()
         self._manager = manager
+        self._category = category
 
     def run(self) -> None:
         try:
-            entries = self._manager.fetch_catalog()
+            entries = self._manager.fetch_catalog(self._category)
         except Exception:
             entries = []
         self.loaded.emit(entries)
