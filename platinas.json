@@ -6,12 +6,12 @@
       "description": "Guia PT-BR completo: rota de 90 passos, 67 peixes, localizador de itens, santuários, docas e os 40 troféus.",
       "repo": "ricardothezouro-debug/Assistente-de-platina-Dredge",
       "ref": "main",
-      "version": "1.0.0",
+      "version": "1.0.1",
       "src_subdir": "src",
       "module": "platina_dredge.module",
       "accent": "#73AAA5",
       "min_sidekick_version": "0.6.0",
-      "changelog": "Primeira versão: as 10 abas do guia PT-BR completo, com imagens e progresso exportável."
+      "changelog": "Abertura do guia reescrita: agora começa pelo que define o tamanho da run — um save para os dois finais e fechar Mestre Pescador e Atraindo Anomalias antes de instalar qualquer DLC."
     },
     {
       "id": "house-flipper",
@@ -19,12 +19,12 @@
       "description": "Guia PT-BR do jogo base: rota cronológica, os 10 compradores com receita, as 37 casas e os 24 troféus.",
       "repo": "ricardothezouro-debug/House-fliper-assistente-de-platina",
       "ref": "master",
-      "version": "1.0.0",
+      "version": "1.0.1",
       "src_subdir": "src",
       "module": "platina_house_flipper.module",
       "accent": "#4F8DFF",
       "min_sidekick_version": "0.6.0",
-      "changelog": "Primeira versão como plugin do Sidekick: guia reescrito com os 24 troféus, os 10 compradores com perfil e receita, as 37 casas e imagens."
+      "changelog": "Abertura e textos das abas reescritos para falar do jogo, não do formato do guia: 24 troféus, nada perdível, e metade deles depende de vencer o leilão com o comprador certo."
     }
   ]
 }
