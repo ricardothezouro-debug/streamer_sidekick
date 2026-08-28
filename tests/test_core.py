@@ -101,6 +101,43 @@ def test_plugin_discovery(tmp_path, monkeypatch):
     assert callable(plugin.build_page)
 
 
+def test_fetch_catalog_forces_category(monkeypatch):
+    from streamer_sidekick.core.plugins import CATEGORY_PLATINA, PluginManager
+    mgr = PluginManager()
+    # força o fallback embutido (sem rede) e confere a categoria vinda da fonte
+    monkeypatch.setattr(mgr, "_fetch_remote_json", lambda url: None)
+    plat = mgr.fetch_catalog(CATEGORY_PLATINA)
+    assert plat and all(e.category == CATEGORY_PLATINA for e in plat)
+
+
+def test_installed_filter_by_category(tmp_path, monkeypatch):
+    import streamer_sidekick.core.plugins as plugins_mod
+    from streamer_sidekick.core.plugins import CATEGORY_PLATINA, CATEGORY_TOOL
+    monkeypatch.setattr(plugins_mod, "plugins_dir", lambda: tmp_path)
+
+    for pid, cat in [("toolx", CATEGORY_TOOL), ("platx", CATEGORY_PLATINA)]:
+        pkg = f"{pid}pkg"
+        src = tmp_path / pid / "src" / pkg
+        src.mkdir(parents=True)
+        (src / "__init__.py").write_text("", encoding="utf-8")
+        (src / "module.py").write_text(
+            "def module_info():\n    return None\n"
+            "def build_page(config=None):\n    return 'W'\n",
+            encoding="utf-8",
+        )
+        (tmp_path / pid / "plugin.json").write_text(
+            json.dumps({"id": pid, "name": pid, "version": "1.0.0",
+                        "src_subdir": "src", "module": f"{pkg}.module", "category": cat}),
+            encoding="utf-8",
+        )
+
+    mgr = plugins_mod.PluginManager()
+    mgr.load()
+    assert {p.id for p in mgr.installed(CATEGORY_TOOL)} == {"toolx"}
+    assert {p.id for p in mgr.installed(CATEGORY_PLATINA)} == {"platx"}
+    assert len(mgr.installed()) == 2
+
+
 def test_plugin_discovery_incompatible(tmp_path, monkeypatch):
     import streamer_sidekick.core.plugins as plugins_mod
     monkeypatch.setattr(plugins_mod, "plugins_dir", lambda: tmp_path)
