@@ -38,6 +38,26 @@ def test_catalog_zip_url():
     assert entry.zip_url() == "https://github.com/dono/repo/archive/refs/heads/main.zip"
 
 
+def test_parse_releases_from_github_payload():
+    payload = [
+        {
+            "tag_name": "v0.7.0",
+            "name": "Novo Início",
+            "body": "## What's Changed\n* Dashboard by @user in http://x/pull/1\n\n**Full Changelog**: http://x",
+            "html_url": "http://x/releases/v0.7.0",
+            "published_at": "2026-09-01T10:00:00Z",
+        },
+        {"tag_name": "v0.6.1", "name": "", "draft": True},  # draft é ignorado
+        {"tag_name": "0.6.0", "name": "Platinas", "body": "", "published_at": "2026-08-28T00:00:00Z"},
+    ]
+    notes = app_update.parse_releases(payload, limit=5)
+    assert [n.version for n in notes] == ["0.7.0", "0.6.0"]  # tira o 'v' e pula draft
+    assert notes[0].title == "Novo Início"
+    assert notes[0].date == "2026-09-01"
+    assert notes[1].version == "0.6.0"  # tag sem 'v' também funciona
+    assert app_update.parse_releases({"nao": "lista"}) == []
+
+
 def test_plugin_compatibility():
     mgr = PluginManager()
     ok = CatalogEntry(id="a", name="A", description="", repo="o/r", min_sidekick_version="0.0.1")
