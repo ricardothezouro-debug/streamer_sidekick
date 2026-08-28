@@ -1,3 +1,18 @@
 {
-  "plugins": []
+  "plugins": [
+    {
+      "id": "dredge",
+      "name": "DREDGE — Platina Definitiva",
+      "description": "Guia PT-BR completo: rota de 90 passos, 67 peixes, localizador de itens, santuários, docas e os 40 troféus.",
+      "repo": "ricardothezouro-debug/Assistente-de-platina-Dredge",
+      "ref": "main",
+      "version": "1.0.0",
+      "src_subdir": "src",
+      "module": "platina_dredge.module",
+      "accent": "#73AAA5",
+      "icon": "src/platina_dredge/assets/brand/icon.png",
+      "min_sidekick_version": "0.6.0",
+      "changelog": "Primeira versão: as 10 abas do guia PT-BR completo, com imagens e progresso exportável."
+    }
+  ]
 }
