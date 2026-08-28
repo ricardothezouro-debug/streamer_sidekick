@@ -104,8 +104,13 @@ def test_plugin_discovery(tmp_path, monkeypatch):
 def test_fetch_catalog_forces_category(monkeypatch):
     from streamer_sidekick.core.plugins import CATEGORY_PLATINA, PluginManager
     mgr = PluginManager()
-    # força o fallback embutido (sem rede) e confere a categoria vinda da fonte
+    # sem rede; entrada marcada como "tool" na fonte deve virar "platina"
     monkeypatch.setattr(mgr, "_fetch_remote_json", lambda url: None)
+    monkeypatch.setattr(
+        mgr, "_read_bundled_json",
+        lambda path: {"plugins": [
+            {"id": "g", "name": "G", "repo": "o/r", "module": "m", "category": "tool"}]},
+    )
     plat = mgr.fetch_catalog(CATEGORY_PLATINA)
     assert plat and all(e.category == CATEGORY_PLATINA for e in plat)
 
