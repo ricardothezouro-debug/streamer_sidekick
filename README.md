@@ -20,8 +20,9 @@
 
 ## ✨ Destaques
 
+- 🏠 **Início** — um painel de verdade: lembrete de atualização, favoritos (até 4 ferramentas) e as últimas novidades puxadas do GitHub.
 - 🧩 **Plugins** — marketplace dentro do app: instale ferramentas direto do GitHub, com um clique.
-- 🏆 **Platinas** — guias de platina por jogo (checklist, dicas, imagens e progresso salvo), com busca.
+- 🏆 **Platinas** — guias de platina por jogo (checklist, dicas, imagens e progresso salvo), com busca — e cada guia pode abrir em uma janela separada.
 - ⬆️ **Auto-update** — o app se atualiza sozinho, com barra de progresso neon, sem janelas feias.
 - 🎯 **Marcador & Contador** — anote eventos da live com horário e monte overlays transparentes pro OBS.
 - ⌨️ **Hotkeys globais** — funcionam mesmo com o jogo em foco, com detecção de conflito.
@@ -64,7 +65,9 @@ feito para você (ou uma IA) seguir.
 
 A aba **Platinas** é um marketplace curado de **guias de platina por jogo**: cada
 guia é um plugin (categoria `platina`) com checklist de troféus, dicas, imagens e
-progresso salvo. Pesquise, instale e acompanhe seus troféus.
+progresso salvo. Pesquise, instale e acompanhe seus troféus. Guias grandes podem
+abrir em uma **janela separada** (botão "Abrir em janela"), para ficarem ao lado
+do jogo enquanto você joga.
 
 Para criar um guia, entregue a uma IA o **[GUIA_DE_PLATINA.md](GUIA_DE_PLATINA.md)**
 (+ o `PLUGIN_STANDARD.md`) com os troféus do jogo — ela gera o guia completo.

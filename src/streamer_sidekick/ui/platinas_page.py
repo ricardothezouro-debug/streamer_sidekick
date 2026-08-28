@@ -5,11 +5,10 @@ remove guias e navega internamente para o guia aberto (sem poluir o menu do hub)
 """
 from __future__ import annotations
 
-from pathlib import Path
 from typing import Optional
 
 from PySide6.QtCore import Qt, Signal
-from PySide6.QtGui import QGuiApplication, QPixmap
+from PySide6.QtGui import QGuiApplication
 from PySide6.QtWidgets import (
     QFrame,
     QHBoxLayout,
@@ -49,10 +48,7 @@ class _PlatinaRow(QFrame):
         layout.setContentsMargins(16, 14, 16, 14)
         layout.setSpacing(14)
 
-        icon = self._icon_widget()
-        if icon is not None:
-            layout.addWidget(icon, 0, Qt.AlignmentFlag.AlignVCenter)
-
+        # Guias de platina não usam ícone — é o nome do jogo que importa.
         text_box = QVBoxLayout()
         text_box.setSpacing(4)
         self.name_label = QLabel(entry.name)
@@ -80,21 +76,6 @@ class _PlatinaRow(QFrame):
         layout.addWidget(self.action_button, 0)
         layout.addWidget(self.remove_button, 0)
         self.refresh_state()
-
-    def _icon_widget(self) -> Optional[QWidget]:
-        installed = self.manager.get(self.entry.id)
-        path = installed.icon_path if (installed and installed.icon_path) else ""
-        if path and Path(path).exists():
-            pixmap = QPixmap(path)
-            if not pixmap.isNull():
-                label = QLabel()
-                label.setFixedSize(40, 40)
-                label.setPixmap(
-                    pixmap.scaled(40, 40, Qt.AspectRatioMode.KeepAspectRatio,
-                                  Qt.TransformationMode.SmoothTransformation)
-                )
-                return label
-        return None
 
     def _on_action(self) -> None:
         installed = self.manager.get(self.entry.id)
