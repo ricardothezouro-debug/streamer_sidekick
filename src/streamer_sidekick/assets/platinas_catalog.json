@@ -1,0 +1,15 @@
+{
+  "plugins": [
+    {
+      "id": "platina-template",
+      "name": "Modelo de Guia (Template)",
+      "description": "Exemplo/base para criar guias de platina: checklist de troféus, progresso salvo e dicas. Clone e adapte por jogo.",
+      "repo": "ricardothezouro-debug/platina-template",
+      "ref": "main",
+      "version": "1.0.0",
+      "src_subdir": "src",
+      "module": "platina_guide.module",
+      "accent": "#B9FF43"
+    }
+  ]
+}

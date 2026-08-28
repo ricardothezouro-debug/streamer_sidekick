@@ -27,7 +27,7 @@ import sys
 import tempfile
 import urllib.request
 import zipfile
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from pathlib import Path
 from typing import Any, Callable, Optional
 
@@ -38,8 +38,22 @@ from streamer_sidekick.core.paths import plugins_dir
 # URL do catalogo remoto (canonico, no branch principal). Enquanto nao estiver
 # no branch, o app usa o catalogo embutido em assets/plugins_catalog.json.
 CATALOG_URL = "https://raw.githubusercontent.com/ricardothezouro-debug/streamer_sidekick/main/plugins.json"
+PLATINAS_CATALOG_URL = "https://raw.githubusercontent.com/ricardothezouro-debug/streamer_sidekick/main/platinas.json"
 
-_BUNDLED_CATALOG = Path(__file__).resolve().parents[1] / "assets" / "plugins_catalog.json"
+_ASSETS = Path(__file__).resolve().parents[1] / "assets"
+_BUNDLED_CATALOG = _ASSETS / "plugins_catalog.json"
+_BUNDLED_PLATINAS = _ASSETS / "platinas_catalog.json"
+
+# Categorias de plugin. "tool" = ferramentas de live (aba Plugins);
+# "platina" = guias de platina (aba Platinas).
+CATEGORY_TOOL = "tool"
+CATEGORY_PLATINA = "platina"
+
+# Fonte (URL remota + fallback embutido) por categoria.
+_CATALOG_SOURCES = {
+    CATEGORY_TOOL: (CATALOG_URL, _BUNDLED_CATALOG),
+    CATEGORY_PLATINA: (PLATINAS_CATALOG_URL, _BUNDLED_PLATINAS),
+}
 
 MANIFEST_NAME = "plugin.json"
 _HTTP_TIMEOUT = 30
@@ -62,6 +76,7 @@ class CatalogEntry:
     icon: str = ""  # caminho do PNG relativo a raiz do plugin
     changelog: str = ""  # o que ha de novo nesta versao
     min_sidekick_version: str = ""  # versao minima do Sidekick exigida
+    category: str = CATEGORY_TOOL  # "tool" (Plugins) ou "platina" (Platinas)
 
     @staticmethod
     def from_dict(data: dict[str, Any]) -> Optional["CatalogEntry"]:
@@ -79,6 +94,7 @@ class CatalogEntry:
                 icon=str(data.get("icon") or "").strip(),
                 changelog=str(data.get("changelog") or "").strip(),
                 min_sidekick_version=str(data.get("min_sidekick_version") or "").strip(),
+                category=str(data.get("category") or CATEGORY_TOOL).strip(),
             )
         except (KeyError, TypeError):
             return None
@@ -98,6 +114,7 @@ class InstalledPlugin:
     accent: str = "#37F2FF"
     icon_path: Optional[str] = None
     help: str = ""
+    category: str = CATEGORY_TOOL
     module_info: Any = None
     build_page: Optional[Callable[..., Any]] = None
     error: Optional[str] = None
@@ -153,6 +170,7 @@ class PluginManager:
         module_name = str(manifest.get("module") or "").strip()
         icon_rel = str(manifest.get("icon") or "").strip()
         min_version = str(manifest.get("min_sidekick_version") or "").strip()
+        category = str(manifest.get("category") or CATEGORY_TOOL).strip()
 
         icon_path: Optional[str] = None
         if icon_rel:
@@ -162,7 +180,7 @@ class PluginManager:
 
         plugin = InstalledPlugin(
             id=plugin_id, name=name, version=version, path=folder, accent=accent,
-            icon_path=icon_path,
+            icon_path=icon_path, category=category,
         )
 
         if min_version and version_tuple(min_version) > version_tuple(APP_VERSION):
@@ -212,8 +230,11 @@ class PluginManager:
 
     # ---- Consultas ------------------------------------------------------
 
-    def installed(self) -> list[InstalledPlugin]:
-        return list(self._installed.values())
+    def installed(self, category: Optional[str] = None) -> list[InstalledPlugin]:
+        items = list(self._installed.values())
+        if category is not None:
+            items = [p for p in items if p.category == category]
+        return items
 
     def get(self, plugin_id: str) -> Optional[InstalledPlugin]:
         return self._installed.get(plugin_id)
@@ -249,29 +270,32 @@ class PluginManager:
 
     # ---- Catalogo -------------------------------------------------------
 
-    def fetch_catalog(self) -> list[CatalogEntry]:
-        """Busca o catalogo remoto; em caso de falha usa o embutido no app."""
-        data = self._fetch_remote_catalog()
+    def fetch_catalog(self, category: str = CATEGORY_TOOL) -> list[CatalogEntry]:
+        """Busca o catalogo da categoria (remoto, com fallback embutido)."""
+        url, bundled = _CATALOG_SOURCES.get(category, _CATALOG_SOURCES[CATEGORY_TOOL])
+        data = self._fetch_remote_json(url)
         if data is None:
-            data = self._read_bundled_catalog()
+            data = self._read_bundled_json(bundled)
+        items = (data or {}).get("plugins") or (data or {}).get("platinas") or []
         entries: list[CatalogEntry] = []
-        for item in (data or {}).get("plugins", []):
+        for item in items:
             entry = CatalogEntry.from_dict(item)
             if entry is not None:
-                entries.append(entry)
+                # A categoria e definida pela fonte do catalogo (fonte da verdade).
+                entries.append(replace(entry, category=category))
         return entries
 
-    def _fetch_remote_catalog(self) -> Optional[dict[str, Any]]:
+    def _fetch_remote_json(self, url: str) -> Optional[dict[str, Any]]:
         try:
-            request = urllib.request.Request(CATALOG_URL, headers={"User-Agent": _USER_AGENT})
+            request = urllib.request.Request(url, headers={"User-Agent": _USER_AGENT})
             with urllib.request.urlopen(request, timeout=_HTTP_TIMEOUT) as response:
                 return json.loads(response.read().decode("utf-8"))
         except Exception:
             return None
 
-    def _read_bundled_catalog(self) -> Optional[dict[str, Any]]:
+    def _read_bundled_json(self, path: Path) -> Optional[dict[str, Any]]:
         try:
-            return json.loads(_BUNDLED_CATALOG.read_text(encoding="utf-8"))
+            return json.loads(path.read_text(encoding="utf-8"))
         except (OSError, json.JSONDecodeError):
             return None
 
@@ -348,6 +372,7 @@ class PluginManager:
             "accent": entry.accent,
             "icon": entry.icon,
             "min_sidekick_version": entry.min_sidekick_version,
+            "category": entry.category,
             "repo": entry.repo,
             "ref": entry.ref,
         }

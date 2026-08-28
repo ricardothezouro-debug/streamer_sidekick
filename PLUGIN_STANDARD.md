@@ -153,6 +153,7 @@ repositório do Sidekick:
 | `icon` | não | Caminho do PNG **relativo à raiz do repositório**. |
 | `changelog` | não | Mostrado quando há atualização. |
 | `min_sidekick_version` | não | Versão mínima do Sidekick (SemVer). Se o app for mais antigo, o "+" mostra **Incompatível** e não instala. |
+| `category` | não | `tool` (aba **Plugins**, padrão) ou `platina` (aba **Platinas**). Normalmente definido pela fonte do catálogo (`plugins.json` vs `platinas.json`), não pela entrada. |
 
 Aumente `version` a cada release para disparar o selo de **atualização
 disponível** e mostrar o `changelog`.
@@ -276,6 +277,24 @@ entram no "+" os repositórios listados no `plugins.json` do Sidekick. Publique 
 repositórios confiáveis e mantenha-os sob seu controle.
 
 ---
+
+## Guias de platina (categoria `platina`)
+
+Guias de platina são plugins normais (mesmo contrato) na categoria `platina`,
+listados num catálogo próprio (`platinas.json`) e exibidos na aba **Platinas**
+(com busca). Cada guia é um jogo: uma checklist de troféus com progresso salvo,
+dicas e, opcionalmente, imagens.
+
+- **Comece pelo template**: `ricardothezouro-debug/platina-template`. Você edita
+  só o `guide_data.py` (nome do jogo + lista de troféus) — o resto é genérico.
+- **Progresso**: guarde fora da pasta do plugin (o template usa
+  `%APPDATA%/StreamerSidekick/platinas/<id>/`), para sobreviver a atualizações.
+- **Imagens**: um troféu/passo pode ter uma URL de imagem (mapa, print de guia,
+  CDN). O template baixa e **cacheia em disco** (rápido depois, e offline após a
+  1ª vez). Prefira CDNs estáveis para hotlink (ex.: Steam). Atenção a direitos de
+  imagens de terceiros — use com responsabilidade.
+- **Publicar**: suba o repositório e adicione uma entrada no `platinas.json` do
+  Sidekick apontando para ele.
 
 ## 10. Checklist de publicação
 
