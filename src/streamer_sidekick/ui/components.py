@@ -208,6 +208,12 @@ class NeonIcon(QWidget):
             self._draw_alert(painter)
         elif self.icon_id == "about":
             self._draw_profile(painter)
+        elif self.icon_id == "plugins":
+            self._draw_puzzle(painter)
+        elif self.icon_id == "platinas":
+            self._draw_trophy(painter)
+        elif self.icon_id == "help":
+            self._draw_help(painter)
         elif self.icon_id == "home":
             _draw_bot_icon(painter, QRectF(8, 8, 84, 84), 5)
         else:
@@ -328,6 +334,46 @@ class NeonIcon(QWidget):
         painter.drawRoundedRect(QRectF(24, 24, 52, 52), 10, 10)
         painter.drawLine(36, 42, 64, 42)
         painter.drawLine(36, 58, 56, 58)
+
+    def _draw_puzzle(self, painter: QPainter) -> None:
+        painter.setPen(_gradient_pen(QRectF(16, 12, 68, 68), 6))
+        path = QPainterPath()
+        path.moveTo(28, 32)
+        path.lineTo(42, 32)
+        path.cubicTo(38, 12, 62, 12, 58, 32)   # encaixe (knob) no topo
+        path.lineTo(72, 32)
+        path.lineTo(72, 46)
+        path.cubicTo(92, 42, 92, 66, 72, 62)    # encaixe na direita
+        path.lineTo(72, 74)
+        path.lineTo(28, 74)
+        path.closeSubpath()
+        painter.drawPath(path)
+
+    def _draw_trophy(self, painter: QPainter) -> None:
+        painter.setPen(_gradient_pen(QRectF(22, 14, 56, 72), 6))
+        cup = QPainterPath()
+        cup.moveTo(36, 20)
+        cup.lineTo(64, 20)
+        cup.lineTo(64, 34)
+        cup.cubicTo(64, 52, 36, 52, 36, 34)     # fundo arredondado da taça
+        cup.closeSubpath()
+        painter.drawPath(cup)
+        painter.drawArc(QRectF(26, 20, 14, 20), 90 * 16, 180 * 16)    # alça esquerda
+        painter.drawArc(QRectF(60, 20, 14, 20), -90 * 16, 180 * 16)   # alça direita
+        painter.drawLine(50, 52, 50, 64)         # haste
+        painter.drawLine(44, 64, 56, 64)         # topo da base
+        painter.drawLine(44, 64, 40, 80)         # lado esquerdo da base
+        painter.drawLine(56, 64, 60, 80)         # lado direito da base
+        painter.drawLine(40, 80, 60, 80)         # base
+
+    def _draw_help(self, painter: QPainter) -> None:
+        painter.drawEllipse(QRectF(20, 20, 60, 60))   # emblema
+        hook = QPainterPath()
+        hook.moveTo(40, 42)
+        hook.cubicTo(40, 30, 62, 30, 60, 44)     # curva superior do "?"
+        hook.cubicTo(59, 52, 50, 52, 50, 60)     # desce ao centro
+        painter.drawPath(hook)
+        painter.drawPoint(50, 70)                # ponto do "?"
 
 
 class ModuleTile(NeonPanel):
