@@ -10,7 +10,6 @@
       "src_subdir": "src",
       "module": "platina_dredge.module",
       "accent": "#73AAA5",
-      "icon": "src/platina_dredge/assets/brand/icon.png",
       "min_sidekick_version": "0.6.0",
       "changelog": "Primeira versão: as 10 abas do guia PT-BR completo, com imagens e progresso exportável."
     }

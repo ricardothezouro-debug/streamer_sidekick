@@ -1,5 +1,5 @@
 {
-  "version": "0.6.1",
-  "zip_url": "https://github.com/ricardothezouro-debug/streamer_sidekick/releases/download/v0.6.1/StreamerSidekick-0.6.1-portable.zip",
-  "notes": "Ícones próprios para Plugins (quebra-cabeça), Platinas (troféu) e Ajuda; e o menu lateral agora rola quando há muitos itens (nada mais fica cortado)."
+  "version": "0.7.0",
+  "zip_url": "https://github.com/ricardothezouro-debug/streamer_sidekick/releases/download/v0.7.0/StreamerSidekick-0.7.0-portable.zip",
+  "notes": "Novo Início: agora é um painel de verdade (separado dos Plugins), com lembrete de atualização, favoritos (até 4 ferramentas), últimas atualizações puxadas do GitHub e ações rápidas. Guias de platina agora abrem em janela separada (botão 'Abrir em janela'), ótimo para guias grandes como o DREDGE."
 }

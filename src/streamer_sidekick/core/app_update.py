@@ -36,6 +36,9 @@ from streamer_sidekick.core.plugins import version_tuple
 APP_MANIFEST_URL = (
     "https://raw.githubusercontent.com/ricardothezouro-debug/streamer_sidekick/main/app_release.json"
 )
+RELEASES_API_URL = (
+    "https://api.github.com/repos/ricardothezouro-debug/streamer_sidekick/releases"
+)
 _HTTP_TIMEOUT = 30
 _USER_AGENT = "StreamerSidekick-AppUpdater"
 EXE_NAME = "StreamerSidekick.exe"
@@ -50,6 +53,54 @@ class AppRelease:
     version: str
     zip_url: str
     notes: str = ""
+
+
+@dataclass(frozen=True)
+class ReleaseNote:
+    """Uma release publicada no GitHub, para o feed de 'Últimas atualizações'."""
+
+    version: str
+    title: str
+    notes: str = ""
+    url: str = ""
+    date: str = ""  # AAAA-MM-DD
+
+
+def parse_releases(payload: Any, limit: int = 5) -> list[ReleaseNote]:
+    """Converte o JSON da API de releases do GitHub em ``ReleaseNote`` (puro/testável)."""
+    result: list[ReleaseNote] = []
+    if not isinstance(payload, list):
+        return result
+    for item in payload:
+        if not isinstance(item, dict) or item.get("draft"):
+            continue
+        tag = str(item.get("tag_name") or "").strip()
+        version = tag[1:] if tag.lower().startswith("v") else tag
+        title = str(item.get("name") or tag).strip()
+        result.append(
+            ReleaseNote(
+                version=version,
+                title=title or tag,
+                notes=str(item.get("body") or "").strip(),
+                url=str(item.get("html_url") or ""),
+                date=str(item.get("published_at") or "")[:10],
+            )
+        )
+        if len(result) >= limit:
+            break
+    return result
+
+
+def fetch_recent_releases(limit: int = 5) -> list[ReleaseNote]:
+    """Busca as últimas releases publicadas no GitHub (para o feed do Início)."""
+    url = f"{RELEASES_API_URL}?per_page={int(limit)}"
+    request = urllib.request.Request(
+        url,
+        headers={"User-Agent": _USER_AGENT, "Accept": "application/vnd.github+json"},
+    )
+    with urllib.request.urlopen(request, timeout=_HTTP_TIMEOUT) as response:
+        payload = json.loads(response.read().decode("utf-8"))
+    return parse_releases(payload, limit=limit)
 
 
 def current_version() -> str:

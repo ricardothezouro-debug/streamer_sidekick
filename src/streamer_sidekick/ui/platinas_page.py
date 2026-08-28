@@ -5,11 +5,10 @@ remove guias e navega internamente para o guia aberto (sem poluir o menu do hub)
 """
 from __future__ import annotations
 
-from pathlib import Path
 from typing import Optional
 
 from PySide6.QtCore import Qt, Signal
-from PySide6.QtGui import QPixmap
+from PySide6.QtGui import QGuiApplication
 from PySide6.QtWidgets import (
     QFrame,
     QHBoxLayout,
@@ -49,10 +48,7 @@ class _PlatinaRow(QFrame):
         layout.setContentsMargins(16, 14, 16, 14)
         layout.setSpacing(14)
 
-        icon = self._icon_widget()
-        if icon is not None:
-            layout.addWidget(icon, 0, Qt.AlignmentFlag.AlignVCenter)
-
+        # Guias de platina não usam ícone — é o nome do jogo que importa.
         text_box = QVBoxLayout()
         text_box.setSpacing(4)
         self.name_label = QLabel(entry.name)
@@ -80,21 +76,6 @@ class _PlatinaRow(QFrame):
         layout.addWidget(self.action_button, 0)
         layout.addWidget(self.remove_button, 0)
         self.refresh_state()
-
-    def _icon_widget(self) -> Optional[QWidget]:
-        installed = self.manager.get(self.entry.id)
-        path = installed.icon_path if (installed and installed.icon_path) else ""
-        if path and Path(path).exists():
-            pixmap = QPixmap(path)
-            if not pixmap.isNull():
-                label = QLabel()
-                label.setFixedSize(40, 40)
-                label.setPixmap(
-                    pixmap.scaled(40, 40, Qt.AspectRatioMode.KeepAspectRatio,
-                                  Qt.TransformationMode.SmoothTransformation)
-                )
-                return label
-        return None
 
     def _on_action(self) -> None:
         installed = self.manager.get(self.entry.id)
@@ -146,6 +127,8 @@ class PlatinasPage(QWidget):
         self._rows: list[_PlatinaRow] = []
         self._install_worker: Optional[_InstallWorker] = None
         self._active_row: Optional[_PlatinaRow] = None
+        self._current_guide: Optional[InstalledPlugin] = None
+        self._windows: list[QWidget] = []  # janelas de guia abertas (mantém referência)
 
         outer = QVBoxLayout(self)
         outer.setContentsMargins(0, 0, 0, 0)
@@ -209,6 +192,13 @@ class PlatinasPage(QWidget):
         back.clicked.connect(self._show_browse)
         header.addWidget(back, 0)
         header.addStretch(1)
+        self.popout_button = QPushButton("⤢ Abrir em janela")
+        self.popout_button.setToolTip(
+            "Abre este guia numa janela separada, que você pode manter aberta "
+            "ao lado do jogo ou de outra parte do app."
+        )
+        self.popout_button.clicked.connect(self._open_in_window)
+        header.addWidget(self.popout_button, 0)
         layout.addLayout(header)
 
         self.guide_host = QWidget()
@@ -299,6 +289,7 @@ class PlatinasPage(QWidget):
             self._open_guide(plugin)
 
     def _open_guide(self, plugin: InstalledPlugin) -> None:
+        self._current_guide = plugin
         while self.guide_host_layout.count():
             item = self.guide_host_layout.takeAt(0)
             widget = item.widget()
@@ -306,6 +297,39 @@ class PlatinasPage(QWidget):
                 widget.deleteLater()
         self.guide_host_layout.addWidget(self._build_guide_widget(plugin))
         self.stack.setCurrentIndex(self.guide_index)
+
+    def _open_in_window(self) -> None:
+        """Abre o guia atual numa janela separada e devolve a área principal à lista.
+
+        Assim existe só uma instância viva do guia (a da janela), sem duas cópias
+        disputando o mesmo arquivo de progresso — e o hub fica livre para navegar.
+        """
+        plugin = self._current_guide
+        if plugin is None:
+            return
+        window = QWidget()  # top-level (sem parent) → janela independente
+        window.setObjectName("GuideWindow")
+        window.setAttribute(Qt.WidgetAttribute.WA_DeleteOnClose, True)
+        window.setWindowTitle(f"{plugin.name} — Streamer Sidekick")
+        icon = QGuiApplication.windowIcon()
+        if not icon.isNull():
+            window.setWindowIcon(icon)
+        layout = QVBoxLayout(window)
+        layout.setContentsMargins(16, 16, 16, 16)
+        layout.addWidget(self._build_guide_widget(plugin))
+        window.resize(960, 820)
+        window.destroyed.connect(lambda: self._forget_window(window))
+        self._windows.append(window)
+        window.show()
+        window.raise_()
+        window.activateWindow()
+        self._show_browse()
+
+    def _forget_window(self, window: QWidget) -> None:
+        try:
+            self._windows.remove(window)
+        except ValueError:
+            pass
 
     def _build_guide_widget(self, plugin: InstalledPlugin) -> QWidget:
         if not plugin.loaded or plugin.build_page is None:

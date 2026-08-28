@@ -1,147 +1,106 @@
-# Streamer Sidekick
+<p align="center">
+  <img src="docs/home.png" alt="Streamer Sidekick" width="860">
+</p>
 
-Streamer Sidekick is a Python desktop hub for stream helper tools.
+<h1 align="center">Streamer Sidekick</h1>
+
+<p align="center">
+  Um hub desktop de ferramentas rápidas para a sua live — com sistema de plugins e guias de platina.
+</p>
+
+<p align="center">
+  <a href="https://github.com/ricardothezouro-debug/streamer_sidekick/releases/latest"><b>⬇️ Baixar (Windows)</b></a>
+  &nbsp;·&nbsp;
+  <a href="PLUGIN_STANDARD.md">Criar plugins</a>
+  &nbsp;·&nbsp;
+  <a href="GUIA_DE_PLATINA.md">Criar guias de platina</a>
+</p>
+
+---
+
+## ✨ Destaques
+
+- 🏠 **Início** — um painel de verdade: lembrete de atualização, favoritos (até 4 ferramentas) e as últimas novidades puxadas do GitHub.
+- 🧩 **Plugins** — marketplace dentro do app: instale ferramentas direto do GitHub, com um clique.
+- 🏆 **Platinas** — guias de platina por jogo (checklist, dicas, imagens e progresso salvo), com busca — e cada guia pode abrir em uma janela separada.
+- ⬆️ **Auto-update** — o app se atualiza sozinho, com barra de progresso neon, sem janelas feias.
+- 🎯 **Marcador & Contador** — anote eventos da live com horário e monte overlays transparentes pro OBS.
+- ⌨️ **Hotkeys globais** — funcionam mesmo com o jogo em foco, com detecção de conflito.
+
+## 📸 Telas
+
+**Platinas — marketplace curado de guias**
+
+<img src="docs/platinas.png" alt="Aba Platinas" width="860">
+
+**Um guia aberto (DREDGE) — direto no hub**
+
+<img src="docs/guide.png" alt="Guia de platina do DREDGE" width="860">
+
+**Sobre**
+
+<img src="docs/about.png" alt="Tela Sobre" width="860">
 
 ## ⬇️ Baixar (Windows)
 
 **➡️ [Baixe a versão mais recente na página de Releases](https://github.com/ricardothezouro-debug/streamer_sidekick/releases/latest)**
 
-Baixe o arquivo `StreamerSidekick-*-portable.zip`, **extraia a pasta inteira** e
-execute o `StreamerSidekick.exe`. Não precisa instalar nada — e o app se atualiza
-sozinho quando sair uma versão nova.
+Baixe o `StreamerSidekick-*-portable.zip`, **extraia a pasta inteira** e execute o
+`StreamerSidekick.exe`. Não precisa instalar nada — e o app se atualiza sozinho
+quando sair uma versão nova.
 
-Todas as versões (incluindo as anteriores) ficam em
-**[Releases](https://github.com/ricardothezouro-debug/streamer_sidekick/releases)**.
+> Suporte a macOS/Linux existe no código, mas é experimental e ainda não foi
+> validado/lançado — será retomado no futuro.
 
-## License
+## 🧩 Plugins
 
-Streamer Sidekick is licensed under the PolyForm Noncommercial License
-1.0.0. It is free for personal and non-commercial use.
+Na seção **Plugins** há um card **"+"** que abre o marketplace: os plugins vêm de
+um catálogo curado (`plugins.json`) e são baixados direto do GitHub. Um plugin é
+um repositório que expõe `module_info()` + `build_page()`.
 
-Commercial resale, paid redistribution, or selling modified versions
-requires written permission from the copyright holder. See `LICENSE` and
-`NOTICE`.
+Quer criar um? O padrão completo está em **[PLUGIN_STANDARD.md](PLUGIN_STANDARD.md)** —
+feito para você (ou uma IA) seguir.
 
-Current modules:
+## 🏆 Platinas
 
-- Marker: fast timestamped notes for gameplay and live events.
-- Counter: OBS-friendly counter overlays and presets.
+A aba **Platinas** é um marketplace curado de **guias de platina por jogo**: cada
+guia é um plugin (categoria `platina`) com checklist de troféus, dicas, imagens e
+progresso salvo. Pesquise, instale e acompanhe seus troféus. Guias grandes podem
+abrir em uma **janela separada** (botão "Abrir em janela"), para ficarem ao lado
+do jogo enquanto você joga.
 
-Initial goals:
+Para criar um guia, entregue a uma IA o **[GUIA_DE_PLATINA.md](GUIA_DE_PLATINA.md)**
+(+ o `PLUGIN_STANDARD.md`) com os troféus do jogo — ela gera o guia completo.
 
-- One modern PySide6 hub.
-- Central config in the user app data folder.
-- Central hotkey registry with conflict checks.
-- Modular structure for future streamer tools.
+## 🛠️ Para desenvolvedores
 
-## Plugins
-
-O hub tem um sistema de plugins instalaveis. Na secao **Plugins** ha um card
-**"+"** que abre o marketplace: os plugins disponiveis vem de um catalogo
-(`plugins.json`, buscado remotamente do repositorio, com fallback embutido em
-`assets/plugins_catalog.json`). Ao clicar em **Instalar**, o plugin e baixado
-direto do GitHub como `.zip` (sem precisar de `git`), extraido para
-`<app_data>/plugins/<id>/` e carregado no hub na hora.
-
-Um plugin e um repositorio que expoe, em um modulo, o contrato:
-
-```python
-def module_info() -> ModuleInfo: ...      # dados do card
-def build_page(config=None) -> QWidget: ...  # pagina embutida no hub
-```
-
-Cada plugin instalado guarda sua versao; quando o catalogo anuncia uma versao
-mais nova, o card "+" mostra um aviso de **atualizacao disponivel**.
-
-Para adicionar um plugin ao catalogo, basta editar `plugins.json` no repositorio
-— nenhuma nova versao do app e necessaria. Cada plugin traz seu proprio icone
-(PNG) e uma `version`; quando o catalogo anuncia uma versao mais nova, o card "+"
-mostra o aviso e o marketplace exibe o **changelog**. Ao atualizar, a pagina do
-plugin e recarregada **sem reiniciar** o app.
-
-Quer criar um plugin? O padrao completo (contrato, manifesto, icone, design
-system e regras) esta em **[PLUGIN_STANDARD.md](PLUGIN_STANDARD.md)** — um
-arquivo pensado para ser entregue a uma IA junto da ideia do plugin.
-
-> Seguranca: instalar um plugin baixa e executa codigo Python. O catalogo e
-> curado: so aparecem no "+" os repositorios listados no `plugins.json`.
-
-## Atualizacao do app
-
-O proprio Streamer Sidekick se atualiza. A versao portable (Windows) verifica um
-manifesto remoto (`app_release.json`) ao abrir e, se houver versao nova, mostra o
-que mudou e oferece **Atualizar agora** — baixa, troca os arquivos e reabre
-sozinho. Tambem da para checar manualmente na tela **Sobre**. Rodando do codigo,
-a atualizacao e via `git pull`.
-
-## Platforms
-
-**Plataforma suportada hoje: Windows** (é onde as releases são publicadas e
-testadas). O suporte a **macOS/Linux existe no código, mas é experimental** e
-ainda não foi validado/lançado — será retomado no futuro.
-
-A camada de atalhos globais escolhe o backend certo por sistema:
-
-- Windows: pacote `keyboard`.
-- macOS / Linux: pacote `pynput`.
-
-No **macOS** os atalhos globais exigem que o app receba permissao em
-`Ajustes do Sistema > Privacidade e Seguranca > Acessibilidade`. Sem essa
-permissao a interface funciona, mas os atalhos globais nao disparam.
-
-Os dados do app ficam em:
-
-- Windows: `%APPDATA%\StreamerSidekick`
-- macOS: `~/Library/Application Support/StreamerSidekick`
-- Linux: `~/.config/StreamerSidekick`
-
-Run during development (Windows):
+Rodar do código-fonte:
 
 ```powershell
 .\.venv\Scripts\activate
 python -m streamer_sidekick
 ```
 
-Run during development (macOS / Linux):
+Testes:
 
 ```bash
-python3 -m venv .venv
-source .venv/bin/activate
-pip install -r requirements.txt
-python -m streamer_sidekick
+pip install -r requirements-dev.txt
+pytest -q
 ```
 
-Build the Windows executable:
+Build do portable (também roda automático via GitHub Actions ao lançar):
 
 ```powershell
 .\.venv\Scripts\python.exe -m pip install -r requirements-build.txt
 .\scripts\build_exe.ps1
-```
-
-The executable is generated at:
-
-```text
-dist\StreamerSidekick\StreamerSidekick.exe
-```
-
-Create a portable release zip:
-
-```powershell
 .\scripts\package_portable.ps1
 ```
 
-Create a Windows installer after installing Inno Setup:
+O fluxo de release está em **[RELEASING.md](RELEASING.md)** — na prática: bump da
+versão → PR para `main` → o CI builda e publica a Release sozinho.
 
-```powershell
-.\scripts\build_installer.ps1
-```
+## 📄 Licença
 
-Build the macOS app bundle (run on a Mac):
-
-```bash
-pip install -r requirements-build.txt
-chmod +x scripts/build_app_macos.sh
-./scripts/build_app_macos.sh
-```
-
-The bundle is generated at `dist/Streamer Sidekick.app`.
+Streamer Sidekick é licenciado sob a **PolyForm Noncommercial License 1.0.0** —
+livre para uso pessoal e não comercial. Revenda, redistribuição paga ou venda de
+versões modificadas exigem permissão por escrito. Veja `LICENSE` e `NOTICE`.

@@ -2,7 +2,7 @@ import os
 from typing import Optional
 from pathlib import Path
 
-from PySide6.QtCore import QEvent, QSize, Qt, QTimer, QUrl, Signal
+from PySide6.QtCore import QEvent, QSize, Qt, QThread, QTimer, QUrl, Signal
 from PySide6.QtGui import QAction, QCloseEvent, QColor, QDesktopServices, QIcon, QKeySequence, QPixmap
 from PySide6.QtWidgets import (
     QAbstractItemView,
@@ -57,6 +57,18 @@ except ImportError:
 
 
 APP_ICON_PATH = app_icon_path()
+
+
+class _ReleasesWorker(QThread):
+    """Busca as últimas releases do GitHub numa thread (feed do Início)."""
+
+    loaded = Signal(object)  # list[ReleaseNote] em sucesso, None em falha
+
+    def run(self) -> None:  # noqa: D401
+        try:
+            self.loaded.emit(app_update.fetch_recent_releases(5))
+        except Exception:  # offline / API indisponível: o Início mostra aviso
+            self.loaded.emit(None)
 
 
 class HubWindow(QMainWindow):
@@ -128,6 +140,17 @@ class HubWindow(QMainWindow):
         self.app_update_status_label: Optional[QLabel] = None
         self.help_layout: Optional[QVBoxLayout] = None
         self.platinas_page: Optional[PlatinasPage] = None
+        # --- Dashboard do Início ---
+        self._latest_release: object = None  # AppRelease quando há update
+        self.home_update_panel: Optional[NeonPanel] = None
+        self.home_update_label: Optional[QLabel] = None
+        self.home_update_button: Optional[QPushButton] = None
+        self.home_favorites_row: Optional[QHBoxLayout] = None
+        self.home_favorite_cards: list[ModuleCard] = []
+        self.home_releases_layout: Optional[QVBoxLayout] = None
+        self.home_releases_status: Optional[QLabel] = None
+        self._releases_worker: Optional["_ReleasesWorker"] = None
+        self._releases_loaded = False
         self._quitting = False
 
         self.setWindowTitle("Streamer Sidekick")
@@ -274,8 +297,8 @@ class HubWindow(QMainWindow):
         layout.setContentsMargins(28, 24, 22, 24)
         layout.addWidget(self.pages)
 
-        self._add_page("home", self._home_page())
-        self.page_indexes["plugins"] = self.page_indexes["home"]
+        self._add_page("home", self._home_dashboard_page())
+        self._add_page("plugins", self._plugins_page())
         self._add_page("marker", self._marker_page())
         self._add_page("counter", self._counter_page())
         self._add_page("hotkeys", self._hotkeys_page())
@@ -374,24 +397,364 @@ class HubWindow(QMainWindow):
         scroll.setWidget(content)
         return scroll
 
-    def _home_page(self) -> QWidget:
+    # ---- Início (dashboard) --------------------------------------------
+
+    def _home_dashboard_page(self) -> QWidget:
+        page = QWidget()
+        layout = QVBoxLayout(page)
+        layout.setContentsMargins(0, 0, 22, 0)
+        layout.setSpacing(20)
+
+        hero = NeonPanel(accent="#37F2FF", grid=False)
+        hero_layout = QGridLayout(hero)
+        hero_layout.setContentsMargins(28, 22, 28, 22)
+        hero_layout.setHorizontalSpacing(24)
+        hero_layout.setVerticalSpacing(8)
+        hero_logo = BrandLogo()
+        hero_title = QLabel("Bem-vindo ao seu hub de live")
+        hero_title.setObjectName("PageTitle")
+        hero_title.setWordWrap(True)
+        hero_subtitle = QLabel("Um resumo rápido: atualizações, favoritos e o que há de novo.")
+        hero_subtitle.setObjectName("Muted")
+        hero_subtitle.setWordWrap(True)
+        hero_layout.addWidget(hero_logo, 0, 0, Qt.AlignmentFlag.AlignLeft)
+        hero_layout.addWidget(hero_title, 1, 0)
+        hero_layout.addWidget(hero_subtitle, 2, 0)
+        hero_layout.setColumnStretch(0, 1)
+        layout.addWidget(hero)
+
+        layout.addWidget(self._home_quick_actions())
+        layout.addWidget(self._home_update_card())
+        layout.addWidget(SectionHeader("01", "Favoritos"))
+        layout.addWidget(self._home_favorites_section())
+        layout.addWidget(SectionHeader("02", "Últimas atualizações"))
+        layout.addWidget(self._home_releases_section())
+        layout.addStretch(1)
+
+        self._reflow_favorites()
+        self._refresh_home_update_card()
+        return self._scrollable_page(page)
+
+    def _home_quick_actions(self) -> QWidget:
+        panel = NeonPanel(accent="#B9FF43", grid=False)
+        row = QHBoxLayout(panel)
+        row.setContentsMargins(18, 14, 18, 14)
+        row.setSpacing(12)
+        label = QLabel("Ações rápidas")
+        label.setObjectName("SectionTitle")
+        row.addWidget(label)
+        row.addStretch(1)
+        mark = QPushButton("Marcar agora")
+        mark.setObjectName("PrimaryButton")
+        mark.clicked.connect(self._open_quick_marker)
+        new_game = QPushButton("Novo jogo")
+        new_game.clicked.connect(self._open_new_game_dialog)
+        check = QPushButton("Verificar atualização")
+        check.clicked.connect(self._home_check_update)
+        for button in (mark, new_game, check):
+            button.setCursor(Qt.PointingHandCursor)
+            row.addWidget(button)
+        return panel
+
+    def _home_update_card(self) -> QWidget:
+        panel = NeonPanel(accent="#FF4FD8", grid=False)
+        self.home_update_panel = panel
+        row = QHBoxLayout(panel)
+        row.setContentsMargins(18, 14, 18, 14)
+        row.setSpacing(14)
+        self.home_update_label = QLabel("Verificando atualizações…")
+        self.home_update_label.setObjectName("Muted")
+        self.home_update_label.setWordWrap(True)
+        self.home_update_button = QPushButton("Atualizar agora")
+        self.home_update_button.setObjectName("PrimaryButton")
+        self.home_update_button.setCursor(Qt.PointingHandCursor)
+        self.home_update_button.clicked.connect(self._open_home_update_dialog)
+        self.home_update_button.setVisible(False)
+        row.addWidget(self.home_update_label, 1)
+        row.addWidget(self.home_update_button, 0)
+        return panel
+
+    def _home_check_update(self) -> None:
+        if self.home_update_label is not None:
+            self.home_update_label.setText("Verificando atualizações…")
+        if self.home_update_button is not None:
+            self.home_update_button.setVisible(False)
+        self._check_app_update_async(auto=False)
+
+    def _refresh_home_update_card(self) -> None:
+        if self.home_update_label is None:
+            return
+        release = self._latest_release
+        version = getattr(release, "version", None)
+        if release is not None and version:
+            headline = ""
+            notes = (getattr(release, "notes", "") or "").strip().splitlines()
+            if notes:
+                headline = notes[0].strip()
+            text = f"🔔  Atualização v{version} disponível."
+            if headline:
+                text += f"  {headline}"
+            self.home_update_label.setText(text)
+            if self.home_update_button is not None:
+                self.home_update_button.setVisible(True)
+        else:
+            self.home_update_label.setText(
+                f"✓  Você está na versão mais recente (v{app_update.current_version()})."
+            )
+            if self.home_update_button is not None:
+                self.home_update_button.setVisible(False)
+
+    def _open_home_update_dialog(self) -> None:
+        release = self._latest_release
+        if release is None:
+            return
+        self._app_update_shown = True
+        AppUpdateDialog(release, on_quit=self._quit_from_tray, parent=self).exec()
+
+    # ---- Início: favoritos ---------------------------------------------
+
+    def _home_favorites_section(self) -> QWidget:
+        panel = NeonPanel(accent="#37F2FF", grid=False)
+        outer = QVBoxLayout(panel)
+        outer.setContentsMargins(18, 16, 18, 16)
+        outer.setSpacing(12)
+
+        header = QHBoxLayout()
+        hint = QLabel("Fixe até 4 ferramentas para abrir direto do Início.")
+        hint.setObjectName("Muted")
+        hint.setWordWrap(True)
+        manage = QPushButton("Gerenciar favoritos")
+        manage.setCursor(Qt.PointingHandCursor)
+        manage.clicked.connect(self._open_favorites_dialog)
+        header.addWidget(hint, 1)
+        header.addWidget(manage, 0)
+        outer.addLayout(header)
+
+        cards = QHBoxLayout()
+        cards.setSpacing(16)
+        self.home_favorites_row = cards
+        outer.addLayout(cards)
+        return panel
+
+    def _favoritable_items(self) -> list[tuple[str, ModuleInfo]]:
+        """Ferramentas que podem virar favorito: módulos internos + plugins-tool."""
+        items: list[tuple[str, ModuleInfo]] = []
+        for module in self.modules.all():
+            items.append((module.module_id, module))
+        for plugin in self.plugin_manager.installed(CATEGORY_TOOL):
+            items.append((plugin.id, self._plugin_card_info(plugin)))
+        return items
+
+    def _reflow_favorites(self) -> None:
+        row = self.home_favorites_row
+        if row is None:
+            return
+        while row.count():
+            item = row.takeAt(0)
+            widget = item.widget()
+            if widget is not None:
+                widget.setParent(None)  # tira da tela já (senão renderiza em 0,0)
+                widget.deleteLater()
+        self.home_favorite_cards = []
+
+        lookup = dict(self._favoritable_items())
+        stored = list(self.config.get("hub.favorites", []) or [])
+        valid = [fid for fid in stored if fid in lookup][:4]
+        if valid != stored:  # limpa ids órfãos (plugin removido, etc.)
+            self.config.set("hub.favorites", valid)
+
+        if not valid:
+            empty = QLabel("Nenhum favorito ainda. Clique em “Gerenciar favoritos”.")
+            empty.setObjectName("Muted")
+            row.addWidget(empty)
+            row.addStretch(1)
+            return
+
+        for fid in valid:
+            card = ModuleCard(lookup[fid])
+            card.opened.connect(self._select_page)
+            card.setMaximumWidth(260)
+            self.home_favorite_cards.append(card)
+            row.addWidget(card)
+        row.addStretch(1)
+
+    def _open_favorites_dialog(self) -> None:
+        items = self._favoritable_items()
+        if not items:
+            QMessageBox.information(self, "Favoritos", "Nenhuma ferramenta instalada ainda.")
+            return
+        dialog = QDialog(self)
+        dialog.setWindowTitle("Favoritos do Início")
+        layout = QVBoxLayout(dialog)
+        layout.setSpacing(10)
+        intro = QLabel("Escolha até 4 ferramentas para fixar no Início:")
+        intro.setWordWrap(True)
+        layout.addWidget(intro)
+
+        current = set(self.config.get("hub.favorites", []) or [])
+        checks: list[tuple[str, QCheckBox]] = []
+        for fid, info in items:
+            checkbox = QCheckBox(getattr(info, "title", "") or fid)
+            checkbox.setChecked(fid in current)
+            checks.append((fid, checkbox))
+            layout.addWidget(checkbox)
+
+        def enforce() -> None:
+            at_max = sum(1 for _f, cb in checks if cb.isChecked()) >= 4
+            for _f, cb in checks:
+                cb.setEnabled(cb.isChecked() or not at_max)
+
+        for _fid, checkbox in checks:
+            checkbox.toggled.connect(enforce)
+        enforce()
+
+        buttons = QHBoxLayout()
+        buttons.addStretch(1)
+        cancel = QPushButton("Cancelar")
+        cancel.clicked.connect(dialog.reject)
+        save = QPushButton("Salvar")
+        save.setObjectName("PrimaryButton")
+        save.clicked.connect(dialog.accept)
+        buttons.addWidget(cancel)
+        buttons.addWidget(save)
+        layout.addLayout(buttons)
+
+        if dialog.exec() == QDialog.DialogCode.Accepted:
+            selected = [fid for fid, cb in checks if cb.isChecked()][:4]
+            self.config.set("hub.favorites", selected)
+            self._reflow_favorites()
+
+    # ---- Início: últimas atualizações (releases do GitHub) -------------
+
+    def _home_releases_section(self) -> QWidget:
+        panel = NeonPanel(accent="#B9FF43", grid=False)
+        outer = QVBoxLayout(panel)
+        outer.setContentsMargins(18, 16, 18, 16)
+        outer.setSpacing(10)
+        self.home_releases_status = QLabel("Carregando novidades…")
+        self.home_releases_status.setObjectName("Muted")
+        outer.addWidget(self.home_releases_status)
+        body = QVBoxLayout()
+        body.setSpacing(12)
+        self.home_releases_layout = body
+        outer.addLayout(body)
+        return panel
+
+    def _load_releases_async(self) -> None:
+        if self._releases_worker is not None and self._releases_worker.isRunning():
+            return
+        if self.home_releases_status is not None:
+            self.home_releases_status.setText("Carregando novidades…")
+        worker = _ReleasesWorker()
+        worker.loaded.connect(self._on_releases_loaded)
+        self._releases_worker = worker
+        worker.start()
+
+    def _on_releases_loaded(self, releases: object) -> None:
+        layout = self.home_releases_layout
+        if layout is None:
+            return
+        while layout.count():
+            item = layout.takeAt(0)
+            widget = item.widget()
+            if widget is not None:
+                widget.setParent(None)
+                widget.deleteLater()
+        if releases is None:
+            if self.home_releases_status is not None:
+                self.home_releases_status.setText(
+                    "Não foi possível carregar as novidades (offline?)."
+                )
+            return
+        self._releases_loaded = True
+        if not releases:
+            if self.home_releases_status is not None:
+                self.home_releases_status.setText("Nenhuma release publicada ainda.")
+            return
+        if self.home_releases_status is not None:
+            self.home_releases_status.setText(f"As {len(releases)} atualizações mais recentes:")
+        for note in releases:
+            layout.addWidget(self._release_item_widget(note))
+
+    def _release_item_widget(self, note: object) -> QWidget:
+        version = str(getattr(note, "version", "") or "")
+        title = str(getattr(note, "title", "") or "")
+        date = str(getattr(note, "date", "") or "")
+        box = QFrame()
+        box.setObjectName("NeonPanel")
+        inner = QVBoxLayout(box)
+        inner.setContentsMargins(14, 10, 14, 12)
+        inner.setSpacing(4)
+
+        head = QHBoxLayout()
+        tag = QLabel(f"v{version}" if version else (title or "release"))
+        tag.setObjectName("CardTitle")
+        head.addWidget(tag, 0)
+        if date:
+            date_label = QLabel(date)
+            date_label.setObjectName("Muted")
+            head.addWidget(date_label, 0)
+        head.addStretch(1)
+        inner.addLayout(head)
+
+        if title and title.lower() not in {f"v{version}".lower(), version.lower()}:
+            subtitle = QLabel(title)
+            subtitle.setObjectName("Muted")
+            subtitle.setWordWrap(True)
+            inner.addWidget(subtitle)
+
+        body_text = self._shorten_notes(str(getattr(note, "notes", "") or ""))
+        if body_text:
+            body = QLabel(body_text)
+            body.setObjectName("Muted")
+            body.setWordWrap(True)
+            inner.addWidget(body)
+        return box
+
+    @staticmethod
+    def _shorten_notes(text: str, limit: int = 240) -> str:
+        """Limpa as notas auto-geradas do GitHub (tira headers, @autor e URLs)."""
+        items: list[str] = []
+        for raw in (text or "").splitlines():
+            line = raw.strip()
+            if not line:
+                continue
+            low = line.lower()
+            if low.startswith(("## what's changed", "**full changelog", "full changelog")):
+                continue
+            line = line.lstrip("#*-• ").replace("**", "").strip()
+            # corta a atribuição "by @autor in https://..." e URLs soltas
+            for marker in (" by @", " by ", " in http", " http"):
+                idx = line.find(marker)
+                if idx != -1:
+                    line = line[:idx].strip()
+            if line:
+                items.append(line)
+        collapsed = "  •  ".join(items)
+        if len(collapsed) > limit:
+            collapsed = collapsed[:limit].rstrip(" •") + "…"
+        return collapsed
+
+    def _plugins_page(self) -> QWidget:
         page = QWidget()
         layout = QVBoxLayout(page)
         layout.setContentsMargins(0, 0, 22, 0)
         layout.setSpacing(22)
 
         hero = NeonPanel(accent="#37F2FF", grid=False)
-        hero.setMinimumHeight(230)
+        hero.setMinimumHeight(200)
         hero_layout = QGridLayout(hero)
         hero_layout.setContentsMargins(28, 24, 28, 24)
         hero_layout.setHorizontalSpacing(24)
         hero_layout.setVerticalSpacing(12)
 
         hero_logo = BrandLogo()
-        hero_title = QLabel("Hub de ferramentas para streamers")
+        hero_title = QLabel("Plugins e ferramentas")
         hero_title.setObjectName("PageTitle")
         hero_title.setWordWrap(True)
-        hero_subtitle = QLabel("Acesso rápido para marcador, contador e hotkeys de live.")
+        hero_subtitle = QLabel(
+            "Suas ferramentas instaladas. Adicione novas com o card + (marketplace)."
+        )
         hero_subtitle.setObjectName("Muted")
         hero_subtitle.setWordWrap(True)
         hero_status = QLabel("Hotkeys unificadas  |  Estrutura modular  |  OBS-friendly")
@@ -1143,6 +1506,11 @@ class HubWindow(QMainWindow):
             self._refresh_diagnostics_page()
         if page_id == "help":
             self._refresh_help_page()
+        if page_id == "home":
+            self._reflow_favorites()
+            self._refresh_home_update_card()
+            if not self._releases_loaded:
+                self._load_releases_async()
         if page_id == "platinas" and self.platinas_page is not None:
             self.platinas_page.refresh()
         self.pages.setCurrentIndex(self.page_indexes[page_id])
@@ -1439,6 +1807,7 @@ class HubWindow(QMainWindow):
         self._append_plugin_card(plugin)
         self._add_plugin_subnav_button(plugin)
         self._reflow_home_modules(force=True)
+        self._reflow_favorites()
         self._refresh_help_page()
         QMessageBox.information(
             self,
@@ -1476,6 +1845,7 @@ class HubWindow(QMainWindow):
             button.deleteLater()
 
         self._reflow_home_modules(force=True)
+        self._reflow_favorites()
         self._refresh_help_page()
 
     def _check_plugin_updates_async(self) -> None:
@@ -1522,6 +1892,8 @@ class HubWindow(QMainWindow):
         worker.start()
 
     def _on_app_update_result(self, release: object, auto: bool) -> None:
+        self._latest_release = release
+        self._refresh_home_update_card()
         if release is None:
             if not auto and self.app_update_status_label is not None:
                 self.app_update_status_label.setText(
