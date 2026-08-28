@@ -1,5 +1,5 @@
 {
-  "version": "0.6.0",
-  "zip_url": "https://github.com/ricardothezouro-debug/streamer_sidekick/releases/download/v0.6.0/StreamerSidekick-0.6.0-portable.zip",
-  "notes": "Nova aba Platinas: um marketplace curado de guias de platina por jogo, com busca — instale e acompanhe seus troféus."
+  "version": "0.6.1",
+  "zip_url": "https://github.com/ricardothezouro-debug/streamer_sidekick/releases/download/v0.6.1/StreamerSidekick-0.6.1-portable.zip",
+  "notes": "Ícones próprios para Plugins (quebra-cabeça), Platinas (troféu) e Ajuda; e o menu lateral agora rola quando há muitos itens (nada mais fica cortado)."
 }
