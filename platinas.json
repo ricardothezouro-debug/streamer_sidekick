@@ -25,6 +25,19 @@
       "accent": "#4F8DFF",
       "min_sidekick_version": "0.6.0",
       "changelog": "Abertura e textos das abas reescritos para falar do jogo, não do formato do guia: 24 troféus, nada perdível, e metade deles depende de vencer o leilão com o comprador certo."
+    },
+    {
+      "id": "wolong",
+      "name": "Wo Long — Platina",
+      "description": "Guia PT-BR do jogo base: as 46 batalhas na ordem, 75 coletáveis com local, as 145 bandeiras e os 51 troféus.",
+      "repo": "ricardothezouro-debug/Guia-de-Platina-Wolong",
+      "ref": "main",
+      "version": "1.0.0",
+      "src_subdir": "src",
+      "module": "platina_wolong.module",
+      "accent": "#C8102E",
+      "min_sidekick_version": "0.6.0",
+      "changelog": "Primeira versão: as 46 batalhas na ordem com os coletáveis de cada uma, os 51 troféus e as armadilhas do Wizardry Master e do Eye for an Eye."
     }
   ]
 }
