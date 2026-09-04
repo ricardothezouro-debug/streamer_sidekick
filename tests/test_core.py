@@ -181,3 +181,117 @@ def test_plugin_discovery_incompatible(tmp_path, monkeypatch):
     assert plugin is not None
     assert not plugin.loaded
     assert "99.0.0" in (plugin.error or "")
+
+
+def test_hotkey_backend_uses_one_listener(monkeypatch):
+    """Fora do Windows, TODOS os atalhos precisam caber num listener so.
+
+    O pynput traduz teclas via Carbon, que nao aguenta chamadas concorrentes:
+    tres listeners vivos ao mesmo tempo abortam o processo no macOS (SIGABRT,
+    sem excecao). O app registra cinco atalhos no hub mais um por overlay de
+    contador, entao este teste trava o invariante.
+    """
+    if hotkey_backend._ON_WINDOWS:  # no Windows cada atalho e um hook, sem listener
+        return
+
+    started: list[dict] = []
+
+    class FakeListener:
+        def __init__(self, mapping):
+            self.mapping = mapping
+            self.alive = False
+
+        def start(self):
+            self.alive = True
+            started.append(self.mapping)
+
+        def stop(self):
+            self.alive = False
+
+        def join(self, timeout=None):
+            pass
+
+    class FakeKeyboard:
+        GlobalHotKeys = FakeListener
+
+    monkeypatch.setattr(hotkey_backend, "_pynput_keyboard", FakeKeyboard)
+    monkeypatch.setattr(hotkey_backend, "_entries", {})
+    monkeypatch.setattr(hotkey_backend, "_listener", None)
+
+    hub = hotkey_backend.register_batch({
+        "Ctrl+Alt+H": lambda: None,
+        "Ctrl+Alt+M": lambda: None,
+    })
+    overlay_a = hotkey_backend.register("Ctrl+Alt+1", lambda: None)
+    overlay_b = hotkey_backend.register("Ctrl+Alt+2", lambda: None)
+
+    # Um unico listener vivo, com todos os combos.
+    assert hotkey_backend._listener is not None
+    assert hotkey_backend._listener.alive
+    assert set(started[-1]) == {"<ctrl>+<alt>+h", "<ctrl>+<alt>+m", "<ctrl>+<alt>+1", "<ctrl>+<alt>+2"}
+
+    hotkey_backend.unregister(overlay_a)
+    assert set(started[-1]) == {"<ctrl>+<alt>+h", "<ctrl>+<alt>+m", "<ctrl>+<alt>+2"}
+
+    hotkey_backend.unregister(overlay_b)
+    hotkey_backend.unregister(hub)
+    assert hotkey_backend._listener is None
+
+
+def test_hotkey_same_combo_fires_every_callback(monkeypatch):
+    """Dois contadores no mesmo atalho: os dois devem contar.
+
+    Como o mapa do pynput e um dicionario, sem agrupar os callbacks o segundo
+    registro sobrescreveria o primeiro em silencio.
+    """
+    if hotkey_backend._ON_WINDOWS:
+        return
+
+    mappings: list[dict] = []
+
+    class FakeListener:
+        def __init__(self, mapping):
+            mappings.append(mapping)
+
+        def start(self):
+            pass
+
+        def stop(self):
+            pass
+
+        def join(self, timeout=None):
+            pass
+
+    class FakeKeyboard:
+        GlobalHotKeys = FakeListener
+
+    monkeypatch.setattr(hotkey_backend, "_pynput_keyboard", FakeKeyboard)
+    monkeypatch.setattr(hotkey_backend, "_entries", {})
+    monkeypatch.setattr(hotkey_backend, "_listener", None)
+
+    fired: list[str] = []
+    hotkey_backend.register("Ctrl+Alt+1", lambda: fired.append("a"))
+    hotkey_backend.register("Ctrl+Alt+1", lambda: fired.append("b"))
+
+    mappings[-1]["<ctrl>+<alt>+1"]()
+    assert fired == ["a", "b"]
+
+
+def test_net_uses_certifi_when_present():
+    """O contexto TLS do app nao pode depender do cert store da maquina.
+
+    No macOS o Python do python.org nao usa o Keychain: sem isto, catalogo de
+    plugins, feed de novidades e instalacao morrem com CERTIFICATE_VERIFY_FAILED.
+    """
+    from streamer_sidekick.core import net
+
+    net.ssl_context.cache_clear()
+    context = net.ssl_context()
+    try:
+        import certifi
+    except ImportError:
+        assert context is None  # sem certifi caimos no padrao do sistema
+        return
+    assert context is not None
+    assert context.verify_mode.name == "CERT_REQUIRED"
+    assert context.cert_store_stats()["x509_ca"] > 0

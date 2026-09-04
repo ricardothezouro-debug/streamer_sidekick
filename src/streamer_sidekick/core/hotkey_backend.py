@@ -10,8 +10,21 @@ Ambos os backends expoem a mesma API minima:
 
     is_available() -> bool
     backend_name() -> str
+    validate(sequence) -> None          # levanta excecao se a notacao for invalida
     register(sequence, callback) -> handle
+    register_batch({sequence: callback}) -> handle
     unregister(handle) -> None
+
+IMPORTANTE (macOS): o ``pynput`` traduz teclas via Carbon (``TISCopy...``), que
+NAO e seguro para chamadas concorrentes. Subir tres ou mais listeners ao mesmo
+tempo aborta o processo inteiro -- SIGABRT, sem excecao Python, sem chance de
+tratar. Como o app registra cinco atalhos no hub e mais um por overlay de
+contador, isso derrubava o Streamer Sidekick no arranque.
+
+Por isso, fora do Windows este modulo mantem UM UNICO listener para o processo
+inteiro: registrar ou remover um atalho reescreve o mapa de combos e reconstroi
+esse listener (parando o anterior e esperando ele morrer antes de subir o novo).
+Quem chama nao precisa saber disso -- a API continua sendo por atalho.
 
 ``sequence`` usa a notacao do app, por exemplo ``"Ctrl+Alt+H"`` ou
 ``"Ctrl+Alt+Shift+C"``. Os callbacks disparam em uma thread de fundo; quem
@@ -20,10 +33,15 @@ sinais do Qt).
 """
 from __future__ import annotations
 
+import itertools
 import sys
+import threading
 from typing import Any, Callable
 
 _ON_WINDOWS = sys.platform == "win32"
+
+# Quanto esperamos o listener antigo morrer antes de subir o proximo.
+_STOP_TIMEOUT = 2.0
 
 _keyboard: Any = None
 _pynput_keyboard: Any = None
@@ -40,6 +58,13 @@ else:
         _pynput_keyboard = None
 
 
+# Estado do listener unico (so usado fora do Windows).
+_lock = threading.RLock()
+_tokens = itertools.count(1)
+_entries: dict[int, tuple[str, Callable[[], None]]] = {}
+_listener: Any = None
+
+
 def backend_name() -> str:
     """Nome do backend ativo para exibicao em diagnosticos."""
     return "keyboard" if _ON_WINDOWS else "pynput"
@@ -52,38 +77,121 @@ def is_available() -> bool:
     return _pynput_keyboard is not None
 
 
-def register(sequence: str, callback: Callable[[], None]) -> Any:
-    """Registra um atalho global e devolve um handle opaco (ou lanca excecao)."""
+def validate(sequence: str) -> None:
+    """Levanta excecao se o backend atual nao entender a notacao informada."""
     if _ON_WINDOWS:
         if _keyboard is None:
             raise RuntimeError("Pacote keyboard nao esta disponivel")
-        return _keyboard.add_hotkey(sequence, callback, suppress=False)
+        _keyboard.parse_hotkey(sequence)
+        return
+    if _pynput_keyboard is None:
+        raise RuntimeError("Pacote pynput nao esta disponivel")
+    _pynput_keyboard.HotKey.parse(_to_pynput(sequence))
+
+
+def register(sequence: str, callback: Callable[[], None]) -> Any:
+    """Registra um atalho global e devolve um handle opaco (ou lanca excecao)."""
+    return register_batch({sequence: callback})
+
+
+def register_batch(items: dict[str, Callable[[], None]]) -> Any:
+    """Registra varios atalhos de uma vez, com uma unica reconstrucao."""
+    if not items:
+        return None
+
+    if _ON_WINDOWS:
+        if _keyboard is None:
+            raise RuntimeError("Pacote keyboard nao esta disponivel")
+        return [
+            _keyboard.add_hotkey(sequence, callback, suppress=False)
+            for sequence, callback in items.items()
+        ]
 
     if _pynput_keyboard is None:
         raise RuntimeError("Pacote pynput nao esta disponivel")
-    combo = _to_pynput(sequence)
-    listener = _pynput_keyboard.GlobalHotKeys({combo: callback})
-    listener.start()
-    return listener
+
+    with _lock:
+        added: list[int] = []
+        for sequence, callback in items.items():
+            token = next(_tokens)
+            _entries[token] = (_to_pynput(sequence), callback)
+            added.append(token)
+        try:
+            _rebuild()
+        except Exception:
+            # Nao deixa um combo invalido derrubar os atalhos que ja funcionavam.
+            for token in added:
+                _entries.pop(token, None)
+            _rebuild()
+            raise
+        return added
 
 
 def unregister(handle: Any) -> None:
-    """Remove um atalho previamente registrado. Tolerante a handles invalidos."""
+    """Remove atalhos previamente registrados. Tolerante a handles invalidos."""
     if handle is None:
         return
+
     if _ON_WINDOWS:
         if _keyboard is None:
             return
-        try:
-            _keyboard.remove_hotkey(handle)
-        except (KeyError, ValueError):
-            pass
+        for hook in handle if isinstance(handle, list) else [handle]:
+            try:
+                _keyboard.remove_hotkey(hook)
+            except (KeyError, ValueError):
+                pass
         return
-    # pynput: o handle e um listener em sua propria thread.
-    try:
-        handle.stop()
-    except Exception:
-        pass
+
+    with _lock:
+        for token in handle if isinstance(handle, list) else [handle]:
+            _entries.pop(token, None)
+        _rebuild()
+
+
+def _rebuild() -> None:
+    """Derruba o listener atual e sobe outro com o mapa de combos vigente.
+
+    Chamado sempre com ``_lock`` seguro, para que nunca existam dois listeners
+    vivos ao mesmo tempo (ver a nota sobre o Carbon no topo do modulo).
+    """
+    global _listener
+
+    if _listener is not None:
+        try:
+            _listener.stop()
+        except Exception:
+            pass
+        try:
+            _listener.join(_STOP_TIMEOUT)
+        except Exception:
+            pass
+        _listener = None
+
+    if not _entries:
+        return
+
+    # Dois contadores podem usar o mesmo atalho; como o mapa do pynput e um
+    # dicionario, agrupamos os callbacks para que todos disparem.
+    grouped: dict[str, list[Callable[[], None]]] = {}
+    for combo, callback in _entries.values():
+        grouped.setdefault(combo, []).append(callback)
+
+    mapping = {combo: _fan_out(callbacks) for combo, callbacks in grouped.items()}
+    listener = _pynput_keyboard.GlobalHotKeys(mapping)
+    listener.start()
+    _listener = listener
+
+
+def _fan_out(callbacks: list[Callable[[], None]]) -> Callable[[], None]:
+    """Um callback que dispara todos os inscritos no mesmo combo."""
+    def run() -> None:
+        for callback in callbacks:
+            try:
+                callback()
+            except Exception:
+                pass
+
+    return run
 
 
 # --- Conversao de notacao "Ctrl+Alt+H" -> formato do pynput "<ctrl>+<alt>+h" ---
