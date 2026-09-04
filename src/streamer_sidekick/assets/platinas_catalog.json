@@ -6,12 +6,12 @@
       "description": "Guia PT-BR completo: rota de 90 passos, 67 peixes, localizador de itens, santuários, docas e os 40 troféus.",
       "repo": "ricardothezouro-debug/Assistente-de-platina-Dredge",
       "ref": "main",
-      "version": "1.0.0",
+      "version": "1.0.2",
       "src_subdir": "src",
       "module": "platina_dredge.module",
       "accent": "#73AAA5",
       "min_sidekick_version": "0.6.0",
-      "changelog": "Primeira versão: as 10 abas do guia PT-BR completo, com imagens e progresso exportável."
+      "changelog": "Progresso e imagens agora funcionam no macOS: o guia grava na pasta de dados do sistema e as imagens voltaram a carregar."
     },
     {
       "id": "house-flipper",
@@ -19,12 +19,25 @@
       "description": "Guia PT-BR do jogo base: rota cronológica, os 10 compradores com receita, as 37 casas e os 24 troféus.",
       "repo": "ricardothezouro-debug/House-fliper-assistente-de-platina",
       "ref": "master",
-      "version": "1.0.0",
+      "version": "1.0.2",
       "src_subdir": "src",
       "module": "platina_house_flipper.module",
       "accent": "#4F8DFF",
       "min_sidekick_version": "0.6.0",
-      "changelog": "Primeira versão como plugin do Sidekick: guia reescrito com os 24 troféus, os 10 compradores com perfil e receita, as 37 casas e imagens."
+      "changelog": "Progresso e imagens agora funcionam no macOS: o guia grava na pasta de dados do sistema e as imagens voltaram a carregar."
+    },
+    {
+      "id": "wolong",
+      "name": "Wo Long — Platina",
+      "description": "Guia PT-BR do jogo base: as 46 batalhas na ordem, 75 coletáveis com local, as 145 bandeiras e os 51 troféus.",
+      "repo": "ricardothezouro-debug/Guia-de-Platina-Wolong",
+      "ref": "main",
+      "version": "1.0.1",
+      "src_subdir": "src",
+      "module": "platina_wolong.module",
+      "accent": "#C8102E",
+      "min_sidekick_version": "0.6.0",
+      "changelog": "Progresso e imagens agora funcionam no macOS: o guia grava na pasta de dados do sistema e as imagens voltaram a carregar."
     }
   ]
 }
