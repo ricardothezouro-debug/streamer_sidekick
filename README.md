@@ -6,6 +6,7 @@
 
 <p align="center">
   Um hub desktop de ferramentas rápidas para a sua live — com sistema de plugins e guias de platina.
+  <br>Windows e macOS.
 </p>
 
 <p align="center">
@@ -41,7 +42,9 @@
 
 <img src="docs/about.png" alt="Tela Sobre" width="860">
 
-## ⬇️ Baixar (Windows)
+## ⬇️ Baixar
+
+### Windows
 
 **➡️ [Baixe a versão mais recente na página de Releases](https://github.com/ricardothezouro-debug/streamer_sidekick/releases/latest)**
 
@@ -49,8 +52,28 @@ Baixe o `StreamerSidekick-*-portable.zip`, **extraia a pasta inteira** e execute
 `StreamerSidekick.exe`. Não precisa instalar nada — e o app se atualiza sozinho
 quando sair uma versão nova.
 
-> Suporte a macOS/Linux existe no código, mas é experimental e ainda não foi
-> validado/lançado — será retomado no futuro.
+### macOS
+
+Ainda não há release pronta: no Mac você monta o `.app` a partir do código.
+
+```bash
+python3 -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt -r requirements-build.txt
+./scripts/build_app_macos.sh
+```
+
+O resultado é `dist/Streamer Sidekick.app`. Duas coisas específicas do Mac:
+
+- **Permissão de Acessibilidade.** Sem ela o macOS não entrega eventos de teclado
+  ao app: os atalhos globais são registrados mas nunca disparam. Vá em **Ajustes
+  do Sistema → Privacidade e Segurança → Acessibilidade** e ligue o Streamer
+  Sidekick. A aba **Diagnóstico** avisa quando a permissão está faltando.
+- **Auto-update ainda é só do Windows.** No Mac o app avisa que existe versão
+  nova, mas a troca é manual (novo build). O resto — plugins, platinas, marcador,
+  contadores, atalhos — funciona igual.
+
+Seus dados ficam em `~/Library/Application Support/StreamerSidekick/`.
 
 ## 🧩 Plugins
 
@@ -81,11 +104,24 @@ Rodar do código-fonte:
 python -m streamer_sidekick
 ```
 
+```bash
+# macOS / Linux
+source .venv/bin/activate
+python -m streamer_sidekick
+```
+
 Testes:
 
 ```bash
 pip install -r requirements-dev.txt
 pytest -q
+```
+
+Há também um smoke test que sobe o hub inteiro sem display (é o que pega os
+bugs de plataforma — o CI roda no Windows **e** no macOS):
+
+```bash
+QT_QPA_PLATFORM=offscreen PYTHONPATH=src python scripts/smoke_test.py
 ```
 
 Build do portable (também roda automático via GitHub Actions ao lançar):

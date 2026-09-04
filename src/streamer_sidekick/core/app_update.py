@@ -31,6 +31,7 @@ from pathlib import Path
 from typing import Any, Callable, Optional
 
 from streamer_sidekick import __version__ as CURRENT_VERSION
+from streamer_sidekick.core import net
 from streamer_sidekick.core.plugins import version_tuple
 
 APP_MANIFEST_URL = (
@@ -98,7 +99,7 @@ def fetch_recent_releases(limit: int = 5) -> list[ReleaseNote]:
         url,
         headers={"User-Agent": _USER_AGENT, "Accept": "application/vnd.github+json"},
     )
-    with urllib.request.urlopen(request, timeout=_HTTP_TIMEOUT) as response:
+    with net.urlopen(request, timeout=_HTTP_TIMEOUT) as response:
         payload = json.loads(response.read().decode("utf-8"))
     return parse_releases(payload, limit=limit)
 
@@ -142,7 +143,7 @@ def check_for_update() -> Optional[AppRelease]:
 def _fetch_manifest() -> Optional[dict[str, Any]]:
     try:
         request = urllib.request.Request(APP_MANIFEST_URL, headers={"User-Agent": _USER_AGENT})
-        with urllib.request.urlopen(request, timeout=_HTTP_TIMEOUT) as response:
+        with net.urlopen(request, timeout=_HTTP_TIMEOUT) as response:
             return json.loads(response.read().decode("utf-8"))
     except Exception:
         return None
@@ -203,7 +204,7 @@ def download_and_apply(
 def _download(url: str, on_progress: Optional[Callable[[int, int], None]] = None) -> bytes:
     request = urllib.request.Request(url, headers={"User-Agent": _USER_AGENT})
     parts: list[bytes] = []
-    with urllib.request.urlopen(request, timeout=_HTTP_TIMEOUT) as response:
+    with net.urlopen(request, timeout=_HTTP_TIMEOUT) as response:
         total = int(response.headers.get("Content-Length") or 0)
         read = 0
         while True:

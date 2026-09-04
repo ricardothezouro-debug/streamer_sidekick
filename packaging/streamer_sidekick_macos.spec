@@ -1,10 +1,20 @@
 # -*- mode: python ; coding: utf-8 -*-
 
+import sys
 from pathlib import Path
 
 
 ROOT = Path.cwd()
 SRC = ROOT / "src"
+
+# Versao lida do proprio pacote, para nao ficar defasada como ja aconteceu.
+sys.path.insert(0, str(SRC))
+from streamer_sidekick import __version__ as APP_VERSION  # noqa: E402
+
+_PERMISSION_REASON = (
+    "O Streamer Sidekick usa atalhos globais para marcar eventos e contadores "
+    "durante a live, mesmo com o jogo em foco."
+)
 
 # No macOS o icone do bundle precisa ser .icns. Se ainda nao existir, o build
 # segue sem icone customizado (o PyInstaller usa o padrao). Para gerar o .icns
@@ -72,11 +82,14 @@ app = BUNDLE(
     info_plist={
         "CFBundleName": "Streamer Sidekick",
         "CFBundleDisplayName": "Streamer Sidekick",
-        "CFBundleShortVersionString": "0.6.1",
-        "CFBundleVersion": "0.6.1",
+        "CFBundleShortVersionString": APP_VERSION,
+        "CFBundleVersion": APP_VERSION,
         "NSHighResolutionCapable": True,
-        # Texto exibido pelo macOS ao pedir permissao de Acessibilidade,
-        # necessaria para os atalhos globais (pynput) e o clique (pyautogui).
-        "NSAppleEventsUsageDescription": "Streamer Sidekick usa atalhos globais para marcar eventos e contadores durante a live.",
+        # Os atalhos globais leem o teclado mesmo com o jogo em foco. O macOS
+        # pede Monitoramento de Entrada e/ou Acessibilidade para isso; a
+        # permissao em si e concedida nos Ajustes do Sistema, estes textos so
+        # explicam ao usuario para que servem.
+        "NSInputMonitoringUsageDescription": _PERMISSION_REASON,
+        "NSAppleEventsUsageDescription": _PERMISSION_REASON,
     },
 )
