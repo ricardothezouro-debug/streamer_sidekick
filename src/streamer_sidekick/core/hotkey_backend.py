@@ -12,7 +12,6 @@ Ambos os backends expoem a mesma API minima:
     backend_name() -> str
     validate(sequence) -> None          # levanta excecao se a notacao for invalida
     register(sequence, callback) -> handle
-    register_batch({sequence: callback}) -> handle
     unregister(handle) -> None
 
 IMPORTANTE (macOS): o ``pynput`` traduz teclas via Carbon (``TISCopy...``), que
@@ -90,41 +89,30 @@ def validate(sequence: str) -> None:
 
 
 def register(sequence: str, callback: Callable[[], None]) -> Any:
-    """Registra um atalho global e devolve um handle opaco (ou lanca excecao)."""
-    return register_batch({sequence: callback})
+    """Registra um atalho global e devolve um handle opaco (ou lanca excecao).
 
-
-def register_batch(items: dict[str, Callable[[], None]]) -> Any:
-    """Registra varios atalhos de uma vez, com uma unica reconstrucao."""
-    if not items:
-        return None
-
+    No Windows cada atalho vira um hook proprio do ``keyboard``, exatamente como
+    antes. Fora dele o atalho entra no mapa do listener unico, que e reconstruido.
+    """
     if _ON_WINDOWS:
         if _keyboard is None:
             raise RuntimeError("Pacote keyboard nao esta disponivel")
-        return [
-            _keyboard.add_hotkey(sequence, callback, suppress=False)
-            for sequence, callback in items.items()
-        ]
+        return _keyboard.add_hotkey(sequence, callback, suppress=False)
 
     if _pynput_keyboard is None:
         raise RuntimeError("Pacote pynput nao esta disponivel")
 
     with _lock:
-        added: list[int] = []
-        for sequence, callback in items.items():
-            token = next(_tokens)
-            _entries[token] = (_to_pynput(sequence), callback)
-            added.append(token)
+        token = next(_tokens)
+        _entries[token] = (_to_pynput(sequence), callback)
         try:
             _rebuild()
         except Exception:
-            # Nao deixa um combo invalido derrubar os atalhos que ja funcionavam.
-            for token in added:
-                _entries.pop(token, None)
+            # Nao deixa um combo problematico derrubar os que ja funcionavam.
+            _entries.pop(token, None)
             _rebuild()
             raise
-        return added
+        return token
 
 
 def unregister(handle: Any) -> None:
@@ -135,16 +123,14 @@ def unregister(handle: Any) -> None:
     if _ON_WINDOWS:
         if _keyboard is None:
             return
-        for hook in handle if isinstance(handle, list) else [handle]:
-            try:
-                _keyboard.remove_hotkey(hook)
-            except (KeyError, ValueError):
-                pass
+        try:
+            _keyboard.remove_hotkey(handle)
+        except (KeyError, ValueError):
+            pass
         return
 
     with _lock:
-        for token in handle if isinstance(handle, list) else [handle]:
-            _entries.pop(token, None)
+        _entries.pop(handle, None)
         _rebuild()
 
 
