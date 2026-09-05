@@ -116,40 +116,22 @@ class HotkeyManager(QObject):
             return
 
         self.stop_global_hotkeys()
-
-        # Junta tudo e registra de uma vez so: no macOS um listener por atalho
-        # aborta o processo (ver a nota em hotkey_backend).
-        pending: dict[str, Callable[[], None]] = {}
         for binding in self.all_bindings():
             key = str(binding["key"])
             sequence = str(binding["sequence"])
             if not binding["enabled"] or not sequence or key not in self._callbacks:
                 continue
-            if sequence in pending:
-                continue
             try:
+                # Valida antes de registrar: assim um atalho escrito errado nao
+                # chega a mexer nos que ja estao funcionando.
                 hotkey_backend.validate(sequence)
+                handle = hotkey_backend.register(sequence, self._wrap_callback(key))
+                self._registered.append((sequence, handle))
             except Exception as exc:
                 self.status_changed.emit(f"Nao foi possivel registrar {sequence}: {exc}")
-                continue
-            pending[sequence] = self._wrap_callback(key)
-
-        if not pending:
-            return
-
-        try:
-            handle = hotkey_backend.register_batch(pending)
-        except Exception as exc:
-            self.status_changed.emit(f"Nao foi possivel registrar os atalhos: {exc}")
-            return
-        self._registered = [(sequence, handle) for sequence in pending]
 
     def stop_global_hotkeys(self) -> None:
-        seen: list[int] = []
         for _sequence, handle in self._registered:
-            if id(handle) in seen:
-                continue
-            seen.append(id(handle))
             hotkey_backend.unregister(handle)
         self._registered.clear()
 

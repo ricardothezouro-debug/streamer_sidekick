@@ -10,7 +10,7 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/ricardothezouro-debug/streamer_sidekick/releases/latest"><b>⬇️ Baixar (Windows)</b></a>
+  <a href="https://github.com/ricardothezouro-debug/streamer_sidekick/releases/latest"><b>⬇️ Baixar</b></a>
   &nbsp;·&nbsp;
   <a href="PLUGIN_STANDARD.md">Criar plugins</a>
   &nbsp;·&nbsp;
@@ -24,7 +24,7 @@
 - 🏠 **Início** — um painel de verdade: lembrete de atualização, favoritos (até 4 ferramentas) e as últimas novidades puxadas do GitHub.
 - 🧩 **Plugins** — marketplace dentro do app: instale ferramentas direto do GitHub, com um clique.
 - 🏆 **Platinas** — guias de platina por jogo (checklist, dicas, imagens e progresso salvo), com busca — e cada guia pode abrir em uma janela separada.
-- ⬆️ **Auto-update** — o app se atualiza sozinho, com barra de progresso neon, sem janelas feias.
+- ⬆️ **Auto-update** — o app se atualiza sozinho no Windows e no macOS, com barra de progresso neon, sem janelas feias.
 - 🎯 **Marcador & Contador** — anote eventos da live com horário e monte overlays transparentes pro OBS.
 - ⌨️ **Hotkeys globais** — funcionam mesmo com o jogo em foco, com detecção de conflito.
 
@@ -54,7 +54,10 @@ quando sair uma versão nova.
 
 ### macOS
 
-Ainda não há release pronta: no Mac você monta o `.app` a partir do código.
+Baixe o `StreamerSidekick-*-macos.zip` na mesma
+[página de Releases](https://github.com/ricardothezouro-debug/streamer_sidekick/releases/latest),
+descompacte e arraste o `Streamer Sidekick.app` para Aplicativos. Ou monte da
+fonte:
 
 ```bash
 python3 -m venv .venv
@@ -69,9 +72,10 @@ O resultado é `dist/Streamer Sidekick.app`. Duas coisas específicas do Mac:
   ao app: os atalhos globais são registrados mas nunca disparam. Vá em **Ajustes
   do Sistema → Privacidade e Segurança → Acessibilidade** e ligue o Streamer
   Sidekick. A aba **Diagnóstico** avisa quando a permissão está faltando.
-- **Auto-update ainda é só do Windows.** No Mac o app avisa que existe versão
-  nova, mas a troca é manual (novo build). O resto — plugins, platinas, marcador,
-  contadores, atalhos — funciona igual.
+- **Auto-update funciona, mas custa a permissão.** O app se atualiza sozinho no
+  Mac também. Só que, como o `.app` não é assinado com uma conta de
+  desenvolvedor Apple, o macOS trata cada versão como um app diferente e pede a
+  Acessibilidade de novo depois de atualizar — o app avisa antes de aplicar.
 
 Seus dados ficam em `~/Library/Application Support/StreamerSidekick/`.
 
