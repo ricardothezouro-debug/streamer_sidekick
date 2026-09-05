@@ -1,9 +1,9 @@
 name: Release
 
 # Publica automaticamente ao entrar código novo na main: lê a versão do código
-# e, se ainda não houver Release para ela, builda o portable e publica (criando
-# a tag vX.Y.Z). Se a Release já existir, não faz nada — então commits na main
-# que não mudam a versão são ignorados.
+# e, se ainda não houver Release para ela, builda os pacotes (portable do Windows
+# e .app do macOS) e publica (criando a tag vX.Y.Z). Se a Release já existir, não
+# faz nada — então commits na main que não mudam a versão são ignorados.
 on:
   push:
     branches: [main]
@@ -12,7 +12,41 @@ permissions:
   contents: write
 
 jobs:
-  release:
+  # Decide uma vez só, num job barato, se há o que publicar. Os builds e a
+  # publicação penduram nele — assim as duas plataformas concordam sobre a
+  # versão e ninguém cria a Release duas vezes.
+  check:
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.ver.outputs.version }}
+      exists: ${{ steps.check.outputs.exists }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Ler versão do código
+        id: ver
+        run: |
+          v=$(sed -n 's/^__version__ = "\(.*\)"$/\1/p' src/streamer_sidekick/__init__.py)
+          if [ -z "$v" ]; then echo "Nao consegui ler __version__" >&2; exit 1; fi
+          echo "version=$v" >> "$GITHUB_OUTPUT"
+          echo "Versao do codigo: $v"
+
+      - name: A Release já existe?
+        id: check
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          tag="v${{ steps.ver.outputs.version }}"
+          if gh release view "$tag" > /dev/null 2>&1; then
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+          fi
+          echo "Release $tag existe? $(cat "$GITHUB_OUTPUT" | tail -1)"
+
+  build-windows:
+    needs: check
+    if: needs.check.outputs.exists == 'false'
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
@@ -22,52 +56,74 @@ jobs:
           python-version: "3.11"
           cache: pip
 
-      - name: Ler versão do código
-        id: ver
-        shell: pwsh
-        run: |
-          $init = Get-Content -Raw src/streamer_sidekick/__init__.py
-          $v = ([regex]::Match($init, '__version__\s*=\s*"([^"]+)"')).Groups[1].Value
-          if (-not $v) { throw "Nao consegui ler __version__" }
-          "version=$v" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
-          Write-Host "Versao do codigo: $v"
-
-      - name: A Release já existe?
-        id: check
-        shell: pwsh
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          $tag = "v${{ steps.ver.outputs.version }}"
-          $exists = "false"
-          gh release view $tag *> $null
-          if ($LASTEXITCODE -eq 0) { $exists = "true" }
-          "exists=$exists" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
-          Write-Host "Release $tag existe? $exists"
-          exit 0  # nao deixa o exit code do 'gh release view' derrubar o step
-
       - name: Instalar dependências
-        if: steps.check.outputs.exists == 'false'
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt -r requirements-build.txt -r requirements-dev.txt
 
       - name: Rodar testes
-        if: steps.check.outputs.exists == 'false'
         run: python -m pytest -q
 
       - name: Buildar o portable
-        if: steps.check.outputs.exists == 'false'
         shell: pwsh
         run: |
           python -m PyInstaller --noconfirm --clean packaging/streamer_sidekick.spec
           powershell -ExecutionPolicy Bypass -File scripts/package_portable.ps1
 
+      - uses: actions/upload-artifact@v4
+        with:
+          name: pacote-windows
+          path: release/StreamerSidekick-*-portable.zip
+          if-no-files-found: error
+
+  build-macos:
+    needs: check
+    if: needs.check.outputs.exists == 'false'
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Instalar dependências
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt -r requirements-build.txt -r requirements-dev.txt
+
+      - name: Rodar testes
+        run: python -m pytest -q
+
+      - name: Buildar o .app
+        run: |
+          python3 -m venv .venv
+          ./.venv/bin/python -m pip install --upgrade pip
+          ./.venv/bin/python -m pip install -r requirements.txt -r requirements-build.txt
+          ./scripts/build_app_macos.sh
+          ./scripts/package_macos.sh
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: pacote-macos
+          path: release/StreamerSidekick-*-macos.zip
+          if-no-files-found: error
+
+  publish:
+    needs: [check, build-windows, build-macos]
+    if: needs.check.outputs.exists == 'false'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: release
+          merge-multiple: true
+
       - name: Publicar a Release
-        if: steps.check.outputs.exists == 'false'
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: v${{ steps.ver.outputs.version }}
-          files: release/StreamerSidekick-*-portable.zip
+          tag_name: v${{ needs.check.outputs.version }}
+          files: release/StreamerSidekick-*.zip
           generate_release_notes: true
           fail_on_unmatched_files: true

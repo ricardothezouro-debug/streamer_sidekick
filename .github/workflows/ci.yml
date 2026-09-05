@@ -8,7 +8,14 @@ on:
 
 jobs:
   test:
-    runs-on: windows-latest
+    # macOS entra na matriz porque os bugs de plataforma que ja nos morderam
+    # (pynput abortando o processo, SSL sem cert store, creationflags) so
+    # aparecem fora do Windows.
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
 
@@ -27,3 +34,9 @@ jobs:
 
       - name: Rodar testes
         run: python -m pytest -q
+
+      - name: Smoke test da janela (headless)
+        env:
+          QT_QPA_PLATFORM: offscreen
+          PYTHONPATH: src
+        run: python scripts/smoke_test.py

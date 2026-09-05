@@ -122,6 +122,9 @@ class HotkeyManager(QObject):
             if not binding["enabled"] or not sequence or key not in self._callbacks:
                 continue
             try:
+                # Valida antes de registrar: assim um atalho escrito errado nao
+                # chega a mexer nos que ja estao funcionando.
+                hotkey_backend.validate(sequence)
                 handle = hotkey_backend.register(sequence, self._wrap_callback(key))
                 self._registered.append((sequence, handle))
             except Exception as exc:
