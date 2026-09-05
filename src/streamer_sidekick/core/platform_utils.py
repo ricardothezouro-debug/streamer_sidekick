@@ -61,11 +61,53 @@ def accessibility_trusted() -> Optional[bool]:
         return None
 
 
+def request_accessibility() -> Optional[bool]:
+    """Pede a permissao de Acessibilidade ao macOS e devolve se ja esta valendo.
+
+    Diferente de mandar o usuario nos Ajustes do Sistema, isto faz o macOS
+    cadastrar A COPIA QUE ESTA RODANDO. Importa porque o ``.app`` e assinado
+    apenas ad-hoc: cada build tem uma assinatura diferente, entao uma entrada
+    antiga na lista (de outro build, ou de uma copia que foi movida) fica
+    marcada mas nao vale para o processo atual -- o usuario ve a chave ligada e
+    mesmo assim nada funciona. O prompt resolve isso porque cria a entrada certa.
+
+    Devolve None quando a pergunta nao se aplica (outro SO) ou nao pode ser feita.
+    """
+    if sys.platform != "darwin":
+        return None
+    try:
+        from ApplicationServices import (  # type: ignore
+            AXIsProcessTrustedWithOptions,
+            kAXTrustedCheckOptionPrompt,
+        )
+    except ImportError:
+        return None
+    try:
+        return bool(AXIsProcessTrustedWithOptions({kAXTrustedCheckOptionPrompt: True}))
+    except Exception:
+        return None
+
+
 def open_accessibility_settings() -> None:
     """Abre o painel de Acessibilidade dos Ajustes do Sistema (so no macOS)."""
     if sys.platform != "darwin":
         return
     subprocess.run(
         ["open", "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility"],
+        check=False,
+    )
+
+
+def open_input_monitoring_settings() -> None:
+    """Abre o painel de Monitoramento de Entrada (so no macOS).
+
+    O ``pynput`` cria um event tap do tipo "listen only", que o macOS moderno
+    classifica como Monitoramento de Entrada. Em algumas maquinas o app aparece
+    nessa lista e nao na de Acessibilidade, entao vale poder abrir as duas.
+    """
+    if sys.platform != "darwin":
+        return
+    subprocess.run(
+        ["open", "x-apple.systempreferences:com.apple.preference.security?Privacy_ListenEvent"],
         check=False,
     )

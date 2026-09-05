@@ -1,4 +1,5 @@
 import os
+import sys
 from typing import Optional
 from pathlib import Path
 
@@ -35,6 +36,12 @@ from PySide6.QtWidgets import (
 from streamer_sidekick.core.config import ConfigStore
 from streamer_sidekick.core.backup import BackupError, BackupService
 from streamer_sidekick.core.diagnostics import DiagnosticItem, DiagnosticService
+from streamer_sidekick.core.platform_utils import (
+    accessibility_trusted,
+    open_accessibility_settings,
+    open_input_monitoring_settings,
+    request_accessibility,
+)
 from streamer_sidekick.core.hotkeys import HotkeyManager
 from streamer_sidekick.core.modules import ModuleInfo, ModuleRegistry
 from streamer_sidekick.core.platform_utils import app_icon_path, open_path
@@ -123,6 +130,7 @@ class HubWindow(QMainWindow):
         self.diagnostic_summary_label: Optional[QLabel] = None
         self.diagnostic_list: Optional[QListWidget] = None
         self._last_diagnostics: list[DiagnosticItem] = []
+        self._accessibility_timer: Optional[QTimer] = None
         self._hotkey_status_messages: list[str] = []
         self._hotkey_capture_editor: Optional[QKeySequenceEdit] = None
         self._hotkeys_paused_for_capture = False
@@ -163,7 +171,12 @@ class HubWindow(QMainWindow):
         self.page_indexes: dict[str, int] = {}
         self.setCentralWidget(self._build_shell())
         self._create_tray()
+        self._wire_dock_reopen()
         self._wire_hotkeys()
+        if accessibility_trusted() is False:
+            # Já sobe vigiando: se o usuário conceder a permissão pelos Ajustes
+            # do Sistema, os atalhos passam a funcionar sem reabrir o app.
+            self._watch_accessibility()
         app = QApplication.instance()
         if app is not None:
             app.installEventFilter(self)
@@ -1170,6 +1183,15 @@ class HubWindow(QMainWindow):
         copy.clicked.connect(self._copy_diagnostics_report)
         actions.addWidget(refresh)
         actions.addWidget(copy)
+        # Só faz sentido no macOS, e só enquanto a permissão não veio.
+        if accessibility_trusted() is False:
+            grant = QPushButton("Conceder permissão")
+            grant.setObjectName("PrimaryButton")
+            grant.clicked.connect(self._request_accessibility)
+            actions.addWidget(grant)
+            settings = QPushButton("Abrir Ajustes")
+            settings.clicked.connect(open_accessibility_settings)
+            actions.addWidget(settings)
         actions.addStretch(1)
 
         panel = NeonPanel(accent="#B9FF43", grid=False)
@@ -1715,6 +1737,93 @@ class HubWindow(QMainWindow):
         self._hotkey_status_messages = self._hotkey_status_messages[-8:]
         if self.page_indexes.get("diagnostics") == self.pages.currentIndex():
             self._refresh_diagnostics_page()
+
+    def _request_accessibility(self) -> None:
+        """Pede a permissão ao macOS e religa os atalhos se ela chegou."""
+        granted = request_accessibility()
+        if granted:
+            self._rearm_hotkeys_after_permission()
+            QMessageBox.information(
+                self,
+                "Permissão concedida",
+                "Os atalhos globais foram reativados.",
+            )
+            return
+
+        QMessageBox.information(
+            self,
+            "Permissão de Acessibilidade",
+            "O macOS abriu (ou já tem) a lista de Acessibilidade.\n\n"
+            "Ligue o Streamer Sidekick lá. Se ele já aparecer marcado e mesmo "
+            "assim os atalhos não funcionarem, a entrada é de uma versão antiga: "
+            "remova com \u201c\u2212\u201d e conceda de novo.\n\n"
+            "Assim que a permissão valer, os atalhos voltam sozinhos — não "
+            "precisa reabrir o app.",
+        )
+        open_accessibility_settings()
+        self._watch_accessibility()
+
+    def _watch_accessibility(self) -> None:
+        """Fica de olho até a permissão chegar, e então religa os atalhos.
+
+        Sem isto, conceder a permissão com o app aberto não adiantava: o
+        listener do pynput já tinha sido criado sem acesso ao teclado e ficava
+        morto para sempre. O usuário ligava a chave, nada acontecia, e a única
+        saída era fechar e abrir o app — sem nada explicando isso.
+        """
+        if self._accessibility_timer is not None:
+            return
+        timer = QTimer(self)
+        timer.setInterval(2000)
+        timer.timeout.connect(self._check_accessibility_once)
+        self._accessibility_timer = timer
+        timer.start()
+
+    def _check_accessibility_once(self) -> None:
+        if accessibility_trusted() is not True:
+            return
+        if self._accessibility_timer is not None:
+            self._accessibility_timer.stop()
+            self._accessibility_timer = None
+        self._rearm_hotkeys_after_permission()
+
+    def _rearm_hotkeys_after_permission(self) -> None:
+        """Recria os listeners agora que o SO deixa ler o teclado."""
+        self.hotkeys.stop_global_hotkeys()
+        self.hotkeys.start_global_hotkeys()
+        for overlay in self._live_counter_overlays():
+            overlay.pause_hotkey()
+            overlay.resume_hotkey()
+        if self.page_indexes.get("diagnostics") == self.pages.currentIndex():
+            self._refresh_diagnostics_page()
+
+    def _wire_dock_reopen(self) -> None:
+        """No macOS, faz o clique no icone do Dock trazer a janela de volta.
+
+        Fechar no "x" esconde a janela e deixa o app vivo no menu bar. No
+        Windows isso basta: o icone da bandeja e a unica forma de voltar. No
+        macOS o app continua no Dock, e clicar nele e a forma OBVIA de reabrir
+        -- mas o Qt nao mostra sozinho uma janela escondida com hide(), entao o
+        app parecia travado: o icone estava la, clicar nao fazia nada, e so
+        encerrando de vez dava para abrir de novo.
+
+        O clique no Dock ativa o app, e ai o Qt entrega
+        ``applicationStateChanged``. Usamos isso como gancho. So no macOS: no
+        Windows o app escondido nem aparece na barra de tarefas, entao nao ha
+        esse caminho de ativacao e mexer nisso seria mudar comportamento a toa.
+        """
+        if sys.platform != "darwin":
+            return
+        app = QApplication.instance()
+        if app is not None:
+            app.applicationStateChanged.connect(self._on_application_state_changed)
+
+    def _on_application_state_changed(self, state: Qt.ApplicationState) -> None:
+        if state != Qt.ApplicationState.ApplicationActive:
+            return
+        if self._quitting or self.isVisible():
+            return
+        self._show_from_tray()
 
     def _show_from_tray(self) -> None:
         self.showNormal()
