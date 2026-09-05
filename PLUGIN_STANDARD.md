@@ -240,6 +240,10 @@ ciano→magenta, cantos cortados).
 
 ## 7. Regras de funcionamento (importante)
 
+0. **Windows *e* macOS. Sempre.** O Streamer Sidekick é publicado para os dois, e
+   um plugin que só funciona num deles não entra no catálogo. Isso não é um
+   "seria bom": é requisito de aceitação. Veja a seção 7.1 — são quatro
+   armadilhas, todas com solução de uma linha.
 1. **PySide6 apenas.** O Sidekick embarca o PySide6; se seu plugin importar QtCore/
    QtGui/QtWidgets, funciona inclusive no app empacotado (portable). **Evite
    dependências de terceiros** — no build congelado elas não existem e o import
@@ -257,6 +261,60 @@ ciano→magenta, cantos cortados).
 6. **Falhe suave.** Se algo der errado em `build_page()`, levante uma exceção clara
    (o hub isola e mostra uma página de erro em vez de cair).
 7. **Não conflite hotkeys.** Se usar atalhos, deixe-os configuráveis.
+
+
+### 7.1 As quatro armadilhas de plataforma
+
+Todas já quebraram um plugin de verdade. Nenhuma dá erro visível no Windows, então
+elas passam despercebidas até alguém abrir no Mac.
+
+**1. Onde gravar.** `os.getenv("APPDATA")` só existe no Windows. Pergunte ao
+Sidekick, que já sabe a convenção de cada sistema:
+
+```python
+try:
+    from streamer_sidekick.core.paths import app_data_dir, user_data_dir
+    raiz = user_data_dir("meu_plugin")        # rodando como plugin (o normal)
+except ImportError:
+    import os
+    import sys
+    from pathlib import Path
+    if sys.platform == "win32":
+        raiz = Path(os.getenv("APPDATA", "")) / "MeuPlugin"
+    elif sys.platform == "darwin":
+        raiz = Path.home() / "Library" / "Application Support" / "MeuPlugin"
+    else:
+        raiz = Path.home() / ".config" / "MeuPlugin"
+```
+
+**2. HTTPS.** No macOS o Python não usa o Keychain: `urlopen` direto morre em
+`CERTIFICATE_VERIFY_FAILED`. Se o seu plugin baixa qualquer coisa, use o helper do
+Sidekick:
+
+```python
+from streamer_sidekick.core import net
+with net.urlopen(request, timeout=20) as r:
+    ...
+```
+
+Sem ele, e se o seu código engolir a exceção, o sintoma é pior que um erro: a
+funcionalidade simplesmente não acontece, calada.
+
+**3. Abrir arquivos e programas.**
+
+| Nunca | Por quê | Use |
+|---|---|---|
+| `os.startfile(x)` | Não existe fora do Windows (`AttributeError`) | `platform_utils.open_path(x)` |
+| `Popen(..., creationflags=...)` | `ValueError` fora do Windows | `creationflags` só no Windows; `start_new_session=True` nos demais |
+| `Popen(["/Apps/X.app"])` | No macOS um app é uma **pasta**, não um executável | `["open", "-a", caminho]` |
+
+**4. Texto que o usuário lê.** Nada de `C:\...`, `%APPDATA%` ou `.exe` fixos numa
+mensagem — para quem está no Mac isso é mentira. Monte o caminho e mostre o real.
+
+> **Como testar sem ter os dois computadores:** rode
+> `QT_QPA_PLATFORM=offscreen python -m seu_pacote` no sistema que você tem, e no
+> GitHub Actions use uma matriz `[windows-latest, macos-latest]`. É exatamente o
+> que o Sidekick faz — e foi assim que essas quatro armadilhas apareceram.
 
 ---
 
@@ -303,7 +361,12 @@ dicas e, opcionalmente, imagens.
 - [ ] `build_page(config=None)` devolve um `QWidget`, sem trabalho pesado.
 - [ ] *(Opcional)* `help_text()` com uma explicação para a tela Ajuda.
 - [ ] Só PySide6/stdlib como dependência (ou documentado o contrário).
-- [ ] Config/estado do usuário fora da pasta do plugin.
+- [ ] Config/estado do usuário fora da pasta do plugin, **pelo caminho do SO**
+      (nada de `os.getenv("APPDATA")` cru).
+- [ ] **Roda no Windows e no macOS**: sem `os.startfile`, sem `creationflags`
+      fora do Windows, downloads via `net.urlopen`, e nenhum `C:\` / `%APPDATA%`
+      / `.exe` em texto visível ao usuário.
+- [ ] Aberto de fato nos dois sistemas (ou pelo menos com CI em matriz).
 - [ ] `assets/brand/icon.png` (PNG transparente ~256px) **versionado**.
 - [ ] Página usando os `objectName`s do design system.
 - [ ] Entrada adicionada ao `plugins.json` do Sidekick com `version` SemVer.
