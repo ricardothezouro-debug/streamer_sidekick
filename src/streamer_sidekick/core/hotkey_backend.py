@@ -14,13 +14,22 @@ Ambos os backends expoem a mesma API minima:
     register(sequence, callback) -> handle
     unregister(handle) -> None
 
-IMPORTANTE (macOS): o ``pynput`` traduz teclas via Carbon (``TISCopy...``), que
-NAO e seguro para chamadas concorrentes. Subir tres ou mais listeners ao mesmo
-tempo aborta o processo inteiro -- SIGABRT, sem excecao Python, sem chance de
-tratar. Como o app registra cinco atalhos no hub e mais um por overlay de
-contador, isso derrubava o Streamer Sidekick no arranque.
+IMPORTANTE (macOS): o ``pynput`` traduz teclas com o HIToolbox
+(``TISGetInputSourceProperty``), e essa API **exige a fila principal**. Chamada
+de qualquer outra thread ela dispara ``dispatch_assert_queue`` e o macOS mata o
+processo na hora -- SIGTRAP, sem excecao Python, sem chance de tratar. O pynput
+chama exatamente isso de dentro da thread do listener, entao qualquer listener
+criado pode derrubar o app.
 
-Por isso, fora do Windows este modulo mantem UM UNICO listener para o processo
+Nao da para escolher em que thread o pynput roda, entao fazemos o inverso:
+``_refresh_keycode_snapshot()`` calcula o layout do teclado AQUI, na thread
+principal, e troca o ``keycode_context`` do pynput por um que devolve esse valor
+ja pronto. A thread do listener deixa de tocar no HIToolbox.
+
+O snapshot e refeito a cada reconstrucao (sempre na thread principal), entao
+trocar de layout de teclado continua sendo percebido.
+
+Alem disso, fora do Windows este modulo mantem UM UNICO listener para o processo
 inteiro: registrar ou remover um atalho reescreve o mapa de combos e reconstroi
 esse listener (parando o anterior e esperando ele morrer antes de subir o novo).
 Quem chama nao precisa saber disso -- a API continua sendo por atalho.
@@ -32,6 +41,7 @@ sinais do Qt).
 """
 from __future__ import annotations
 
+import contextlib
 import itertools
 import sys
 import threading
@@ -62,6 +72,11 @@ _lock = threading.RLock()
 _tokens = itertools.count(1)
 _entries: dict[int, tuple[str, Callable[[], None]]] = {}
 _listener: Any = None
+
+# Layout do teclado lido na thread principal (ver a nota no topo).
+_keycode_snapshot: Any = None
+_original_keycode_context: Any = None
+_keycode_patch_failed = False
 
 
 def backend_name() -> str:
@@ -134,6 +149,66 @@ def unregister(handle: Any) -> None:
         _rebuild()
 
 
+def keycode_snapshot_ok() -> bool:
+    """O layout do teclado foi lido com sucesso na thread principal?
+
+    Se voltar False, criar um listener pode derrubar o processo -- o
+    Diagnostico usa isto para avisar em vez de deixar o app morrer sozinho.
+    """
+    if _ON_WINDOWS:
+        return True
+    return _keycode_snapshot is not None
+
+
+def _refresh_keycode_snapshot() -> None:
+    """Le o layout do teclado na thread principal e fixa o resultado no pynput.
+
+    Precisa rodar na thread principal: e justamente a exigencia do HIToolbox que
+    causava o crash. Fora dela, nao faz nada -- o snapshot anterior continua
+    valendo.
+    """
+    global _keycode_snapshot, _original_keycode_context, _keycode_patch_failed
+
+    if _ON_WINDOWS or _pynput_keyboard is None or _keycode_patch_failed:
+        return
+    if threading.current_thread() is not threading.main_thread():
+        return
+
+    try:
+        from pynput._util import darwin as _util_darwin
+        from pynput.keyboard import _darwin as _kb_darwin
+    except ImportError:
+        _keycode_patch_failed = True
+        return
+
+    if _original_keycode_context is None:
+        candidato = _util_darwin.keycode_context
+        # Nunca adotar o nosso proprio substituto como "original": ele devolve o
+        # snapshot, entao usa-lo para RECALCULAR o snapshot criaria um ciclo que
+        # cacharia o valor vazio para sempre.
+        if getattr(candidato, "_ssk_snapshot", False):
+            return
+        _original_keycode_context = candidato
+
+    try:
+        with _original_keycode_context() as context:
+            _keycode_snapshot = context
+    except Exception:
+        _keycode_patch_failed = True
+        return
+
+    @contextlib.contextmanager
+    def _snapshot_context():
+        yield _keycode_snapshot
+
+    _snapshot_context._ssk_snapshot = True
+
+    # O keyboard/_darwin.py importa o nome direto, entao trocar so no _util nao
+    # bastaria -- precisa ser nos dois lugares.
+    _util_darwin.keycode_context = _snapshot_context
+    _kb_darwin.keycode_context = _snapshot_context
+
+
 def _rebuild() -> None:
     """Derruba o listener atual e sobe outro com o mapa de combos vigente.
 
@@ -163,6 +238,9 @@ def _rebuild() -> None:
         grouped.setdefault(combo, []).append(callback)
 
     mapping = {combo: _fan_out(callbacks) for combo, callbacks in grouped.items()}
+    # Antes de subir a thread do listener: garante que o layout ja foi lido aqui,
+    # na thread principal, senao o pynput vai ler la e o processo morre.
+    _refresh_keycode_snapshot()
     listener = _pynput_keyboard.GlobalHotKeys(mapping)
     listener.start()
     _listener = listener

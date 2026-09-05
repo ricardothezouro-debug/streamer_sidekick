@@ -469,3 +469,55 @@ def test_request_accessibility_tolera_pyobjc_ausente(monkeypatch):
 
     monkeypatch.setattr(builtins, "__import__", sem_application_services)
     assert platform_utils.request_accessibility() is None
+
+
+def test_pynput_nunca_le_o_layout_na_thread_do_listener(monkeypatch):
+    """O HIToolbox exige a thread principal; ler de outra mata o processo.
+
+    O pynput lê o layout de dentro da thread do listener. Como não dá para
+    mudar isso, trocamos o `keycode_context` dele por um que devolve um valor
+    lido na thread principal. Este teste trava a troca: se um upgrade do pynput
+    mudar o nome ou o local da função, ele quebra aqui — e não com um SIGTRAP
+    na máquina do usuário.
+    """
+    if hotkey_backend._ON_WINDOWS:
+        return
+
+    monkeypatch.setattr(hotkey_backend, "_keycode_patch_failed", False)
+
+    hotkey_backend._refresh_keycode_snapshot()
+
+    from pynput._util import darwin as util_darwin
+    from pynput.keyboard import _darwin as kb_darwin
+
+    # os dois lugares precisam apontar para o nosso, porque o keyboard/_darwin
+    # importa o nome direto
+    assert util_darwin.keycode_context.__name__ == "_snapshot_context"
+    assert kb_darwin.keycode_context.__name__ == "_snapshot_context"
+    assert hotkey_backend.keycode_snapshot_ok()
+
+    # e o valor entregue precisa ser utilizável (tipo de teclado + layout)
+    with kb_darwin.keycode_context() as contexto:
+        tipo, layout = contexto
+    assert tipo is not None and layout
+
+
+def test_snapshot_nao_le_fora_da_thread_principal():
+    """Chamado de outra thread, o refresh não pode tocar no HIToolbox."""
+    import threading
+
+    if hotkey_backend._ON_WINDOWS:
+        return
+
+    chamou = []
+    resultado = []
+
+    def de_outra_thread():
+        antes = hotkey_backend._keycode_snapshot
+        hotkey_backend._refresh_keycode_snapshot()
+        resultado.append(hotkey_backend._keycode_snapshot is antes)
+
+    t = threading.Thread(target=de_outra_thread)
+    t.start()
+    t.join()
+    assert resultado == [True], "o refresh mexeu no snapshot fora da thread principal"
