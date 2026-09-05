@@ -116,7 +116,10 @@ class DiagnosticService:
                     "error",
                     "Acessibilidade (macOS)",
                     "Permissao nao concedida: os atalhos globais nao vao disparar. "
-                    "Ajustes do Sistema > Privacidade e Seguranca > Acessibilidade.",
+                    "Use o botao \"Conceder permissao\" acima -- ele cadastra esta "
+                    "copia do app. Se voce ja ligou a chave nos Ajustes e mesmo "
+                    "assim aparece aqui, a entrada da lista e de uma versao "
+                    "antiga: remova com \"-\" e conceda de novo.",
                 )
             )
         elif trusted is True:
