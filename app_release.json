@@ -1,13 +1,13 @@
 {
-  "version": "0.7.1",
-  "zip_url": "https://github.com/ricardothezouro-debug/streamer_sidekick/releases/download/v0.7.1/StreamerSidekick-0.7.1-portable.zip",
-  "notes": "Suporte a macOS: o app roda e se atualiza sozinho também no Mac. No Windows nada muda de comportamento — só correções internas de rede e atalhos.",
+  "version": "0.7.2",
+  "zip_url": "https://github.com/ricardothezouro-debug/streamer_sidekick/releases/download/v0.7.2/StreamerSidekick-0.7.2-portable.zip",
+  "notes": "Correções do macOS: clicar no ícone do Dock volta a abrir a janela escondida, e conceder a permissão de Acessibilidade agora reativa os atalhos na hora, sem reabrir o app.",
   "platforms": {
     "windows": {
-      "zip_url": "https://github.com/ricardothezouro-debug/streamer_sidekick/releases/download/v0.7.1/StreamerSidekick-0.7.1-portable.zip"
+      "zip_url": "https://github.com/ricardothezouro-debug/streamer_sidekick/releases/download/v0.7.2/StreamerSidekick-0.7.2-portable.zip"
     },
     "macos": {
-      "zip_url": "https://github.com/ricardothezouro-debug/streamer_sidekick/releases/download/v0.7.1/StreamerSidekick-0.7.1-macos.zip"
+      "zip_url": "https://github.com/ricardothezouro-debug/streamer_sidekick/releases/download/v0.7.2/StreamerSidekick-0.7.2-macos.zip"
     }
   }
 }
