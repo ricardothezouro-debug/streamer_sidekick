@@ -11,6 +11,7 @@ Roda no CI (Windows e macOS) e tambem serve para conferir uma instalacao local:
 """
 from __future__ import annotations
 
+import os
 import sys
 import tempfile
 from pathlib import Path
@@ -83,18 +84,18 @@ def main() -> int:
         for overlay in overlays:
             overlay.close()
         hotkeys.stop_global_hotkeys()
-        # O app real sai com os._exit(); aqui saimos pelo caminho normal do Qt,
-        # entao esperamos as threads de rede para nao destruir um QThread vivo.
-        for attr in ("_releases_worker", "_app_update_worker", "_plugin_update_worker"):
-            worker = getattr(window, attr, None)
-            if worker is not None and worker.isRunning():
-                worker.wait(5000)
         window.close()
-        app.quit()
+        print("smoke test OK")
+        sys.stdout.flush()
+        # Sai como o app de verdade sai (ver HubWindow._quit_from_tray). As
+        # threads que buscam releases podem estar no meio de um request, e
+        # destruir um QThread vivo faz o Qt abortar o processo -- foi assim que
+        # este smoke test ficou vermelho no CI mesmo tendo passado por tudo.
+        # Encerrar pelo mesmo caminho do app testa o que o usuario exercita.
+        os._exit(0)
 
     QTimer.singleShot(1500, finish)
     app.exec()
-    print("smoke test OK")
     return 0
 
 
