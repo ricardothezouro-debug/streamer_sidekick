@@ -80,6 +80,12 @@ def main() -> int:
     for item in DiagnosticService(config, hotkeys, marker, counter).run():
         print(f"  [{item.status}] {item.title}: {item.detail}")
 
+    # Rearme dos atalhos: e o caminho que roda quando o usuario concede a
+    # permissao com o app aberto. Ele derruba e recria os listeners com
+    # overlays vivos -- exatamente a situacao que abortava o processo no macOS.
+    window._rearm_hotkeys_after_permission()
+    print(f"atalhos apos rearme: {hotkeys.registered_sequences()}")
+
     def finish() -> None:
         for overlay in overlays:
             overlay.close()
