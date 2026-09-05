@@ -127,6 +127,18 @@ class DiagnosticService:
                 DiagnosticItem("ok", "Acessibilidade (macOS)", "Permissao concedida")
             )
 
+        # Se o layout do teclado nao pode ser lido na thread principal, criar um
+        # listener e capaz de derrubar o app -- melhor dizer isso do que morrer.
+        if not hotkey_backend.keycode_snapshot_ok():
+            items.append(
+                DiagnosticItem(
+                    "warn",
+                    "Layout do teclado",
+                    "Nao foi possivel ler o layout na thread principal. Os atalhos "
+                    "podem nao responder; reabrir o app costuma resolver.",
+                )
+            )
+
         enabled = [binding for binding in self.hotkeys.all_bindings() if binding["enabled"] and binding["sequence"]]
         registered = self.hotkeys.registered_sequences()
         if registered:
