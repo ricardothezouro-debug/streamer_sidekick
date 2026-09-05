@@ -6,12 +6,12 @@
       "description": "Abre seus apps e painéis de live (OBS, dashboards e o que você configurar) em um clique, na ordem certa.",
       "repo": "ricardothezouro-debug/StreamOn",
       "ref": "main",
-      "version": "1.0.1",
+      "version": "1.1.0",
       "src_subdir": "src",
       "module": "stream_ligar.module",
       "accent": "#37F2FF",
       "icon": "src/stream_ligar/assets/brand/app_icon.png",
-      "changelog": "Corrige o botão \"Configurar\" quando o StreamOn roda como plugin (antes não abria o editor).",
+      "changelog": "Passa a funcionar no macOS: abrir programas, links e o Chrome (com perfis) parou de quebrar fora do Windows, e a configuração agora fica na pasta certa do sistema.",
       "min_sidekick_version": "0.4.0"
     }
   ]

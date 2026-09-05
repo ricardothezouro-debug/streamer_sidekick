@@ -3,6 +3,7 @@ from pathlib import Path
 from typing import Any
 
 from streamer_sidekick.core import hotkey_backend
+from streamer_sidekick.core.platform_utils import accessibility_trusted
 from streamer_sidekick.core.config import ConfigStore
 from streamer_sidekick.core.hotkeys import HotkeyManager
 from streamer_sidekick.modules.counter.service import CounterService
@@ -105,6 +106,23 @@ class DiagnosticService:
                     f"Backend de hotkeys ({hotkey_backend.backend_name()}) nao esta disponivel",
                 )
             ]
+
+        # No macOS os atalhos registram normalmente mas nunca disparam sem a
+        # permissao de Acessibilidade -- e nada mais no app diz isso.
+        trusted = accessibility_trusted()
+        if trusted is False:
+            items.append(
+                DiagnosticItem(
+                    "error",
+                    "Acessibilidade (macOS)",
+                    "Permissao nao concedida: os atalhos globais nao vao disparar. "
+                    "Ajustes do Sistema > Privacidade e Seguranca > Acessibilidade.",
+                )
+            )
+        elif trusted is True:
+            items.append(
+                DiagnosticItem("ok", "Acessibilidade (macOS)", "Permissao concedida")
+            )
 
         enabled = [binding for binding in self.hotkeys.all_bindings() if binding["enabled"] and binding["sequence"]]
         registered = self.hotkeys.registered_sequences()

@@ -32,6 +32,7 @@ from pathlib import Path
 from typing import Any, Callable, Optional
 
 from streamer_sidekick import __version__ as APP_VERSION
+from streamer_sidekick.core import net
 from streamer_sidekick.core.paths import plugins_dir
 
 
@@ -288,7 +289,7 @@ class PluginManager:
     def _fetch_remote_json(self, url: str) -> Optional[dict[str, Any]]:
         try:
             request = urllib.request.Request(url, headers={"User-Agent": _USER_AGENT})
-            with urllib.request.urlopen(request, timeout=_HTTP_TIMEOUT) as response:
+            with net.urlopen(request, timeout=_HTTP_TIMEOUT) as response:
                 return json.loads(response.read().decode("utf-8"))
         except Exception:
             return None
@@ -352,7 +353,7 @@ class PluginManager:
 
     def _download_zip(self, url: str) -> bytes:
         request = urllib.request.Request(url, headers={"User-Agent": _USER_AGENT})
-        with urllib.request.urlopen(request, timeout=_HTTP_TIMEOUT) as response:
+        with net.urlopen(request, timeout=_HTTP_TIMEOUT) as response:
             return response.read()
 
     def _single_top_dir(self, extracted: Path) -> Path:
