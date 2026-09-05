@@ -376,18 +376,25 @@ def test_updater_macos_troca_o_bundle_com_seguranca():
 
 
 def test_updater_macos_lida_com_espaco_e_apostrofo_no_caminho():
-    """'Streamer Sidekick.app' tem espaco; a home do usuario pode ter apostrofo."""
+    """'Streamer Sidekick.app' tem espaco; a home do usuario pode ter apostrofo.
+
+    Usa PurePosixPath porque este teste tambem roda no Windows, onde um
+    ``Path("/Users/...")`` viraria ``\\Users\\...`` e mediria a conversao de
+    separador em vez do que interessa, que e o aspeamento.
+    """
+    import shlex
+    from pathlib import PurePosixPath
+
+    destino = "/Users/ric's mac/Streamer Sidekick.app"
     script = app_update.build_updater_sh(
-        Path("/tmp/stg/Streamer Sidekick.app"),
-        Path("/Users/ric's mac/Streamer Sidekick.app"),
-        Path("/tmp/stg"),
+        PurePosixPath("/tmp/stg/Streamer Sidekick.app"),
+        PurePosixPath(destino),
+        PurePosixPath("/tmp/stg"),
         1,
     )
     linha = [l for l in script.splitlines() if l.startswith("TARGET=")][0]
-    # shlex.quote devolve algo que o shell le como um argumento so
-    import shlex
-
-    assert shlex.split(linha[len("TARGET="):])[0] == "/Users/ric's mac/Streamer Sidekick.app"
+    # shlex.quote devolve algo que o shell le como UM argumento so
+    assert shlex.split(linha[len("TARGET="):]) == [destino]
 
 
 def test_can_self_update_por_plataforma(monkeypatch):
@@ -409,18 +416,19 @@ def test_install_dir_no_macos_e_o_bundle_inteiro(monkeypatch):
     """
     monkeypatch.setattr(app_update, "is_frozen", lambda: True)
     monkeypatch.setattr(app_update.sys, "platform", "darwin")
-    monkeypatch.setattr(
-        app_update.sys,
-        "executable",
-        "/Applications/Streamer Sidekick.app/Contents/MacOS/StreamerSidekick",
-    )
-    assert app_update.install_dir() == Path("/Applications/Streamer Sidekick.app")
+    exe = "/Applications/Streamer Sidekick.app/Contents/MacOS/StreamerSidekick"
+    monkeypatch.setattr(app_update.sys, "executable", exe)
+
+    resultado = app_update.install_dir()
+    # Compara com a mesma resolucao que a funcao faz: no Windows (onde este teste
+    # tambem roda) um caminho absoluto POSIX ganha a letra do drive.
+    assert resultado == Path(exe).resolve().parents[2]
+    assert resultado.name == "Streamer Sidekick.app"
 
 
 def test_install_dir_no_windows_e_a_pasta_do_exe(monkeypatch):
     monkeypatch.setattr(app_update, "is_frozen", lambda: True)
     monkeypatch.setattr(app_update.sys, "platform", "win32")
-    monkeypatch.setattr(
-        app_update.sys, "executable", "/portable/StreamerSidekick/StreamerSidekick.exe"
-    )
-    assert app_update.install_dir() == Path("/portable/StreamerSidekick")
+    exe = "/portable/StreamerSidekick/StreamerSidekick.exe"
+    monkeypatch.setattr(app_update.sys, "executable", exe)
+    assert app_update.install_dir() == Path(exe).resolve().parent
