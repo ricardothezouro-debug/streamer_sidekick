@@ -43,6 +43,12 @@ def from_key_sequence(sequence: QKeySequence) -> str:
     """
     if sequence.isEmpty():
         return ""
+    if not _ON_MACOS:
+        # Fora do macOS o Qt nao troca nada, e o formato nativo e exatamente o
+        # que os backends ja recebiam. Devolver isso mantem Windows e Linux
+        # byte a byte como antes -- o problema que este modulo resolve so
+        # existe no Mac.
+        return sequence.toString(QKeySequence.SequenceFormat.NativeText)
 
     combo = sequence[0]
     tecla = combo.key()
@@ -81,6 +87,8 @@ def to_key_sequence(texto: str) -> QKeySequence:
     """
     if not texto:
         return QKeySequence()
+    if not _ON_MACOS:
+        return QKeySequence(texto)
 
     partes = [p.strip() for p in str(texto).split("+") if p.strip()]
     if not partes:
@@ -111,6 +119,8 @@ def to_display(texto: str) -> str:
     """
     if not texto:
         return ""
+    if not _ON_MACOS:
+        return QKeySequence(texto).toString(QKeySequence.SequenceFormat.NativeText)
     partes = [p.strip() for p in str(texto).split("+") if p.strip()]
     if not partes:
         return ""
