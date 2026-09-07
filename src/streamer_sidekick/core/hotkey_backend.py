@@ -1,10 +1,13 @@
 """Backend de hotkeys globais multiplataforma.
 
-No Windows usamos o pacote ``keyboard`` (funciona sem privilegios de
-administrador para hotkeys nao supressivas). No macOS/Linux usamos ``pynput``,
-que roda em espaco de usuario -- no macOS o app precisa receber permissao de
-Acessibilidade (Ajustes do Sistema > Privacidade e Seguranca > Acessibilidade)
-para que os atalhos globais funcionem.
+Um backend por sistema, escolhido no import:
+
+* **Windows** -- pacote ``keyboard`` (funciona sem privilegios de administrador
+  para hotkeys nao supressivas).
+* **macOS** -- ``RegisterEventHotKey``, a API nativa (ver
+  ``hotkey_backend_carbon``). Roda na thread principal e **nao exige permissao
+  nenhuma**.
+* **Linux e outros** -- ``pynput``, em espaco de usuario.
 
 Ambos os backends expoem a mesma API minima:
 
@@ -14,25 +17,18 @@ Ambos os backends expoem a mesma API minima:
     register(sequence, callback) -> handle
     unregister(handle) -> None
 
-IMPORTANTE (macOS): o ``pynput`` traduz teclas com o HIToolbox
-(``TISGetInputSourceProperty``), e essa API **exige a fila principal**. Chamada
-de qualquer outra thread ela dispara ``dispatch_assert_queue`` e o macOS mata o
-processo na hora -- SIGTRAP, sem excecao Python, sem chance de tratar. O pynput
-chama exatamente isso de dentro da thread do listener, entao qualquer listener
-criado pode derrubar o app.
+POR QUE O macOS NAO USA O pynput: ele monta um event tap e chama o HIToolbox
+de dentro da thread do listener. Essa API exige a fila principal -- fora dela o
+macOS dispara ``dispatch_assert_queue`` e mata o processo com SIGTRAP, sem
+excecao Python. Sao pelo menos dois pontos de chamada (a leitura do layout, e o
+``NSEvent.eventWithCGEvent_`` a cada tecla digitada), entao remendar um de cada
+vez nao fecha o problema. A API nativa resolve a categoria inteira, e de quebra
+dispensa a permissao de Acessibilidade.
 
-Nao da para escolher em que thread o pynput roda, entao fazemos o inverso:
-``_refresh_keycode_snapshot()`` calcula o layout do teclado AQUI, na thread
-principal, e troca o ``keycode_context`` do pynput por um que devolve esse valor
-ja pronto. A thread do listener deixa de tocar no HIToolbox.
-
-O snapshot e refeito a cada reconstrucao (sempre na thread principal), entao
-trocar de layout de teclado continua sendo percebido.
-
-Alem disso, fora do Windows este modulo mantem UM UNICO listener para o processo
-inteiro: registrar ou remover um atalho reescreve o mapa de combos e reconstroi
-esse listener (parando o anterior e esperando ele morrer antes de subir o novo).
-Quem chama nao precisa saber disso -- a API continua sendo por atalho.
+No Linux (e onde mais o pynput for usado) este modulo mantem UM UNICO listener
+para o processo inteiro: registrar ou remover um atalho reescreve o mapa de
+combos e reconstroi esse listener. Quem chama nao precisa saber disso -- a API
+continua sendo por atalho.
 
 ``sequence`` usa a notacao do app, por exemplo ``"Ctrl+Alt+H"`` ou
 ``"Ctrl+Alt+Shift+C"``. Os callbacks disparam em uma thread de fundo; quem
@@ -48,6 +44,11 @@ import threading
 from typing import Any, Callable
 
 _ON_WINDOWS = sys.platform == "win32"
+_ON_MACOS = sys.platform == "darwin"
+
+_carbon: Any = None
+if _ON_MACOS:
+    from streamer_sidekick.core import hotkey_backend_carbon as _carbon
 
 # Quanto esperamos o listener antigo morrer antes de subir o proximo.
 _STOP_TIMEOUT = 2.0
@@ -60,7 +61,7 @@ if _ON_WINDOWS:
         import keyboard as _keyboard  # type: ignore
     except ImportError:
         _keyboard = None
-else:
+elif not _ON_MACOS:
     try:  # pragma: no cover - depende da plataforma
         from pynput import keyboard as _pynput_keyboard  # type: ignore
     except ImportError:
@@ -81,14 +82,30 @@ _keycode_patch_failed = False
 
 def backend_name() -> str:
     """Nome do backend ativo para exibicao em diagnosticos."""
-    return "keyboard" if _ON_WINDOWS else "pynput"
+    if _ON_WINDOWS:
+        return "keyboard"
+    if _ON_MACOS:
+        return _carbon.backend_name()
+    return "pynput"
 
 
 def is_available() -> bool:
-    """True se a biblioteca de hotkeys do SO atual esta instalada."""
+    """True se o backend de hotkeys do SO atual esta utilizavel."""
     if _ON_WINDOWS:
         return _keyboard is not None
+    if _ON_MACOS:
+        return _carbon.is_available()
     return _pynput_keyboard is not None
+
+
+def requires_accessibility() -> bool:
+    """Os atalhos deste backend dependem de permissao do sistema?
+
+    No macOS a resposta virou False quando trocamos o pynput pela API nativa --
+    o Diagnostico usa isto para parar de cobrar uma permissao que nao e mais
+    necessaria.
+    """
+    return not _ON_WINDOWS and not _ON_MACOS
 
 
 def validate(sequence: str) -> None:
@@ -97,6 +114,9 @@ def validate(sequence: str) -> None:
         if _keyboard is None:
             raise RuntimeError("Pacote keyboard nao esta disponivel")
         _keyboard.parse_hotkey(sequence)
+        return
+    if _ON_MACOS:
+        _carbon.validate(sequence)
         return
     if _pynput_keyboard is None:
         raise RuntimeError("Pacote pynput nao esta disponivel")
@@ -113,6 +133,9 @@ def register(sequence: str, callback: Callable[[], None]) -> Any:
         if _keyboard is None:
             raise RuntimeError("Pacote keyboard nao esta disponivel")
         return _keyboard.add_hotkey(sequence, callback, suppress=False)
+
+    if _ON_MACOS:
+        return _carbon.register(sequence, callback)
 
     if _pynput_keyboard is None:
         raise RuntimeError("Pacote pynput nao esta disponivel")
@@ -144,6 +167,10 @@ def unregister(handle: Any) -> None:
             pass
         return
 
+    if _ON_MACOS:
+        _carbon.unregister(handle)
+        return
+
     with _lock:
         _entries.pop(handle, None)
         _rebuild()
@@ -155,7 +182,7 @@ def keycode_snapshot_ok() -> bool:
     Se voltar False, criar um listener pode derrubar o processo -- o
     Diagnostico usa isto para avisar em vez de deixar o app morrer sozinho.
     """
-    if _ON_WINDOWS:
+    if _ON_WINDOWS or _ON_MACOS:
         return True
     return _keycode_snapshot is not None
 
@@ -169,7 +196,7 @@ def _refresh_keycode_snapshot() -> None:
     """
     global _keycode_snapshot, _original_keycode_context, _keycode_patch_failed
 
-    if _ON_WINDOWS or _pynput_keyboard is None or _keycode_patch_failed:
+    if _ON_WINDOWS or _ON_MACOS or _pynput_keyboard is None or _keycode_patch_failed:
         return
     if threading.current_thread() is not threading.main_thread():
         return
