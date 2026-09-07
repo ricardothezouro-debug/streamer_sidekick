@@ -35,6 +35,7 @@ from PySide6.QtWidgets import (
 
 from streamer_sidekick.core.config import ConfigStore
 from streamer_sidekick.core.backup import BackupError, BackupService
+from streamer_sidekick.core import hotkey_backend, hotkey_text
 from streamer_sidekick.core.diagnostics import DiagnosticItem, DiagnosticService
 from streamer_sidekick.core.platform_utils import (
     accessibility_trusted,
@@ -173,7 +174,7 @@ class HubWindow(QMainWindow):
         self._create_tray()
         self._wire_dock_reopen()
         self._wire_hotkeys()
-        if accessibility_trusted() is False:
+        if hotkey_backend.requires_accessibility() and accessibility_trusted() is False:
             # Já sobe vigiando: se o usuário conceder a permissão pelos Ajustes
             # do Sistema, os atalhos passam a funcionar sem reabrir o app.
             self._watch_accessibility()
@@ -1183,8 +1184,10 @@ class HubWindow(QMainWindow):
         copy.clicked.connect(self._copy_diagnostics_report)
         actions.addWidget(refresh)
         actions.addWidget(copy)
-        # Só faz sentido no macOS, e só enquanto a permissão não veio.
-        if accessibility_trusted() is False:
+        # Só onde os atalhos realmente dependem da permissão. No macOS eles
+        # passaram a usar a API nativa, que não pede nada — o botão viraria uma
+        # instrução para resolver um problema que não existe mais.
+        if hotkey_backend.requires_accessibility() and accessibility_trusted() is False:
             grant = QPushButton("Conceder permissão")
             grant.setObjectName("PrimaryButton")
             grant.clicked.connect(self._request_accessibility)
@@ -1584,7 +1587,11 @@ class HubWindow(QMainWindow):
             module_label = QLabel(str(binding["module_id"]))
             action_label = QLabel(str(binding["label"]))
             action_label.setMinimumWidth(260)
-            sequence_edit = QKeySequenceEdit(QKeySequence(str(binding["sequence"])))
+            # to_key_sequence desfaz a troca Ctrl/Meta do Qt no macOS: sem isso o
+            # campo mostraria ⌘ onde a tecla real e Control.
+            sequence_edit = QKeySequenceEdit(
+                hotkey_text.to_key_sequence(str(binding["sequence"]))
+            )
             sequence_edit.setFixedWidth(210)
             enabled = QCheckBox()
             enabled.setChecked(bool(binding["enabled"]))
@@ -1651,7 +1658,9 @@ class HubWindow(QMainWindow):
         return "\n".join(lines)
 
     def _save_hotkey(self, key: str, editor: QKeySequenceEdit, checkbox: QCheckBox) -> None:
-        sequence = editor.keySequence().toString(QKeySequence.SequenceFormat.NativeText)
+        # NativeText gravaria a string de simbolos ("⌥⌘M"), que backend nenhum
+        # entende -- e no macOS ainda apontaria para a tecla errada.
+        sequence = hotkey_text.from_key_sequence(editor.keySequence())
         conflict = self.hotkeys.set_binding(key, sequence, checkbox.isChecked())
         if conflict:
             QMessageBox.warning(self, "Conflito de atalho", f"Esse atalho já está em uso por: {conflict}")
@@ -2271,7 +2280,9 @@ class HubWindow(QMainWindow):
             return
 
         message = self.marker_custom_hotkey_message_input.text().strip()
-        sequence = self.marker_custom_hotkey_sequence_input.keySequence().toString(QKeySequence.SequenceFormat.NativeText).strip()
+        sequence = hotkey_text.from_key_sequence(
+            self.marker_custom_hotkey_sequence_input.keySequence()
+        ).strip()
         if not message:
             QMessageBox.warning(self, "Hotkey do marcador", "Digite a mensagem que sera salva no txt.")
             self.marker_custom_hotkey_message_input.setFocus()

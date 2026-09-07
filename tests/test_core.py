@@ -191,8 +191,8 @@ def test_hotkey_backend_uses_one_listener(monkeypatch):
     sem excecao). O app registra cinco atalhos no hub mais um por overlay de
     contador, entao este teste trava o invariante.
     """
-    if hotkey_backend._ON_WINDOWS:  # no Windows cada atalho e um hook, sem listener
-        return
+    if hotkey_backend._ON_WINDOWS or hotkey_backend._ON_MACOS:
+        return  # so o caminho do pynput (Linux) tem listener
 
     started: list[dict] = []
 
@@ -243,7 +243,7 @@ def test_hotkey_same_combo_fires_every_callback(monkeypatch):
     Como o mapa do pynput e um dicionario, sem agrupar os callbacks o segundo
     registro sobrescreveria o primeiro em silencio.
     """
-    if hotkey_backend._ON_WINDOWS:
+    if hotkey_backend._ON_WINDOWS or hotkey_backend._ON_MACOS:
         return
 
     mappings: list[dict] = []
@@ -480,8 +480,8 @@ def test_pynput_nunca_le_o_layout_na_thread_do_listener(monkeypatch):
     mudar o nome ou o local da função, ele quebra aqui — e não com um SIGTRAP
     na máquina do usuário.
     """
-    if hotkey_backend._ON_WINDOWS:
-        return
+    if hotkey_backend._ON_WINDOWS or hotkey_backend._ON_MACOS:
+        return  # o macOS usa a API nativa; nao passa pelo pynput
 
     monkeypatch.setattr(hotkey_backend, "_keycode_patch_failed", False)
 
@@ -506,7 +506,7 @@ def test_snapshot_nao_le_fora_da_thread_principal():
     """Chamado de outra thread, o refresh não pode tocar no HIToolbox."""
     import threading
 
-    if hotkey_backend._ON_WINDOWS:
+    if hotkey_backend._ON_WINDOWS or hotkey_backend._ON_MACOS:
         return
 
     chamou = []
@@ -521,3 +521,130 @@ def test_snapshot_nao_le_fora_da_thread_principal():
     t.start()
     t.join()
     assert resultado == [True], "o refresh mexeu no snapshot fora da thread principal"
+
+
+# ---- atalhos nativos do macOS ---------------------------------------------
+
+
+def test_carbon_traduz_a_notacao_para_teclas_fisicas():
+    """"Ctrl" tem que virar a tecla Control, e "Cmd" a tecla Command.
+
+    É onde o Qt confunde: para ele, no macOS, "Ctrl" significa Command. Se o
+    backend herdasse essa troca, o atalho mostrado na tela dispararia com
+    outra combinação — foi exatamente o que aconteceu na v0.7.3.
+    """
+    if not hotkey_backend._ON_MACOS:
+        return
+    from streamer_sidekick.core import hotkey_backend_carbon as carbon
+
+    _, mods = carbon.parse("Ctrl+Alt+M")
+    assert mods & 0x1000  # controlKey -> tecla Control física
+    assert mods & 0x0800  # optionKey
+    assert not mods & 0x0100  # e NÃO Command
+
+    _, mods = carbon.parse("Cmd+Alt+M")
+    assert mods & 0x0100 and not mods & 0x1000
+
+    codigo_m, _ = carbon.parse("Ctrl+Alt+M")
+    assert codigo_m == 46  # virtual keycode do M
+
+
+def test_carbon_recusa_atalhos_impossiveis():
+    if not hotkey_backend._ON_MACOS:
+        return
+    import pytest
+
+    from streamer_sidekick.core import hotkey_backend_carbon as carbon
+
+    with pytest.raises(ValueError):
+        carbon.parse("M")  # sem modificador engoliria a tecla no sistema todo
+    with pytest.raises(ValueError):
+        carbon.parse("Ctrl+Alt+Ç")  # sem virtual keycode
+    with pytest.raises(ValueError):
+        carbon.parse("Ctrl+Alt")  # só modificadores
+
+
+def test_macos_nao_exige_mais_permissao():
+    """A troca para a API nativa tirou a dependência de Acessibilidade."""
+    if hotkey_backend._ON_MACOS:
+        assert hotkey_backend.requires_accessibility() is False
+    elif hotkey_backend._ON_WINDOWS:
+        assert hotkey_backend.requires_accessibility() is False
+
+
+# ---- conversão de atalho entre o Qt e a notação do app ---------------------
+
+
+def _app_qt():
+    """QApplication única para os testes que precisam do Qt."""
+    from PySide6.QtWidgets import QApplication
+
+    return QApplication.instance() or QApplication([])
+
+
+def test_o_que_a_tela_mostra_e_o_que_dispara():
+    """O símbolo exibido tem que ser a tecla que realmente aciona o atalho.
+
+    No macOS o Qt renderiza `Ctrl+Alt+M` como ⌥⌘M (Option+Command), mas o
+    atalho dispara com Control+Option. A tela mentia para o usuário.
+    """
+    _app_qt()
+    from streamer_sidekick.core import hotkey_text
+
+    exibido = hotkey_text.to_display("Ctrl+Alt+M")
+    if hotkey_backend._ON_MACOS:
+        assert exibido == "⌃⌥M"  # Control+Option, não ⌘
+        assert "⌘" not in exibido
+
+        from streamer_sidekick.core import hotkey_backend_carbon as carbon
+
+        _, mods = carbon.parse("Ctrl+Alt+M")
+        # o que a tela mostra bate com o que o sistema registra
+        assert bool(mods & 0x1000) == ("⌃" in exibido)
+        assert bool(mods & 0x0100) == ("⌘" in exibido)
+    else:
+        assert exibido == "Ctrl+Alt+M"
+
+
+def test_gravar_atalho_nao_salva_simbolos():
+    """Gravar tem que produzir notação, não a string de símbolos do Qt.
+
+    Antes salvava `toString(NativeText)` — no macOS a string "⌥⌘M". Nenhum
+    backend interpreta isso, então trocar um atalho no Mac o quebrava para
+    sempre.
+    """
+    _app_qt()
+    from PySide6.QtCore import Qt
+    from PySide6.QtGui import QKeySequence
+
+    from streamer_sidekick.core import hotkey_text
+
+    if hotkey_backend._ON_MACOS:
+        # No Mac, o usuário apertando Control+Option+M chega no Qt como Meta+Alt
+        pressionado = QKeySequence(
+            Qt.KeyboardModifier.MetaModifier
+            | Qt.KeyboardModifier.AltModifier
+            | Qt.Key.Key_M
+        )
+    else:
+        pressionado = QKeySequence(
+            Qt.KeyboardModifier.ControlModifier
+            | Qt.KeyboardModifier.AltModifier
+            | Qt.Key.Key_M
+        )
+
+    gravado = hotkey_text.from_key_sequence(pressionado)
+    assert gravado == "Ctrl+Alt+M"
+    assert "⌘" not in gravado and "⌥" not in gravado
+    # e o backend do sistema aceita o que foi gravado
+    hotkey_backend.validate(gravado)
+
+
+def test_ida_e_volta_do_atalho():
+    """Notação -> campo da tela -> notação tem que fechar."""
+    _app_qt()
+    from streamer_sidekick.core import hotkey_text
+
+    for texto in ("Ctrl+Alt+M", "Ctrl+Alt+Shift+C", "Ctrl+Alt+H"):
+        volta = hotkey_text.from_key_sequence(hotkey_text.to_key_sequence(texto))
+        assert volta == texto, f"{texto} virou {volta}"
