@@ -657,6 +657,12 @@ def test_aceita_atalho_salvo_como_simbolo():
     backend não conseguia interpretar, e o atalho nunca chegava a ser
     registrado. O contador simplesmente não subia, sem nenhum aviso.
     """
+    # Fora do macOS não existe esse formato, e normalize() é identidade: o
+    # Windows nunca gravou símbolos, então converter lá seria mexer à toa.
+    if not hotkey_backend._ON_MACOS:
+        assert hotkey_backend.normalize("Ctrl+Alt+2") == "Ctrl+Alt+2"
+        return
+
     assert hotkey_backend.normalize("⌃⌥2") == "Ctrl+Alt+2"
     assert hotkey_backend.normalize("⌃⌥⇧C") == "Ctrl+Alt+Shift+C"
     # quem já está na notação passa intacto
@@ -677,8 +683,16 @@ def test_tecla_de_funcao_sozinha_e_valida():
 
 
 def test_letra_sozinha_continua_recusada():
-    """Registrar "M" global capturaria a tecla no sistema inteiro."""
+    """No macOS, registrar "M" global capturaria a tecla no sistema inteiro.
+
+    É uma regra do backend nativo, não do app: no Windows o pacote `keyboard`
+    sempre aceitou letra sozinha, e mudar isso lá seria alterar comportamento
+    que já existia.
+    """
     import pytest
+
+    if not hotkey_backend._ON_MACOS:
+        return
 
     with pytest.raises(Exception):
         hotkey_backend.validate("M")
