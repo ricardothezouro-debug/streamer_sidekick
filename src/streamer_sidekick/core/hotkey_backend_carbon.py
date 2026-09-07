@@ -140,13 +140,45 @@ def backend_name() -> str:
     return "carbon"
 
 
+# Simbolos que o Qt escreve no macOS. Versoes antigas do app gravaram o atalho
+# ja renderizado ("⌃⌥2") em vez da notacao, entao precisamos aceitar isso na
+# leitura -- senao o atalho de quem ja tinha um preset salvo nunca registra.
+_SIMBOLOS = {"⌃": "ctrl", "⌥": "alt", "⇧": "shift", "⌘": "cmd"}
+
+# Teclas que fazem sentido sozinhas, sem modificador: sao dedicadas e nao
+# atrapalham a digitacao. Uma letra sozinha seria capturada no sistema inteiro.
+_SOZINHAS_OK = {f"f{n}" for n in range(1, 21)}
+
+
+def normalize(sequence: str) -> str:
+    """Converte um atalho escrito com simbolos de volta para a notacao do app.
+
+    ``"⌃⌥2"`` vira ``"Ctrl+Alt+2"``. Quem ja esta na notacao passa intacto.
+    """
+    texto = str(sequence or "").strip()
+    if not texto or not any(simbolo in texto for simbolo in _SIMBOLOS):
+        return texto
+
+    partes: list[str] = []
+    resto = ""
+    for char in texto:
+        if char in _SIMBOLOS:
+            partes.append(_SIMBOLOS[char].capitalize())
+        elif char != "+":
+            resto += char
+    resto = resto.strip()
+    if not resto:
+        return texto
+    return "+".join(partes + [resto])
+
+
 def parse(sequence: str) -> tuple[int, int]:
     """Traduz ``"Ctrl+Alt+M"`` em ``(keycode, mascara de modificadores)``.
 
     Levanta ``ValueError`` quando a combinacao nao e representavel -- e o que o
     ``validate()`` usa para recusar antes de tentar registrar.
     """
-    partes = [p.strip().lower() for p in str(sequence).split("+") if p.strip()]
+    partes = [p.strip().lower() for p in normalize(sequence).split("+") if p.strip()]
     if not partes:
         raise ValueError("Atalho vazio")
 
@@ -164,9 +196,14 @@ def parse(sequence: str) -> tuple[int, int]:
         raise ValueError(f"Atalho sem tecla principal: {sequence}")
     if tecla not in _KEYCODES:
         raise ValueError(f"Tecla nao suportada no macOS: {tecla}")
-    if not mascara:
-        # Sem modificador o atalho engoliria a tecla no sistema inteiro.
-        raise ValueError("Atalho global precisa de ao menos um modificador")
+    if not mascara and tecla not in _SOZINHAS_OK:
+        # Uma letra sozinha seria capturada no sistema inteiro e quebraria a
+        # digitacao. As teclas de funcao sao dedicadas, entao passam -- e o
+        # Windows sempre aceitou "F2" solto, entao recusar aqui seria criar uma
+        # diferenca entre os dois sistemas.
+        raise ValueError(
+            "Atalho global precisa de um modificador (ou uma tecla de funcao)"
+        )
 
     return _KEYCODES[tecla], mascara
 
