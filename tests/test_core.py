@@ -648,3 +648,36 @@ def test_ida_e_volta_do_atalho():
     for texto in ("Ctrl+Alt+M", "Ctrl+Alt+Shift+C", "Ctrl+Alt+H"):
         volta = hotkey_text.from_key_sequence(hotkey_text.to_key_sequence(texto))
         assert volta == texto, f"{texto} virou {volta}"
+
+
+def test_fora_do_macos_a_conversao_e_a_de_antes(monkeypatch):
+    """Windows e Linux têm que continuar recebendo exatamente o que recebiam.
+
+    O `hotkey_text` existe para consertar uma troca que só o macOS faz. Fora
+    dele, mudar o formato do atalho gravado seria arriscar quebrar quem já tem
+    atalhos salvos — então o caminho não-macOS devolve o mesmo
+    `toString(NativeText)` que o código usava antes.
+    """
+    _app_qt()
+    from PySide6.QtCore import Qt
+    from PySide6.QtGui import QKeySequence
+
+    from streamer_sidekick.core import hotkey_text
+
+    monkeypatch.setattr(hotkey_text, "_ON_MACOS", False)
+
+    sequencia = QKeySequence(
+        Qt.KeyboardModifier.ControlModifier
+        | Qt.KeyboardModifier.AltModifier
+        | Qt.Key.Key_M
+    )
+    esperado = sequencia.toString(QKeySequence.SequenceFormat.NativeText)
+    assert hotkey_text.from_key_sequence(sequencia) == esperado
+    assert hotkey_text.to_key_sequence("Ctrl+Alt+M") == QKeySequence("Ctrl+Alt+M")
+
+
+def test_windows_segue_no_backend_keyboard():
+    """A troca do macOS não pode ter mexido na escolha de backend do Windows."""
+    if hotkey_backend._ON_WINDOWS:
+        assert hotkey_backend.backend_name() == "keyboard"
+        assert hotkey_backend._carbon is None
