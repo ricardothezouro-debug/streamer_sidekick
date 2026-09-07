@@ -98,6 +98,17 @@ def is_available() -> bool:
     return _pynput_keyboard is not None
 
 
+def normalize(sequence: str) -> str:
+    """Devolve o atalho na notacao do app.
+
+    So o macOS precisa converter: versoes antigas gravavam o atalho ja
+    renderizado com simbolos ("⌃⌥2"), que backend nenhum interpreta.
+    """
+    if _ON_MACOS:
+        return _carbon.normalize(sequence)
+    return str(sequence or "").strip()
+
+
 def requires_accessibility() -> bool:
     """Os atalhos deste backend dependem de permissao do sistema?
 
