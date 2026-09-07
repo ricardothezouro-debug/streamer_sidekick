@@ -3,6 +3,8 @@ from typing import Any, Callable, Optional
 
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QFontDatabase, QKeySequence
+
+from streamer_sidekick.core import hotkey_backend, hotkey_text
 from PySide6.QtWidgets import (
     QCheckBox,
     QComboBox,
@@ -386,7 +388,13 @@ class CounterForm(QWidget):
         self.prefix_input.setText(str(config.get("prefixo") or ""))
         self.infinite_input.setChecked(bool(config.get("infinito", True)))
         self.limit_input.setValue(int(config.get("limite") or 1))
-        self.hotkey_input.setKeySequence(QKeySequence(str(config.get("hotkey") or "")))
+        # normalize() aceita presets antigos, que gravaram "⌃⌥2" em vez da
+        # notacao; to_key_sequence desfaz a troca Ctrl/Command do Qt no macOS.
+        self.hotkey_input.setKeySequence(
+            hotkey_text.to_key_sequence(
+                hotkey_backend.normalize(str(config.get("hotkey") or ""))
+            )
+        )
         self.marker_text_input.setText(str(config.get("marcacao") or config.get("marker_text") or ""))
         marker_file = str(config.get("marker_file") or "")
         if marker_file:
@@ -454,7 +462,9 @@ class CounterForm(QWidget):
             )
 
     def hotkey_text(self) -> str:
-        return self.hotkey_input.keySequence().toString(QKeySequence.SequenceFormat.NativeText).strip()
+        # NativeText gravava a string de simbolos ("⌃⌥2"), que o backend recusa
+        # -- era por isso que o contador nunca subia ao apertar o atalho.
+        return hotkey_text.from_key_sequence(self.hotkey_input.keySequence()).strip()
 
     def marker_text(self) -> str:
         return self.marker_text_input.text().strip()

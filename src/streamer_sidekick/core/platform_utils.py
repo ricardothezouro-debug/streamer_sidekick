@@ -111,3 +111,57 @@ def open_input_monitoring_settings() -> None:
         ["open", "x-apple.systempreferences:com.apple.preference.security?Privacy_ListenEvent"],
         check=False,
     )
+
+
+def float_above_fullscreen(widget: object) -> bool:
+    """Faz a janela aparecer por cima de um app em tela cheia (so no macOS).
+
+    Por padrao o macOS trata cada app em tela cheia como um Space proprio, e uma
+    janela de outro app simplesmente nao e desenhada la. Para o Streamer
+    Sidekick isso derruba o caso de uso principal: marcar um evento com o jogo
+    em tela cheia. O atalho dispara, a janela abre -- mas no Space errado, entao
+    parece que nao aconteceu nada.
+
+    A correcao e declarar a janela como auxiliar de tela cheia e presente em
+    todos os Spaces, mais um nivel acima das janelas comuns.
+
+    Devolve False quando nao se aplica ou os bindings nao estao disponiveis.
+    """
+    if sys.platform != "darwin":
+        return False
+
+    # So existe NSWindow sob a plataforma Cocoa. Em "offscreen" (testes, CI) o
+    # winId() nao aponta para um NSView, e entregar esse ponteiro ao objc faz o
+    # processo morrer com SIGSEGV -- foi assim que o smoke test quebrou.
+    try:
+        from PySide6.QtGui import QGuiApplication
+
+        if QGuiApplication.platformName() != "cocoa":
+            return False
+    except Exception:
+        return False
+
+    try:
+        import objc  # type: ignore
+    except ImportError:
+        return False
+
+    try:
+        win_id = int(widget.winId())  # type: ignore[attr-defined]
+    except Exception:
+        return False
+    if not win_id:
+        return False
+
+    try:
+        view = objc.objc_object(c_void_p=win_id)
+        window = view.window()
+        if window is None:
+            return False
+        # canJoinAllSpaces (1<<0) | fullScreenAuxiliary (1<<8)
+        window.setCollectionBehavior_(window.collectionBehavior() | (1 << 0) | (1 << 8))
+        # NSStatusWindowLevel: acima das janelas comuns, abaixo de alertas do SO.
+        window.setLevel_(25)
+        return True
+    except Exception:
+        return False
