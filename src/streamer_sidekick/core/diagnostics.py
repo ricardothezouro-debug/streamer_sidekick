@@ -107,25 +107,34 @@ class DiagnosticService:
                 )
             ]
 
-        # No macOS os atalhos registram normalmente mas nunca disparam sem a
-        # permissao de Acessibilidade -- e nada mais no app diz isso.
-        trusted = accessibility_trusted()
-        if trusted is False:
-            items.append(
-                DiagnosticItem(
-                    "error",
-                    "Acessibilidade (macOS)",
-                    "Permissao nao concedida: os atalhos globais nao vao disparar. "
-                    "Use o botao \"Conceder permissao\" acima -- ele cadastra esta "
-                    "copia do app. Se voce ja ligou a chave nos Ajustes e mesmo "
-                    "assim aparece aqui, a entrada da lista e de uma versao "
-                    "antiga: remova com \"-\" e conceda de novo.",
+        # Os atalhos do macOS passaram a usar a API nativa, que nao pede
+        # permissao nenhuma. A Acessibilidade so afeta um detalhe do marcador
+        # (o clique automatico no campo), entao nao e mais erro: e informacao.
+        if not hotkey_backend.requires_accessibility():
+            trusted = accessibility_trusted()
+            if trusted is False:
+                items.append(
+                    DiagnosticItem(
+                        "ok",
+                        "Acessibilidade (macOS)",
+                        "Nao concedida -- e nao faz falta: os atalhos globais usam "
+                        "a API nativa do macOS e funcionam sem ela.",
+                    )
                 )
-            )
-        elif trusted is True:
-            items.append(
-                DiagnosticItem("ok", "Acessibilidade (macOS)", "Permissao concedida")
-            )
+            elif trusted is True:
+                items.append(
+                    DiagnosticItem("ok", "Acessibilidade (macOS)", "Permissao concedida")
+                )
+        else:
+            trusted = accessibility_trusted()
+            if trusted is False:
+                items.append(
+                    DiagnosticItem(
+                        "error",
+                        "Acessibilidade",
+                        "Permissao nao concedida: os atalhos globais nao vao disparar.",
+                    )
+                )
 
         # Se o layout do teclado nao pode ser lido na thread principal, criar um
         # listener e capaz de derrubar o app -- melhor dizer isso do que morrer.
