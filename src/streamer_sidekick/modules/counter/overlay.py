@@ -6,6 +6,7 @@ from PySide6.QtCore import Qt, Signal
 from PySide6.QtWidgets import QLabel, QVBoxLayout, QWidget
 
 from streamer_sidekick.core import hotkey_backend
+from streamer_sidekick.core.platform_utils import float_above_fullscreen
 
 
 class CounterOverlay(QWidget):
@@ -45,6 +46,12 @@ class CounterOverlay(QWidget):
 
         self._register_hotkey()
         self._update_text()
+
+    def showEvent(self, event) -> None:
+        super().showEvent(event)
+        # O overlay existe para ficar por cima do jogo -- inclusive quando o
+        # jogo esta em tela cheia, que no macOS e um Space separado.
+        float_above_fullscreen(self)
 
     def mousePressEvent(self, event) -> None:
         if event.button() == Qt.MouseButton.LeftButton:

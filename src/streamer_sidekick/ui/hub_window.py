@@ -39,6 +39,7 @@ from streamer_sidekick.core import hotkey_backend, hotkey_text
 from streamer_sidekick.core.diagnostics import DiagnosticItem, DiagnosticService
 from streamer_sidekick.core.platform_utils import (
     accessibility_trusted,
+    float_above_fullscreen,
     open_accessibility_settings,
     open_input_monitoring_settings,
     request_accessibility,
@@ -2341,6 +2342,9 @@ class HubWindow(QMainWindow):
         self.quick_marker_dialog.saved.connect(self._on_quick_marker_saved)
         self.quick_marker_dialog.finished.connect(lambda _: self._clear_quick_marker_dialog())
         self.quick_marker_dialog.show()
+        # Sem isto a janela abre no Space do hub, e com o jogo em tela
+        # cheia o usuario nao ve nada acontecer.
+        float_above_fullscreen(self.quick_marker_dialog)
         self.quick_marker_dialog.focus_text_input()
 
     def _open_new_game_dialog(self) -> None:
@@ -2353,6 +2357,9 @@ class HubWindow(QMainWindow):
         self.quick_game_dialog.created.connect(self._on_game_created)
         self.quick_game_dialog.finished.connect(lambda _: self._clear_quick_game_dialog())
         self.quick_game_dialog.show()
+        # Sem isto a janela abre no Space do hub, e com o jogo em tela
+        # cheia o usuario nao ve nada acontecer.
+        float_above_fullscreen(self.quick_game_dialog)
         self.quick_game_dialog.focus_text_input()
 
     def _on_quick_marker_saved(self, file_name: str) -> None:

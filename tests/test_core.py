@@ -648,3 +648,54 @@ def test_ida_e_volta_do_atalho():
     for texto in ("Ctrl+Alt+M", "Ctrl+Alt+Shift+C", "Ctrl+Alt+H"):
         volta = hotkey_text.from_key_sequence(hotkey_text.to_key_sequence(texto))
         assert volta == texto, f"{texto} virou {volta}"
+
+
+def test_aceita_atalho_salvo_como_simbolo():
+    """Presets antigos gravaram "⌃⌥2" em vez da notação — têm que continuar valendo.
+
+    Era o que quebrava o contador: o preset guardava a string renderizada, o
+    backend não conseguia interpretar, e o atalho nunca chegava a ser
+    registrado. O contador simplesmente não subia, sem nenhum aviso.
+    """
+    assert hotkey_backend.normalize("⌃⌥2") == "Ctrl+Alt+2"
+    assert hotkey_backend.normalize("⌃⌥⇧C") == "Ctrl+Alt+Shift+C"
+    # quem já está na notação passa intacto
+    assert hotkey_backend.normalize("Ctrl+Alt+2") == "Ctrl+Alt+2"
+    assert hotkey_backend.normalize("F2") == "F2"
+    hotkey_backend.validate(hotkey_backend.normalize("⌃⌥2"))
+
+
+def test_tecla_de_funcao_sozinha_e_valida():
+    """"F2" solto sempre funcionou no Windows; o macOS não pode ser mais restrito.
+
+    Exigir modificador para tudo era uma regra que eu inventei, e que criava
+    diferença entre os dois sistemas — justamente no atalho de contador mais
+    comum.
+    """
+    hotkey_backend.validate("F2")
+    hotkey_backend.validate("Ctrl+Alt+2")
+
+
+def test_letra_sozinha_continua_recusada():
+    """Registrar "M" global capturaria a tecla no sistema inteiro."""
+    import pytest
+
+    with pytest.raises(Exception):
+        hotkey_backend.validate("M")
+
+
+def test_float_above_fullscreen_nao_derruba_sem_janela_cocoa():
+    """Sem plataforma Cocoa a função tem que desistir, não segfaultar.
+
+    O winId() sob "offscreen" não aponta para um NSView; entregar esse ponteiro
+    ao objc mata o processo com SIGSEGV. O smoke test do CI roda offscreen, e
+    foi exatamente onde isso apareceu.
+    """
+    from streamer_sidekick.core.platform_utils import float_above_fullscreen
+
+    class _FalsoWidget:
+        def winId(self):
+            return 0
+
+    assert float_above_fullscreen(_FalsoWidget()) is False
+    assert float_above_fullscreen(object()) is False
