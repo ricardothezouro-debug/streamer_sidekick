@@ -38,6 +38,19 @@
       "accent": "#C8102E",
       "min_sidekick_version": "0.6.0",
       "changelog": "Progresso e imagens agora funcionam no macOS: o guia grava na pasta de dados do sistema e as imagens voltaram a carregar."
+    },
+    {
+      "id": "kh1-final-mix",
+      "name": "Kingdom Hearts Final Mix — Platina",
+      "description": "Guia PT-BR do PS4: as 23 visitas na ordem com 125 passos e foto, os 99 dálmatas, as 46 trinities e os 56 troféus.",
+      "repo": "ricardothezouro-debug/Guia-De-Platina-KingdomHearts1",
+      "ref": "main",
+      "version": "1.0.0",
+      "src_subdir": "src",
+      "module": "platina_kh1.module",
+      "accent": "#3E6BE8",
+      "min_sidekick_version": "0.7.1",
+      "changelog": "Primeira versão: o plano das duas zeradas (Proud cronometrada + Beginner do 100%), as 23 visitas com passo a passo ilustrado, os coletáveis com foto e as builds dos cinco chefes opcionais."
     }
   ]
 }
