@@ -1,13 +1,13 @@
 {
-  "version": "0.8.1",
-  "zip_url": "https://github.com/ricardothezouro-debug/streamer_sidekick/releases/download/v0.8.1/StreamerSidekick-0.8.1-portable.zip",
-  "notes": "Corrige o atalho do contador, que era salvo num formato que o sistema não entendia e por isso nunca disparava. As janelas do marcador e os overlays passam a aparecer por cima de jogos em tela cheia no macOS, e teclas de função (F2) voltam a valer sozinhas.",
+  "version": "0.8.2",
+  "zip_url": "https://github.com/ricardothezouro-debug/streamer_sidekick/releases/download/v0.8.2/StreamerSidekick-0.8.2-portable.zip",
+  "notes": "No macOS, marcar um evento com o jogo em tela cheia deixa de tirar você do jogo: a janela aparece por cima e some ao salvar, sem trocar de Space.",
   "platforms": {
     "windows": {
-      "zip_url": "https://github.com/ricardothezouro-debug/streamer_sidekick/releases/download/v0.8.1/StreamerSidekick-0.8.1-portable.zip"
+      "zip_url": "https://github.com/ricardothezouro-debug/streamer_sidekick/releases/download/v0.8.2/StreamerSidekick-0.8.2-portable.zip"
     },
     "macos": {
-      "zip_url": "https://github.com/ricardothezouro-debug/streamer_sidekick/releases/download/v0.8.1/StreamerSidekick-0.8.1-macos.zip"
+      "zip_url": "https://github.com/ricardothezouro-debug/streamer_sidekick/releases/download/v0.8.2/StreamerSidekick-0.8.2-macos.zip"
     }
   }
 }

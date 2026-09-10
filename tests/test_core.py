@@ -713,3 +713,40 @@ def test_float_above_fullscreen_nao_derruba_sem_janela_cocoa():
 
     assert float_above_fullscreen(_FalsoWidget()) is False
     assert float_above_fullscreen(object()) is False
+
+
+def test_float_above_fullscreen_limpa_a_bit_conflitante():
+    """`MoveToActiveSpace` tem que ser limpo, não sobreposto.
+
+    O macOS recusa essa bit junto com `CanJoinAllSpaces` e lança
+    NSInternalInconsistencyException. Como o Qt a marca em janelas com pai, o
+    `|` sem limpar fazia a configuração inteira falhar — e a janela do marcador
+    simplesmente não aparecia sobre o jogo em tela cheia. Um `except` silencioso
+    escondeu isso por uma versão inteira.
+    """
+    import sys
+
+    from PySide6.QtCore import Qt
+    from PySide6.QtGui import QGuiApplication
+    from PySide6.QtWidgets import QDialog
+
+    from streamer_sidekick.core.platform_utils import float_above_fullscreen
+
+    _app_qt()
+    if sys.platform != "darwin" or QGuiApplication.platformName() != "cocoa":
+        return  # sem janela Cocoa não há o que verificar
+
+    import objc
+
+    dlg = QDialog(None, Qt.WindowType.Tool)
+    dlg.show()
+    assert float_above_fullscreen(dlg) is True
+
+    janela = objc.objc_object(c_void_p=int(dlg.winId())).window()
+    comportamento = janela.collectionBehavior()
+    assert comportamento & (1 << 0), "faltou CanJoinAllSpaces"
+    assert not comportamento & (1 << 1), "MoveToActiveSpace continuou ligado"
+    assert comportamento & (1 << 8), "faltou FullScreenAuxiliary"
+    # nível baixo fica atrás de um app em tela cheia
+    assert janela.level() >= 101
+    dlg.close()
