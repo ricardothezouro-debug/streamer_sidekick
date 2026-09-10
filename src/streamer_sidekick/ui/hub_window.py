@@ -74,6 +74,21 @@ class _ReleasesWorker(QThread):
             self.loaded.emit(None)
 
 
+MAX_FAVORITOS = 4
+
+
+def favorite_columns(disponivel: int, largura_do_card: int, espaco: int) -> int:
+    """Quantos cards de favorito cabem em ``disponivel`` pixels.
+
+    Fica fora da classe para ser testável sem subir Qt. O invariante que
+    interessa: ``colunas * largura + (colunas - 1) * espaco <= disponivel``
+    sempre que o resultado for maior que 1 -- é o que garante que nenhum card
+    seja cortado, já que a página só rola na vertical.
+    """
+    cabem = (disponivel + espaco) // (largura_do_card + espaco)
+    return max(1, min(MAX_FAVORITOS, int(cabem)))
+
+
 class HubWindow(QMainWindow):
     def __init__(
         self,
@@ -148,8 +163,9 @@ class HubWindow(QMainWindow):
         self.home_update_panel: Optional[NeonPanel] = None
         self.home_update_label: Optional[QLabel] = None
         self.home_update_button: Optional[QPushButton] = None
-        self.home_favorites_row: Optional[QHBoxLayout] = None
+        self.home_favorites_grid: Optional[QGridLayout] = None
         self.home_favorite_cards: list[ModuleCard] = []
+        self._home_favorite_columns = 0
         self.home_releases_layout: Optional[QVBoxLayout] = None
         self.home_releases_status: Optional[QLabel] = None
         self._releases_worker: Optional["_ReleasesWorker"] = None
@@ -534,9 +550,10 @@ class HubWindow(QMainWindow):
         header.addWidget(manage, 0)
         outer.addLayout(header)
 
-        cards = QHBoxLayout()
-        cards.setSpacing(16)
-        self.home_favorites_row = cards
+        cards = QGridLayout()
+        cards.setHorizontalSpacing(16)
+        cards.setVerticalSpacing(16)
+        self.home_favorites_grid = cards
         outer.addLayout(cards)
         return panel
 
@@ -549,12 +566,47 @@ class HubWindow(QMainWindow):
             items.append((plugin.id, self._plugin_card_info(plugin)))
         return items
 
-    def _reflow_favorites(self) -> None:
-        row = self.home_favorites_row
-        if row is None:
+    #: Largura máxima de um card de favorito e o espaço entre eles.
+    FAVORITE_CARD_WIDTH = 260
+    FAVORITE_CARD_GAP = 16
+
+    def _favorite_columns(self) -> int:
+        """Quantos cards cabem lado a lado sem estourar a largura disponível.
+
+        Quatro favoritos numa linha só pedem ~1120px. A página rola apenas na
+        vertical, então o que não coubesse era simplesmente cortado: o quarto
+        card sumia à direita, sem barra nenhuma para alcançá-lo.
+
+        Mede o painel de verdade em vez de comparar ``self.width()`` com números
+        mágicos — a sobra depende da sidebar, das margens e do tema, e qualquer
+        limiar fixo erra numa faixa de larguras.
+        """
+        disponivel = 0
+        if self.home_favorites_grid is not None:
+            painel = self.home_favorites_grid.parentWidget()
+            if painel is not None:
+                margens = self.home_favorites_grid.contentsMargins()
+                disponivel = painel.width() - 36 - margens.left() - margens.right()
+        if disponivel <= 0:
+            # Antes do primeiro layout o painel ainda não tem largura; estima
+            # pela janela (a sidebar e as margens comem uns 320px).
+            disponivel = self.width() - 320
+        return favorite_columns(
+            disponivel, self.FAVORITE_CARD_WIDTH, self.FAVORITE_CARD_GAP
+        )
+
+    def _reflow_favorites(self, force: bool = True) -> None:
+        grid = self.home_favorites_grid
+        if grid is None:
             return
-        while row.count():
-            item = row.takeAt(0)
+
+        columns = self._favorite_columns()
+        if not force and columns == self._home_favorite_columns:
+            return
+        self._home_favorite_columns = columns
+
+        while grid.count():
+            item = grid.takeAt(0)
             widget = item.widget()
             if widget is not None:
                 widget.setParent(None)  # tira da tela já (senão renderiza em 0,0)
@@ -563,24 +615,26 @@ class HubWindow(QMainWindow):
 
         lookup = dict(self._favoritable_items())
         stored = list(self.config.get("hub.favorites", []) or [])
-        valid = [fid for fid in stored if fid in lookup][:4]
+        valid = [fid for fid in stored if fid in lookup][:MAX_FAVORITOS]
         if valid != stored:  # limpa ids órfãos (plugin removido, etc.)
             self.config.set("hub.favorites", valid)
 
         if not valid:
             empty = QLabel("Nenhum favorito ainda. Clique em “Gerenciar favoritos”.")
             empty.setObjectName("Muted")
-            row.addWidget(empty)
-            row.addStretch(1)
+            grid.addWidget(empty, 0, 0, 1, columns)
             return
 
-        for fid in valid:
+        for indice, fid in enumerate(valid):
             card = ModuleCard(lookup[fid])
             card.opened.connect(self._select_page)
-            card.setMaximumWidth(260)
+            card.setMaximumWidth(self.FAVORITE_CARD_WIDTH)
             self.home_favorite_cards.append(card)
-            row.addWidget(card)
-        row.addStretch(1)
+            grid.addWidget(card, indice // columns, indice % columns)
+        # Uma coluna fantasma à direita absorve a sobra: sem ela, uma linha
+        # incompleta (3 favoritos em 2 colunas) espalharia os cards.
+        for coluna in range(MAX_FAVORITOS + 1):
+            grid.setColumnStretch(coluna, 1 if coluna == columns else 0)
 
     def _open_favorites_dialog(self) -> None:
         items = self._favoritable_items()
@@ -1806,6 +1860,7 @@ class HubWindow(QMainWindow):
     def resizeEvent(self, event) -> None:
         super().resizeEvent(event)
         self._reflow_home_modules()
+        self._reflow_favorites(force=False)
 
     def _reflow_home_modules(self, force: bool = False) -> None:
         if self.home_modules_layout is None:
