@@ -13,6 +13,20 @@
       "icon": "src/stream_ligar/assets/brand/app_icon.png",
       "changelog": "Passa a funcionar no macOS: abrir programas, links e o Chrome (com perfis) parou de quebrar fora do Windows, e a configuração agora fica na pasta certa do sistema.",
       "min_sidekick_version": "0.4.0"
+    },
+    {
+      "id": "subtitler",
+      "name": "Subtitler",
+      "description": "Transforma vídeo ou áudio em legendas prontas: SRT, VTT e TXT, com os tempos certos.",
+      "repo": "ricardothezouro-debug/Subtitler",
+      "ref": "main",
+      "version": "1.0.0",
+      "src_subdir": "src",
+      "module": "subtitler.module",
+      "accent": "#FF4FD8",
+      "icon": "src/subtitler/assets/brand/app_icon.png",
+      "changelog": "Primeira versão: transcrição com timestamps por palavra, legendas em SRT, VTT e TXT, e download automático do ffmpeg.",
+      "min_sidekick_version": "0.8.0"
     }
   ]
 }
