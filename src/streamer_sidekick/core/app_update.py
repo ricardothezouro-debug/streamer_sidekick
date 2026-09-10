@@ -13,10 +13,7 @@ Fluxo:
 
 No macOS o desenho é o mesmo, trocando o portable por um ``.app``: o updater é
 um shell script que espera o processo sair, substitui o bundle inteiro com
-``ditto`` e reabre com ``open``. Uma ressalva que não existe no Windows — como o
-``.app`` não é assinado com Developer ID, o macOS trata cada build como um app
-diferente e **revoga a permissão de Acessibilidade**; depois de atualizar é
-preciso reativá-la. O app avisa isso antes de aplicar.
+``ditto`` e reabre com ``open``.
 
 Só funciona no build congelado (``sys.frozen``). Em desenvolvimento a checagem
 funciona, mas aplicar levanta ``RuntimeError`` (a mensagem orienta a usar ``git
@@ -131,16 +128,6 @@ def is_frozen() -> bool:
 def can_self_update() -> bool:
     """Auto-update completo no build congelado do Windows e do macOS."""
     return is_frozen() and sys.platform in ("win32", "darwin")
-
-
-def macos_permissions_reset_on_update() -> bool:
-    """True quando aplicar o update vai custar a permissão de Acessibilidade.
-
-    O macOS amarra a permissão à assinatura do app. Como os builds são só
-    ad-hoc (sem Developer ID), cada versão nova conta como outro app e o
-    usuário precisa reativar a Acessibilidade. Vale a pena avisar antes.
-    """
-    return sys.platform == "darwin"
 
 
 def install_dir() -> Path:
