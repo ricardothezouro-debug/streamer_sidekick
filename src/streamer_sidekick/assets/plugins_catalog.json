@@ -20,12 +20,12 @@
       "description": "Transforma vídeo ou áudio em legendas prontas: SRT, VTT e TXT, com os tempos certos.",
       "repo": "ricardothezouro-debug/Subtitler",
       "ref": "main",
-      "version": "1.0.0",
+      "version": "1.0.1",
       "src_subdir": "src",
       "module": "subtitler.module",
       "accent": "#FF4FD8",
       "icon": "src/subtitler/assets/brand/app_icon.png",
-      "changelog": "Primeira versão: transcrição com timestamps por palavra, legendas em SRT, VTT e TXT, e download automático do ffmpeg.",
+      "changelog": "O .txt agora pode sair com o horário de cada fala, e a transcrição de vídeos longos ficou mais precisa: o idioma detectado no começo passa a valer para o arquivo inteiro.",
       "min_sidekick_version": "0.8.0"
     }
   ]
