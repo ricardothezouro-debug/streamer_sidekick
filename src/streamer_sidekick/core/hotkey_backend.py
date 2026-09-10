@@ -109,16 +109,6 @@ def normalize(sequence: str) -> str:
     return str(sequence or "").strip()
 
 
-def requires_accessibility() -> bool:
-    """Os atalhos deste backend dependem de permissao do sistema?
-
-    No macOS a resposta virou False quando trocamos o pynput pela API nativa --
-    o Diagnostico usa isto para parar de cobrar uma permissao que nao e mais
-    necessaria.
-    """
-    return not _ON_WINDOWS and not _ON_MACOS
-
-
 def validate(sequence: str) -> None:
     """Levanta excecao se o backend atual nao entender a notacao informada."""
     if _ON_WINDOWS:
