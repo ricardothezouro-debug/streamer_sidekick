@@ -130,26 +130,6 @@ class AppUpdateDialog(QDialog):
             )
             return
 
-        # O macOS amarra a permissão de Acessibilidade à assinatura do app. Como
-        # os builds são só ad-hoc, a versão nova conta como outro app e perde a
-        # permissão — melhor avisar antes do que os atalhos calarem sem motivo
-        # aparente depois de atualizar.
-        if app_update.macos_permissions_reset_on_update():
-            answer = QMessageBox.warning(
-                self,
-                "Atualização",
-                "Depois de atualizar, o macOS vai pedir a permissão de "
-                "Acessibilidade de novo — sem ela os atalhos globais não "
-                "disparam.\n\n"
-                "Reative em Ajustes do Sistema > Privacidade e Segurança > "
-                "Acessibilidade (remova a entrada antiga com “−” e adicione o app "
-                "de novo).\n\nContinuar?",
-                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.Cancel,
-                QMessageBox.StandardButton.Yes,
-            )
-            if answer != QMessageBox.StandardButton.Yes:
-                return
-
         self.update_button.setEnabled(False)
         self.later_button.setEnabled(False)
         self.status_label.setText("Iniciando…")
