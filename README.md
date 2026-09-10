@@ -66,16 +66,17 @@ pip install -r requirements.txt -r requirements-build.txt
 ./scripts/build_app_macos.sh
 ```
 
-O resultado é `dist/Streamer Sidekick.app`. Duas coisas específicas do Mac:
+O resultado é `dist/Streamer Sidekick.app`.
 
-- **Permissão de Acessibilidade.** Sem ela o macOS não entrega eventos de teclado
-  ao app: os atalhos globais são registrados mas nunca disparam. Vá em **Ajustes
-  do Sistema → Privacidade e Segurança → Acessibilidade** e ligue o Streamer
-  Sidekick. A aba **Diagnóstico** avisa quando a permissão está faltando.
-- **Auto-update funciona, mas custa a permissão.** O app se atualiza sozinho no
-  Mac também. Só que, como o `.app` não é assinado com uma conta de
-  desenvolvedor Apple, o macOS trata cada versão como um app diferente e pede a
-  Acessibilidade de novo depois de atualizar — o app avisa antes de aplicar.
+**Os atalhos globais não pedem permissão nenhuma.** Eles usam a API nativa do
+macOS para atalhos (`RegisterEventHotKey`), que avisa o app quando uma
+combinação específica é apertada — em vez de ler o teclado inteiro. Por isso não
+há Acessibilidade nem Monitoramento de Entrada a conceder: instalou, funciona.
+
+**Na primeira abertura o macOS avisa que não conseguiu verificar o app.** É o
+Gatekeeper: o `.app` não é assinado com uma conta de desenvolvedor Apple. Vá em
+**Ajustes do Sistema → Privacidade e Segurança** e clique em **Abrir Assim
+Mesmo**. O auto-update não passa por isso — só a instalação manual.
 
 Seus dados ficam em `~/Library/Application Support/StreamerSidekick/`.
 
