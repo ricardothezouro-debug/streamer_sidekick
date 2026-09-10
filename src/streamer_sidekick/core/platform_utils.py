@@ -153,15 +153,33 @@ def float_above_fullscreen(widget: object) -> bool:
     if not win_id:
         return False
 
+    _CAN_JOIN_ALL_SPACES = 1 << 0
+    _MOVE_TO_ACTIVE_SPACE = 1 << 1
+    _FULLSCREEN_AUXILIARY = 1 << 8
+    _POPUP_MENU_LEVEL = 101
+
     try:
         view = objc.objc_object(c_void_p=win_id)
         window = view.window()
         if window is None:
             return False
-        # canJoinAllSpaces (1<<0) | fullScreenAuxiliary (1<<8)
-        window.setCollectionBehavior_(window.collectionBehavior() | (1 << 0) | (1 << 8))
-        # NSStatusWindowLevel: acima das janelas comuns, abaixo de alertas do SO.
-        window.setLevel_(25)
+
+        # MoveToActiveSpace tem que ser LIMPO, nao apenas sobreposto: o macOS
+        # recusa a combinacao com CanJoinAllSpaces e lanca
+        # NSInternalInconsistencyException. O Qt marca essa bit em janelas com
+        # pai, entao somar sem limpar fazia a configuracao inteira falhar --
+        # e era exatamente a janela do marcador que tinha o problema.
+        comportamento = window.collectionBehavior()
+        comportamento &= ~_MOVE_TO_ACTIVE_SPACE
+        comportamento |= _CAN_JOIN_ALL_SPACES | _FULLSCREEN_AUXILIARY
+        window.setCollectionBehavior_(comportamento)
+
+        # Um app em tela cheia cobre os niveis baixos; 25 nao bastava. Por
+        # ultimo, porque algumas chamadas do AppKit rebaixam o nivel.
+        window.setLevel_(_POPUP_MENU_LEVEL)
         return True
-    except Exception:
+    except Exception as exc:
+        # Nao engolir: foi um except silencioso aqui que escondeu a excecao
+        # acima por uma versao inteira, com a janela simplesmente nao aparecendo.
+        print(f"[streamer_sidekick] float_above_fullscreen falhou: {exc}")
         return False
