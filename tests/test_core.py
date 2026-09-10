@@ -721,3 +721,38 @@ def test_float_above_fullscreen_limpa_a_bit_conflitante():
     # nível baixo fica atrás de um app em tela cheia
     assert janela.level() >= 101
     dlg.close()
+
+
+# --- Favoritos do Início ----------------------------------------------------
+
+
+def test_favoritos_nunca_pedem_mais_largura_do_que_existe():
+    """O quarto favorito sumia à direita, sem barra para alcançá-lo.
+
+    A página rola só na vertical (ScrollBarAlwaysOff no eixo X), então tudo o
+    que passa da viewport é cortado de vez. Quatro cards numa linha só pedem
+    ~1124px; numa janela de 1000 o quarto simplesmente não existia para o
+    usuário. Aqui trava o invariante: o que a grade pede sempre cabe.
+    """
+    from streamer_sidekick.ui.hub_window import MAX_FAVORITOS, favorite_columns
+
+    largura, espaco = 260, 16
+    for disponivel in range(0, 2000, 7):
+        colunas = favorite_columns(disponivel, largura, espaco)
+        assert 1 <= colunas <= MAX_FAVORITOS
+        if colunas > 1:
+            pedido = colunas * largura + (colunas - 1) * espaco
+            assert pedido <= disponivel, (
+                f"{colunas} colunas pedem {pedido}px e só há {disponivel}px"
+            )
+
+
+def test_favoritos_aproveitam_a_largura_quando_ela_existe():
+    """O contrário também importa: numa tela larga os quatro têm de caber."""
+    from streamer_sidekick.ui.hub_window import favorite_columns
+
+    assert favorite_columns(4 * 260 + 3 * 16, 260, 16) == 4
+    assert favorite_columns(3 * 260 + 2 * 16, 260, 16) == 3
+    assert favorite_columns(2 * 260 + 16, 260, 16) == 2
+    assert favorite_columns(100, 260, 16) == 1  # nunca zero: um card cortado
+    assert favorite_columns(0, 260, 16) == 1

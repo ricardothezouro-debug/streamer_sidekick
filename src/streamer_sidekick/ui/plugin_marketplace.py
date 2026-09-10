@@ -222,6 +222,8 @@ class PluginMarketplaceDialog(QDialog):
 
     def _on_remove_requested(self, plugin_id: str) -> None:
         if self._install_worker is not None and self._install_worker.isRunning():
+            # Sem esta linha o clique sumia em silencio e o botao parecia quebrado.
+            self.status_label.setText("Espere a instalação terminar para remover.")
             return
         plugin = self.manager.get(plugin_id)
         name = plugin.name if plugin is not None else plugin_id
@@ -246,6 +248,7 @@ class PluginMarketplaceDialog(QDialog):
 
     def _on_install_requested(self, entry: CatalogEntry) -> None:
         if self._install_worker is not None and self._install_worker.isRunning():
+            self.status_label.setText("Uma instalação já está em andamento.")
             return
         row = next((r for r in self._rows if r.entry.id == entry.id), None)
         if row is None:
@@ -269,6 +272,11 @@ class PluginMarketplaceDialog(QDialog):
 
     def _on_install_failed(self, message: str) -> None:
         if self._active_row is not None:
+            # refresh_state religa OS DOIS botoes. Antes daqui so o action_button
+            # voltava, e o "Remover" da linha ficava morto ate reabrir o dialogo
+            # -- um plugin ja instalado virava irremovivel depois de uma
+            # atualizacao que falhou.
+            self._active_row.refresh_state()
             self._active_row.status_label.setStyleSheet("color: #FF4FD8;")
             self._active_row.status_label.setText("Falhou")
             self._active_row.action_button.setEnabled(True)
