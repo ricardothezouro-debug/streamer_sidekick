@@ -437,40 +437,6 @@ def test_install_dir_no_windows_e_a_pasta_do_exe(monkeypatch):
 # ---- permissões de macOS ---------------------------------------------------
 
 
-def test_permissoes_macos_sao_no_op_fora_do_mac(monkeypatch):
-    """Nada disso pode rodar no Windows — nem levantar exceção lá."""
-    from streamer_sidekick.core import platform_utils
-
-    monkeypatch.setattr(platform_utils.sys, "platform", "win32")
-    assert platform_utils.accessibility_trusted() is None
-    assert platform_utils.request_accessibility() is None
-    # Não devem tentar abrir nada; se tentassem, o subprocess falharia no CI.
-    platform_utils.open_accessibility_settings()
-    platform_utils.open_input_monitoring_settings()
-
-
-def test_request_accessibility_tolera_pyobjc_ausente(monkeypatch):
-    """Sem os bindings do pyobjc a resposta é None, não uma exceção.
-
-    O app chama isto para decidir se mostra o botão de conceder permissão; se
-    explodisse, a tela de Diagnóstico inteira cairia junto.
-    """
-    import builtins
-
-    from streamer_sidekick.core import platform_utils
-
-    monkeypatch.setattr(platform_utils.sys, "platform", "darwin")
-    real_import = builtins.__import__
-
-    def sem_application_services(nome, *args, **kwargs):
-        if nome == "ApplicationServices":
-            raise ImportError("simulado")
-        return real_import(nome, *args, **kwargs)
-
-    monkeypatch.setattr(builtins, "__import__", sem_application_services)
-    assert platform_utils.request_accessibility() is None
-
-
 def test_pynput_nunca_le_o_layout_na_thread_do_listener(monkeypatch):
     """O HIToolbox exige a thread principal; ler de outra mata o processo.
 
@@ -564,12 +530,17 @@ def test_carbon_recusa_atalhos_impossiveis():
         carbon.parse("Ctrl+Alt")  # só modificadores
 
 
-def test_macos_nao_exige_mais_permissao():
-    """A troca para a API nativa tirou a dependência de Acessibilidade."""
+def test_macos_usa_a_api_nativa_e_nao_o_pynput():
+    """É esta escolha que torna a permissão de Acessibilidade desnecessária.
+
+    Se algum dia o macOS voltar ao pynput, a permissão volta a ser obrigatória
+    e os atalhos param de disparar em silêncio — este teste é o alarme.
+    """
     if hotkey_backend._ON_MACOS:
-        assert hotkey_backend.requires_accessibility() is False
+        assert hotkey_backend.backend_name() == "carbon"
+        assert hotkey_backend._pynput_keyboard is None
     elif hotkey_backend._ON_WINDOWS:
-        assert hotkey_backend.requires_accessibility() is False
+        assert hotkey_backend.backend_name() == "keyboard"
 
 
 # ---- conversão de atalho entre o Qt e a notação do app ---------------------
