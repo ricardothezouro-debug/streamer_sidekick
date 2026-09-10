@@ -2918,6 +2918,11 @@ class QuickMarkerDialog(QDialog):
         self.marker_service = marker_service
         self.setWindowTitle("Marcar evento")
         self.setWindowFlag(Qt.WindowType.WindowStaysOnTopHint, True)
+        if sys.platform == "darwin":
+            # Qt.Tool faz o Qt criar um NSPanel, que e o que consegue flutuar
+            # sobre um app em tela cheia. No Windows a janela comum ja resolve,
+            # e mudar o tipo mexeria em foco e barra de tarefas sem motivo.
+            self.setWindowFlag(Qt.WindowType.Tool, True)
         self.resize(430, 132)
 
         layout = QVBoxLayout(self)
@@ -2968,6 +2973,11 @@ class QuickMarkerDialog(QDialog):
         self.input.grabKeyboard()
 
     def _force_click_input(self) -> None:
+        if sys.platform == "darwin":
+            # Existe para furar o bloqueio de foco do Windows. No macOS o foco
+            # ja funciona, e isto so arrastaria o mouse do usuario no meio da
+            # live -- ainda por cima exigindo uma permissao que nao pedimos mais.
+            return
         if pyautogui is None or not self.isVisible():
             return
         center = self.input.mapToGlobal(self.input.rect().center())
@@ -3047,6 +3057,11 @@ class QuickGameDialog(QDialog):
         self.input.grabKeyboard()
 
     def _force_click_input(self) -> None:
+        if sys.platform == "darwin":
+            # Existe para furar o bloqueio de foco do Windows. No macOS o foco
+            # ja funciona, e isto so arrastaria o mouse do usuario no meio da
+            # live -- ainda por cima exigindo uma permissao que nao pedimos mais.
+            return
         if pyautogui is None or not self.isVisible():
             return
         center = self.input.mapToGlobal(self.input.rect().center())
