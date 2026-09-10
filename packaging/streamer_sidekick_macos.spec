@@ -11,11 +11,6 @@ SRC = ROOT / "src"
 sys.path.insert(0, str(SRC))
 from streamer_sidekick import __version__ as APP_VERSION  # noqa: E402
 
-_PERMISSION_REASON = (
-    "O Streamer Sidekick usa atalhos globais para marcar eventos e contadores "
-    "durante a live, mesmo com o jogo em foco."
-)
-
 # No macOS o icone do bundle precisa ser .icns. Se ainda nao existir, o build
 # segue sem icone customizado (o PyInstaller usa o padrao). Para gerar o .icns
 # a partir do PNG, veja scripts/build_app_macos.sh.
@@ -85,11 +80,5 @@ app = BUNDLE(
         "CFBundleShortVersionString": APP_VERSION,
         "CFBundleVersion": APP_VERSION,
         "NSHighResolutionCapable": True,
-        # Os atalhos globais leem o teclado mesmo com o jogo em foco. O macOS
-        # pede Monitoramento de Entrada e/ou Acessibilidade para isso; a
-        # permissao em si e concedida nos Ajustes do Sistema, estes textos so
-        # explicam ao usuario para que servem.
-        "NSInputMonitoringUsageDescription": _PERMISSION_REASON,
-        "NSAppleEventsUsageDescription": _PERMISSION_REASON,
     },
 )

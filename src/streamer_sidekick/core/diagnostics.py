@@ -3,7 +3,6 @@ from pathlib import Path
 from typing import Any
 
 from streamer_sidekick.core import hotkey_backend
-from streamer_sidekick.core.platform_utils import accessibility_trusted
 from streamer_sidekick.core.config import ConfigStore
 from streamer_sidekick.core.hotkeys import HotkeyManager
 from streamer_sidekick.modules.counter.service import CounterService
@@ -106,47 +105,6 @@ class DiagnosticService:
                     f"Backend de hotkeys ({hotkey_backend.backend_name()}) nao esta disponivel",
                 )
             ]
-
-        # Os atalhos do macOS passaram a usar a API nativa, que nao pede
-        # permissao nenhuma. A Acessibilidade so afeta um detalhe do marcador
-        # (o clique automatico no campo), entao nao e mais erro: e informacao.
-        if not hotkey_backend.requires_accessibility():
-            trusted = accessibility_trusted()
-            if trusted is False:
-                items.append(
-                    DiagnosticItem(
-                        "ok",
-                        "Acessibilidade (macOS)",
-                        "Nao concedida -- e nao faz falta: os atalhos globais usam "
-                        "a API nativa do macOS e funcionam sem ela.",
-                    )
-                )
-            elif trusted is True:
-                items.append(
-                    DiagnosticItem("ok", "Acessibilidade (macOS)", "Permissao concedida")
-                )
-        else:
-            trusted = accessibility_trusted()
-            if trusted is False:
-                items.append(
-                    DiagnosticItem(
-                        "error",
-                        "Acessibilidade",
-                        "Permissao nao concedida: os atalhos globais nao vao disparar.",
-                    )
-                )
-
-        # Se o layout do teclado nao pode ser lido na thread principal, criar um
-        # listener e capaz de derrubar o app -- melhor dizer isso do que morrer.
-        if not hotkey_backend.keycode_snapshot_ok():
-            items.append(
-                DiagnosticItem(
-                    "warn",
-                    "Layout do teclado",
-                    "Nao foi possivel ler o layout na thread principal. Os atalhos "
-                    "podem nao responder; reabrir o app costuma resolver.",
-                )
-            )
 
         enabled = [binding for binding in self.hotkeys.all_bindings() if binding["enabled"] and binding["sequence"]]
         registered = self.hotkeys.registered_sequences()
