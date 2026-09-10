@@ -1,7 +1,7 @@
 {
   "version": "0.8.4",
   "zip_url": "https://github.com/ricardothezouro-debug/streamer_sidekick/releases/download/v0.8.4/StreamerSidekick-0.8.4-portable.zip",
-  "notes": "No macOS, marcar um evento com o jogo em tela cheia deixa de tirar você do jogo: a janela aparece por cima e some ao salvar, sem trocar de Space.",
+  "notes": "Dois consertos: o botão Remover de um guia não trava mais depois de uma instalação que falhou, e o quarto favorito do Início parou de sumir fora da tela — os cards agora se reorganizam conforme a largura da janela.",
   "platforms": {
     "windows": {
       "zip_url": "https://github.com/ricardothezouro-debug/streamer_sidekick/releases/download/v0.8.4/StreamerSidekick-0.8.4-portable.zip"
