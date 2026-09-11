@@ -27,6 +27,20 @@
       "icon": "src/subtitler/assets/brand/app_icon.png",
       "changelog": "Conserta o cache que ignorava as opções: trocar de modelo ou de idioma e mandar rodar de novo devolvia o resultado antigo em segundos. Vídeo com jogo ou música ao fundo agora encontra as pausas para dividir o áudio, o que reduz frase repetida e fala perdida. E o áudio temporário deixa de ficar no disco.",
       "min_sidekick_version": "0.8.0"
+    },
+    {
+      "id": "clipit",
+      "name": "ClipIt (beta)",
+      "description": "Cria o clipe na Twitch por atalho, no meio do jogo, e guarda o link junto da sua marcação. Depois da live, a pauta de cortes já está pronta.",
+      "repo": "ricardothezouro-debug/ClipIt",
+      "ref": "main",
+      "version": "0.9.0",
+      "src_subdir": "src",
+      "module": "clipit.module",
+      "accent": "#9146FF",
+      "icon": "src/clipit/assets/brand/app_icon.png",
+      "changelog": "Primeira versão (beta): login na Twitch sem senha, clipe por atalho global, marcação com o link, e a pauta de cortes com triagem.",
+      "min_sidekick_version": "0.8.0"
     }
   ]
 }
