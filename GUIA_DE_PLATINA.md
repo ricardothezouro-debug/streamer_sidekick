@@ -84,12 +84,20 @@ Convenções da aba Platinas:
 - **Cores de tier** — bronze `#CD7F32`, prata `#C0C0C0`, ouro `#FFD700`,
   platina `#E5E4E2`.
 - **Progresso sempre visível**, no topo: barra + contagem.
+- **Cabeçalho recolhível.** Título sempre à vista, com um botão ao lado
+  ("▲ Recolher cabeçalho" / "▼ Mostrar cabeçalho") que esconde o resto do topo:
+  abertura, números de destaque, busca e botões de exportar/importar/resetar.
+  A barra de progresso e a navegação das abas ficam. Quem joga com o guia
+  aberto quer a lista, não a apresentação — e o cabeçalho inteiro custa meia
+  tela. Lembre a escolha num `ui.json` na pasta do guia, separado do
+  `progress.json`, para que "Resetar marcações" não mexa nela.
 - **Busca**, quando o guia for grande o bastante para justificar.
 - **Nada de estilo inline concorrendo com o tema.** O `QApplication` já aplica a
   paleta neon; se você redefinir fundo e fonte na mão, o guia destoa.
 
 Os guias existentes (`Assistente-de-platina-Dredge`, `Guia-de-Platina-Wolong`,
-`House-fliper-assistente-de-platina`) servem de referência **visual**. Não copie a
+`House-fliper-assistente-de-platina`, `Guia-De-Platina-KingdomHearts1`) servem de
+referência **visual** — os quatro já têm o cabeçalho recolhível. Não copie a
 estrutura deles — o jogo é outro.
 
 ## 3. Canalização de plataforma
