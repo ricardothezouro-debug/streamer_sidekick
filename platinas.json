@@ -6,12 +6,12 @@
       "description": "Guia PT-BR completo: rota de 90 passos, 67 peixes, localizador de itens, santuários, docas e os 40 troféus.",
       "repo": "ricardothezouro-debug/Assistente-de-platina-Dredge",
       "ref": "main",
-      "version": "1.0.3",
+      "version": "1.0.4",
       "src_subdir": "src",
       "module": "platina_dredge.module",
       "accent": "#73AAA5",
       "min_sidekick_version": "0.6.0",
-      "changelog": "Topo em três níveis: uma linha neon separa o cabeçalho do conteúdo e bolinhas no meio dela recolhem o topo — abre minimizado (título, progresso e abas); um clique mostra tudo, outro esconde tudo e o progresso vira um balão flutuante que você arrasta."
+      "changelog": "Topo com movimento: as trocas de nível agora deslizam (o conteúdo desce e o cabeçalho abre como cortina, a 60 fps), o balão de progresso nasce sobre a barra e voa até o lugar dele; o brilho da bolinha ficou redondo; e o rodapé virou um \"?\"."
     },
     {
       "id": "house-flipper",
@@ -19,12 +19,12 @@
       "description": "Guia PT-BR do jogo base: rota cronológica, os 10 compradores com receita, as 37 casas e os 24 troféus.",
       "repo": "ricardothezouro-debug/House-fliper-assistente-de-platina",
       "ref": "master",
-      "version": "1.0.3",
+      "version": "1.0.4",
       "src_subdir": "src",
       "module": "platina_house_flipper.module",
       "accent": "#4F8DFF",
       "min_sidekick_version": "0.6.0",
-      "changelog": "Topo em três níveis: uma linha neon separa o cabeçalho do conteúdo e bolinhas no meio dela recolhem o topo — abre minimizado (título, progresso e abas); um clique mostra tudo, outro esconde tudo e o progresso vira um balão flutuante que você arrasta."
+      "changelog": "Topo com movimento: as trocas de nível agora deslizam (o conteúdo desce e o cabeçalho abre como cortina, a 60 fps), o balão de progresso nasce sobre a barra e voa até o lugar dele; o brilho da bolinha ficou redondo; e o rodapé virou um \"?\"."
     },
     {
       "id": "wolong",
@@ -32,12 +32,12 @@
       "description": "Guia PT-BR do jogo base: as 46 batalhas na ordem, 75 coletáveis com local, as 145 bandeiras e os 51 troféus.",
       "repo": "ricardothezouro-debug/Guia-de-Platina-Wolong",
       "ref": "main",
-      "version": "1.0.2",
+      "version": "1.0.3",
       "src_subdir": "src",
       "module": "platina_wolong.module",
       "accent": "#C8102E",
       "min_sidekick_version": "0.6.0",
-      "changelog": "Topo em três níveis: uma linha neon separa o cabeçalho do conteúdo e bolinhas no meio dela recolhem o topo — abre minimizado (título, progresso e abas); um clique mostra tudo, outro esconde tudo e o progresso vira um balão flutuante que você arrasta."
+      "changelog": "Topo com movimento: as trocas de nível agora deslizam (o conteúdo desce e o cabeçalho abre como cortina, a 60 fps), o balão de progresso nasce sobre a barra e voa até o lugar dele; o brilho da bolinha ficou redondo; e o rodapé virou um \"?\"."
     },
     {
       "id": "kh1-final-mix",
@@ -45,12 +45,12 @@
       "description": "Guia PT-BR do PS4: as 31 paradas na ordem de jogo com 145 passos, coletáveis e foto, os 99 dálmatas, as 46 trinities e os 56 troféus.",
       "repo": "ricardothezouro-debug/Guia-De-Platina-KingdomHearts1",
       "ref": "main",
-      "version": "1.0.1",
+      "version": "1.0.2",
       "src_subdir": "src",
       "module": "platina_kh1.module",
       "accent": "#3E6BE8",
       "min_sidekick_version": "0.7.1",
-      "changelog": "1.0.1 — A rota virou um walkthrough de verdade: 31 paradas na ordem exata de jogo, com os dálmatas, trinities, postais e páginas de cada ida dentro do próprio card, com foto. Nomes de mundo e área como aparecem na tela. Plano: 100% no Proud, depois a cronometrada no Beginner. Topo em três níveis (linha neon, bolinhas e balão de progresso). Correção: o Junior Hero sai na Hercules Cup."
+      "changelog": "Topo com movimento: as trocas de nível agora deslizam (o conteúdo desce e o cabeçalho abre como cortina, a 60 fps), o balão de progresso nasce sobre a barra e voa até o lugar dele; o brilho da bolinha ficou redondo; e o rodapé virou um \"?\"."
     }
   ]
 }
