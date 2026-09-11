@@ -91,9 +91,13 @@ Convenções da aba Platinas:
   só título, progresso e abas — é o nível em que o guia SEMPRE abre (duas
   bolinhas, ▼ e ▲). Nível 3: some tudo e o progresso vira um balão flutuante,
   arrastável, com os contadores e a própria bolinha ▼ (o clique duplo também
-  volta). A posição do balão é lembrada num `ui.json` na pasta do guia, separado
-  do `progress.json`; o nível não. Os quatro guias trazem o componente pronto em
-  `topbar.py` — copie-o.
+  volta). Toda troca de nível é animada — e NÃO animando a altura no layout,
+  que num guia grande custa ~125 ms por quadro: o componente congela a tela,
+  aplica o estado final de uma vez e anima a passagem entre dois retratos da
+  página num overlay. A posição do balão é lembrada num `ui.json` na pasta do
+  guia, separado do `progress.json`; o nível não. O rodapé (nome, "não oficial",
+  pasta do progresso) fica atrás de um "?" no canto inferior direito. Os quatro
+  guias trazem o componente pronto em `topbar.py` — copie-o.
 - **Busca**, quando o guia for grande o bastante para justificar.
 - **Nada de estilo inline concorrendo com o tema.** O `QApplication` já aplica a
   paleta neon; se você redefinir fundo e fonte na mão, o guia destoa.
