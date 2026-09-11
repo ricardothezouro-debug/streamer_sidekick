@@ -84,20 +84,23 @@ Convenções da aba Platinas:
 - **Cores de tier** — bronze `#CD7F32`, prata `#C0C0C0`, ouro `#FFD700`,
   platina `#E5E4E2`.
 - **Progresso sempre visível**, no topo: barra + contagem.
-- **Cabeçalho recolhível.** Título sempre à vista, com um botão ao lado
-  ("▲ Recolher cabeçalho" / "▼ Mostrar cabeçalho") que esconde o resto do topo:
-  abertura, números de destaque, busca e botões de exportar/importar/resetar.
-  A barra de progresso e a navegação das abas ficam. Quem joga com o guia
-  aberto quer a lista, não a apresentação — e o cabeçalho inteiro custa meia
-  tela. Lembre a escolha num `ui.json` na pasta do guia, separado do
-  `progress.json`, para que "Resetar marcações" não mexa nela.
+- **Topo em três níveis.** Entre o topo e o conteúdo vai uma linha no
+  gradiente do design system (ciano → magenta, a mesma da base dos `NeonPanel`)
+  com bolinhas neon no meio — em repouso são pontos; ao passar o mouse crescem e
+  mostram a seta do que fazem. Nível 1: tudo à vista (uma bolinha ▲). Nível 2:
+  só título, progresso e abas — é o nível em que o guia SEMPRE abre (duas
+  bolinhas, ▼ e ▲). Nível 3: some tudo e o progresso vira um balão flutuante,
+  arrastável, com os contadores e a própria bolinha ▼ (o clique duplo também
+  volta). A posição do balão é lembrada num `ui.json` na pasta do guia, separado
+  do `progress.json`; o nível não. Os quatro guias trazem o componente pronto em
+  `topbar.py` — copie-o.
 - **Busca**, quando o guia for grande o bastante para justificar.
 - **Nada de estilo inline concorrendo com o tema.** O `QApplication` já aplica a
   paleta neon; se você redefinir fundo e fonte na mão, o guia destoa.
 
 Os guias existentes (`Assistente-de-platina-Dredge`, `Guia-de-Platina-Wolong`,
 `House-fliper-assistente-de-platina`, `Guia-De-Platina-KingdomHearts1`) servem de
-referência **visual** — os quatro já têm o cabeçalho recolhível. Não copie a
+referência **visual** — os quatro já têm o topo em três níveis. Não copie a
 estrutura deles — o jogo é outro.
 
 ## 3. Canalização de plataforma

@@ -11,7 +11,7 @@
       "module": "platina_dredge.module",
       "accent": "#73AAA5",
       "min_sidekick_version": "0.6.0",
-      "changelog": "Cabeçalho recolhível: um botão ao lado do título esconde a abertura, os números, a busca e os botões — e o app lembra a escolha."
+      "changelog": "Topo em três níveis: uma linha neon separa o cabeçalho do conteúdo e bolinhas no meio dela recolhem o topo — abre minimizado (título, progresso e abas); um clique mostra tudo, outro esconde tudo e o progresso vira um balão flutuante que você arrasta."
     },
     {
       "id": "house-flipper",
@@ -24,7 +24,7 @@
       "module": "platina_house_flipper.module",
       "accent": "#4F8DFF",
       "min_sidekick_version": "0.6.0",
-      "changelog": "Cabeçalho recolhível: um botão ao lado do título esconde a abertura, os números, a busca e os botões — e o app lembra a escolha."
+      "changelog": "Topo em três níveis: uma linha neon separa o cabeçalho do conteúdo e bolinhas no meio dela recolhem o topo — abre minimizado (título, progresso e abas); um clique mostra tudo, outro esconde tudo e o progresso vira um balão flutuante que você arrasta."
     },
     {
       "id": "wolong",
@@ -37,7 +37,7 @@
       "module": "platina_wolong.module",
       "accent": "#C8102E",
       "min_sidekick_version": "0.6.0",
-      "changelog": "Cabeçalho recolhível: um botão ao lado do título esconde a abertura, os números, a busca e os botões — e o app lembra a escolha."
+      "changelog": "Topo em três níveis: uma linha neon separa o cabeçalho do conteúdo e bolinhas no meio dela recolhem o topo — abre minimizado (título, progresso e abas); um clique mostra tudo, outro esconde tudo e o progresso vira um balão flutuante que você arrasta."
     },
     {
       "id": "kh1-final-mix",
@@ -50,7 +50,7 @@
       "module": "platina_kh1.module",
       "accent": "#3E6BE8",
       "min_sidekick_version": "0.7.1",
-      "changelog": "1.0.1 — A rota virou um walkthrough de verdade: 31 paradas na ordem exata de jogo, com os dálmatas, trinities, postais e páginas de cada ida dentro do próprio card, com foto. Nomes de mundo e área como aparecem na tela. Plano: 100% no Proud, depois a cronometrada no Beginner. Cabeçalho recolhível. Correção: o Junior Hero sai na Hercules Cup."
+      "changelog": "1.0.1 — A rota virou um walkthrough de verdade: 31 paradas na ordem exata de jogo, com os dálmatas, trinities, postais e páginas de cada ida dentro do próprio card, com foto. Nomes de mundo e área como aparecem na tela. Plano: 100% no Proud, depois a cronometrada no Beginner. Topo em três níveis (linha neon, bolinhas e balão de progresso). Correção: o Junior Hero sai na Hercules Cup."
     }
   ]
 }
