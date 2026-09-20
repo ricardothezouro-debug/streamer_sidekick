@@ -62,6 +62,30 @@ def help_text() -> str:
     )
 ```
 
+### Opcional: `encerrar()` na página
+
+Se o `QWidget` devolvido por `build_page()` tiver um método `encerrar()`, o hub
+o chama **antes de destruir a página** — ao atualizar o plugin com o app
+aberto e ao removê-lo pelo marketplace.
+
+É onde você para o que estiver vivo por baixo da página: `QThread`s em
+execução (destruir uma viva aborta o processo inteiro), atalhos globais
+registrados no backend (sem isso viram zumbis: no macOS a página nova falha
+com "já está em uso" e o atalho morre até reiniciar; no Windows viram dois
+hooks e a ação acontece duas vezes), timers, sockets.
+
+```python
+class MinhaPagina(QWidget):
+    def encerrar(self) -> None:
+        self.atalho.remover()
+        for worker in self._workers:
+            if worker.isRunning():
+                worker.encerrar()   # sinaliza e espera
+```
+
+Uma exceção dentro de `encerrar()` não derruba o hub — mas o recurso fica
+órfão, então trate os seus.
+
 ### Campos de `module_info()`
 
 | Campo | Tipo | Descrição |

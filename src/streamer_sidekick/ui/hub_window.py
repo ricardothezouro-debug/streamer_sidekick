@@ -376,6 +376,28 @@ class HubWindow(QMainWindow):
         except Exception as exc:  # pagina de terceiro: nao pode derrubar o hub
             return self._plugin_error_page(plugin, str(exc))
 
+    @staticmethod
+    def _descarregar_pagina_de_plugin(widget: QWidget) -> None:
+        """Encerra a pagina de um plugin antes de destrui-la.
+
+        Um plugin pode ter recurso vivo por baixo da pagina: uma QThread
+        trabalhando, um atalho global registrado no backend. So dar
+        deleteLater() deixa isso orfao -- a thread viva aborta o processo ao
+        ser destruida, e o atalho continua disparando num objeto morto (e, ao
+        recarregar, a pagina nova registra o mesmo atalho por cima: no Windows
+        viram dois hooks e a acao acontece duas vezes).
+
+        O contrato e o mesmo do help_text(): se o plugin expuser encerrar(), o
+        hub chama. Quem nao expuser continua como antes.
+        """
+        encerrar = getattr(widget, "encerrar", None)
+        if callable(encerrar):
+            try:
+                encerrar()
+            except Exception as exc:  # noqa: BLE001 -- um plugin nao derruba o hub
+                print(f"[plugins] encerrar() falhou: {exc}")
+        widget.deleteLater()
+
     def _reload_plugin(self, plugin: InstalledPlugin) -> None:
         """Recarrega pagina + card + subnav de um plugin ja integrado (pos-update)."""
         container = self._plugin_page_containers.get(plugin.id)
@@ -385,7 +407,7 @@ class HubWindow(QMainWindow):
                 item = layout.takeAt(0)
                 widget = item.widget()
                 if widget is not None:
-                    widget.deleteLater()
+                    self._descarregar_pagina_de_plugin(widget)
             layout.addWidget(self._build_plugin_inner_page(plugin))
 
         # Recria o card (titulo/subtitulo/icone podem ter mudado).
@@ -1961,7 +1983,7 @@ class HubWindow(QMainWindow):
                 item = layout.takeAt(0)
                 widget = item.widget()
                 if widget is not None:
-                    widget.deleteLater()
+                    self._descarregar_pagina_de_plugin(widget)
         self._plugin_page_ids.discard(plugin_id)
         self.page_indexes.pop(plugin_id, None)
 

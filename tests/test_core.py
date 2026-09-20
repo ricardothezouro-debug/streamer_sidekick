@@ -884,3 +884,44 @@ def test_take_update_error_le_e_apaga(tmp_path: Path, monkeypatch):
     log.write_text("  deu ruim  \n", encoding="utf-8")
     assert app_update.take_update_error() == "deu ruim"
     assert not log.exists(), "mostrar uma vez, nao toda abertura"
+
+
+# --- O hub encerra a pagina do plugin antes de destrui-la -------------------
+
+
+def test_hub_chama_encerrar_do_plugin_antes_de_destruir_a_pagina():
+    """Ao atualizar um plugin com o app aberto, a pagina antiga era so
+    deleteLater()'d. Um atalho global registrado por ela virava zumbi: no macOS
+    a pagina nova falhava com "ja esta em uso" e o atalho morria ate reiniciar;
+    no Windows viravam dois hooks e a acao acontecia duas vezes. Uma QThread
+    viva na pagina antiga abortaria o processo inteiro."""
+    from PySide6.QtWidgets import QWidget
+
+    from streamer_sidekick.ui.hub_window import HubWindow
+
+    _app_qt()
+    eventos: list[str] = []
+
+    class PaginaDePlugin(QWidget):
+        def encerrar(self) -> None:
+            eventos.append("encerrar")
+
+    pagina = PaginaDePlugin()
+    HubWindow._descarregar_pagina_de_plugin(pagina)
+    assert eventos == ["encerrar"]
+
+
+def test_hub_tolera_plugin_sem_encerrar_e_encerrar_que_estoura():
+    """encerrar() e opcional (como help_text), e um plugin nao derruba o hub."""
+    from PySide6.QtWidgets import QWidget
+
+    from streamer_sidekick.ui.hub_window import HubWindow
+
+    _app_qt()
+    HubWindow._descarregar_pagina_de_plugin(QWidget())  # sem encerrar: ok
+
+    class Explosiva(QWidget):
+        def encerrar(self) -> None:
+            raise RuntimeError("boom")
+
+    HubWindow._descarregar_pagina_de_plugin(Explosiva())  # nao propaga
