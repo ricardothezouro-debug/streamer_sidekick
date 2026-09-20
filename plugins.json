@@ -30,16 +30,16 @@
     },
     {
       "id": "clipit",
-      "name": "ClipIt (beta)",
+      "name": "ClipIt",
       "description": "Cria o clipe na Twitch por atalho, no meio do jogo, e guarda o link junto da sua marcação. Depois da live, a pauta de cortes já está pronta.",
       "repo": "ricardothezouro-debug/ClipIt",
       "ref": "main",
-      "version": "0.9.0",
+      "version": "1.0.0",
       "src_subdir": "src",
       "module": "clipit.module",
       "accent": "#9146FF",
       "icon": "src/clipit/assets/brand/app_icon.png",
-      "changelog": "Primeira versão (beta): login na Twitch sem senha, clipe por atalho global, marcação com o link, e a pauta de cortes com triagem.",
+      "changelog": "Versão oficial: testado ao vivo na Twitch. Ícone novo, no visual do hub. Clipe por atalho global, marcação com o link, e a pauta de cortes com triagem.",
       "min_sidekick_version": "0.8.0"
     }
   ]
