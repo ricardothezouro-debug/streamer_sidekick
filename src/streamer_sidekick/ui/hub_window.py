@@ -195,7 +195,24 @@ class HubWindow(QMainWindow):
     def _run_startup_dialogs(self) -> None:
         self._maybe_show_onboarding()
         self._maybe_show_updated_toast()
+        # Antes de oferecer a atualização de novo: se a última tentativa falhou,
+        # o usuário precisa saber POR QUÊ. Sem isso ele fica num loop de
+        # "atualizar → fecha → abre → o mesmo aviso" sem nenhuma pista.
+        self._maybe_show_update_failure()
         self._check_app_update_async(auto=True)
+
+    def _maybe_show_update_failure(self) -> None:
+        motivo = app_update.take_update_error()
+        if not motivo:
+            return
+        QMessageBox.warning(
+            self,
+            "A atualização não foi aplicada",
+            "A última atualização baixou, mas não conseguiu substituir o app.\n\n"
+            f"{motivo}\n\n"
+            "Você continua na versão anterior. Depois de resolver, é só "
+            "atualizar de novo.",
+        )
 
     def _build_shell(self) -> QWidget:
         shell = QWidget()

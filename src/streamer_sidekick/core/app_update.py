@@ -294,17 +294,60 @@ def _extract_payload(payload: bytes, destination: Path) -> None:
         archive.extractall(destination)
 
 
-def build_updater_sh(new_root: Path, target: Path, staging: Path, pid: int) -> str:
+def update_error_path() -> Path:
+    """Onde o updater do macOS deixa o motivo quando falha.
+
+    Existe porque a falha era muda: o script reabria o app antigo e apagava os
+    próprios rastros, e o usuário ficava num loop de "atualizar → fecha → abre →
+    o mesmo aviso" sem nenhuma pista. Se este arquivo existir na abertura
+    seguinte, o hub mostra o conteúdo e o apaga.
+    """
+    from streamer_sidekick.core.paths import app_data_dir
+
+    return app_data_dir() / "update_error.log"
+
+
+def take_update_error() -> Optional[str]:
+    """Lê e apaga o relato da última falha, se houver."""
+    path = update_error_path()
+    try:
+        texto = path.read_text(encoding="utf-8", errors="replace").strip()
+    except OSError:
+        return None
+    try:
+        path.unlink()
+    except OSError:
+        pass
+    return texto or None
+
+
+def build_updater_sh(
+    new_root: Path, target: Path, staging: Path, pid: int,
+    log_path: Optional[Path] = None,
+) -> str:
     """Conteudo do updater do macOS. Separado para poder ser testado.
 
     Espera o app sair (o ``kill -0`` e so uma checagem de existencia), troca o
     bundle com ``ditto`` -- que preserva symlinks e metadados do ``.app``, coisa
     que ``cp -R`` faz mal -- reabre e se autolimpa.
 
-    A troca e feita em duas etapas, com um bundle temporario ao lado do destino:
-    o ``.app`` antigo so e removido depois que o novo ja esta no disco, entao uma
-    falha no meio do caminho nao deixa o usuario sem app nenhum.
+    Dois jeitos de trocar, escolhidos em tempo de execucao:
+
+    * **Bundle irmao** (``Target.app.new`` ao lado, depois ``mv``): o mais
+      atomico. Exige poder criar coisas na pasta que contem o app.
+    * **Troca do ``Contents/``** (dentro do proprio bundle): para quando a pasta
+      ao lado nao e gravavel. E o caso de ``/Applications`` numa conta que nao
+      e administradora -- a pasta e ``root:admin``, mas o ``.app`` e do
+      usuario, entao dentro dele da para escrever. Foi exatamente isto que
+      deixou um usuario preso na 0.8.2: o ``ditto`` para o bundle irmao caia
+      em "Permission denied", o script reabria o app antigo e apagava os
+      rastros, e nada na tela explicava.
+
+    Em qualquer falha o motivo vai para ``log_path`` (o hub mostra na abertura
+    seguinte) e o app antigo continua inteiro: a copia sempre acontece antes da
+    remocao, nos dois metodos.
     """
+    log = shlex.quote(str(log_path)) if log_path is not None else "/dev/null"
     lines = [
         "#!/bin/sh",
         "# Updater do Streamer Sidekick (macOS). Gerado pelo app; se autoapaga.",
@@ -312,7 +355,20 @@ def build_updater_sh(new_root: Path, target: Path, staging: Path, pid: int) -> s
         "TARGET=" + shlex.quote(str(target)),
         "NEW=" + shlex.quote(str(new_root)),
         "STAGING=" + shlex.quote(str(staging)),
+        "LOG=" + log,
         'NEXT="$TARGET.new"',
+        "",
+        'falhou() {',
+        '  # Deixa o motivo onde o hub vai ler, reabre o app antigo e limpa.',
+        '  printf "%s\n" "$1" >> "$LOG" 2>/dev/null',
+        '  rm -rf "$NEXT" "$TARGET/Contents.new" 2>/dev/null',
+        '  open "$TARGET"',
+        '  rm -rf "$STAGING"',
+        '  rm -f "$0"',
+        '  exit 1',
+        '}',
+        "",
+        'rm -f "$LOG" 2>/dev/null',
         "",
         "# Espera o app fechar (ate 120s) para nao trocar arquivos em uso.",
         "i=0",
@@ -322,21 +378,41 @@ def build_updater_sh(new_root: Path, target: Path, staging: Path, pid: int) -> s
         "done",
         "sleep 1",
         "",
-        "# Copia primeiro, remove depois: se o ditto falhar, o app antigo continua la.",
-        'rm -rf "$NEXT"',
-        'if ! ditto "$NEW" "$NEXT"; then',
+        'if [ -w "$(dirname "$TARGET")" ]; then',
+        "  # Metodo 1: bundle irmao. Copia primeiro, remove depois.",
         '  rm -rf "$NEXT"',
-        '  open "$TARGET"',
-        '  rm -rf "$STAGING"',
-        '  rm -f "$0"',
-        "  exit 1",
+        '  if ! ditto "$NEW" "$NEXT" 2>>"$LOG"; then',
+        '    falhou "Nao consegui copiar a versao nova para $(dirname "$TARGET")."',
+        "  fi",
+        '  rm -rf "$TARGET"',
+        '  if ! mv "$NEXT" "$TARGET" 2>>"$LOG"; then',
+        '    falhou "Copiei a versao nova mas nao consegui renomea-la para $TARGET."',
+        "  fi",
+        "else",
+        "  # Metodo 2: a pasta ao lado nao e gravavel (ex.: /Applications sem ser",
+        "  # admin), mas o bundle e do usuario. Troca o Contents/ por dentro.",
+        '  if [ ! -w "$TARGET" ]; then',
+        '    falhou "Sem permissao para escrever em $(dirname "$TARGET") nem dentro de $TARGET. Mova o app para uma pasta sua (por exemplo ~/Applications) ou peca a um administrador."',
+        "  fi",
+        '  rm -rf "$TARGET/Contents.new" "$TARGET/Contents.old"',
+        '  if ! ditto "$NEW/Contents" "$TARGET/Contents.new" 2>>"$LOG"; then',
+        '    falhou "Nao consegui copiar a versao nova para dentro de $TARGET."',
+        "  fi",
+        '  if ! mv "$TARGET/Contents" "$TARGET/Contents.old" 2>>"$LOG"; then',
+        '    falhou "Nao consegui afastar a versao antiga dentro de $TARGET."',
+        "  fi",
+        '  if ! mv "$TARGET/Contents.new" "$TARGET/Contents" 2>>"$LOG"; then',
+        "    # Volta o antigo para o lugar: o usuario nao pode ficar sem app.",
+        '    mv "$TARGET/Contents.old" "$TARGET/Contents" 2>>"$LOG"',
+        '    falhou "Nao consegui ativar a versao nova dentro de $TARGET; a antiga foi mantida."',
+        "  fi",
+        '  rm -rf "$TARGET/Contents.old"',
         "fi",
-        'rm -rf "$TARGET"',
-        'mv "$NEXT" "$TARGET"',
         "",
         "# Zip baixado por navegador vem em quarentena e o macOS recusa abrir.",
         "# O nosso download nao marca, mas isso cobre quem baixou o zip na mao.",
         'xattr -dr com.apple.quarantine "$TARGET" 2>/dev/null',
+        'rm -f "$LOG" 2>/dev/null',
         'open "$TARGET"',
         'rm -rf "$STAGING"',
         'rm -f "$0"',
@@ -349,7 +425,10 @@ def _write_updater_sh(new_root: Path, target: Path, staging: Path, pid: int) -> 
     fd, path = tempfile.mkstemp(prefix="ssk_apply_", suffix=".sh")
     os.close(fd)
     sh_path = Path(path)
-    sh_path.write_text(build_updater_sh(new_root, target, staging, pid), encoding="utf-8")
+    sh_path.write_text(
+        build_updater_sh(new_root, target, staging, pid, update_error_path()),
+        encoding="utf-8",
+    )
     sh_path.chmod(0o755)
     return sh_path
 
