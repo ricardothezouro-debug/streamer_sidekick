@@ -247,7 +247,7 @@ def apply_theme(app: QApplication) -> None:
             padding-top: 4px;
         }}
 
-        QLineEdit, QKeySequenceEdit, QComboBox, QSpinBox {{
+        QLineEdit, QKeySequenceEdit, QComboBox, QSpinBox, QPlainTextEdit {{
             background: #0B111A;
             border: 1px solid #273140;
             border-radius: 8px;
@@ -256,7 +256,8 @@ def apply_theme(app: QApplication) -> None:
             min-height: 20px;
         }}
 
-        QLineEdit:focus, QKeySequenceEdit:focus, QComboBox:focus, QSpinBox:focus {{
+        QLineEdit:focus, QKeySequenceEdit:focus, QComboBox:focus, QSpinBox:focus,
+        QPlainTextEdit:focus {{
             border-color: #37F2FF;
             background: #0D1621;
         }}
