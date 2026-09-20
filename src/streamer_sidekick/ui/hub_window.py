@@ -50,6 +50,7 @@ from streamer_sidekick.ui.counter_editor import CounterPresetDialog
 from streamer_sidekick.ui.components import AddPluginTile, BrandLogo, ModuleCard, NeonPanel, SectionHeader, neon_qicon, plugin_qicon
 from streamer_sidekick.ui.plugin_marketplace import PluginMarketplaceDialog, _CatalogWorker
 from streamer_sidekick.ui.app_update import AppUpdateCheckWorker, AppUpdateDialog, AppUpdatedDialog
+from streamer_sidekick.ui.feedback import FeedbackDialog
 from streamer_sidekick.ui.welcome import WelcomeDialog
 from streamer_sidekick.ui.platinas_page import PlatinasPage
 
@@ -1440,6 +1441,27 @@ class HubWindow(QMainWindow):
         donate_layout.addWidget(donate_text)
         donate_layout.addWidget(donate_button, 0, Qt.AlignmentFlag.AlignLeft)
 
+        feedback_panel = NeonPanel(accent="#37F2FF")
+        feedback_layout = QVBoxLayout(feedback_panel)
+        feedback_layout.setContentsMargins(22, 20, 22, 20)
+        feedback_layout.setSpacing(12)
+        feedback_title = QLabel("Feedback")
+        feedback_title.setObjectName("SectionTitle")
+        feedback_text = QLabel(
+            "Achou um bug, tem uma ideia de plugin ou algo te incomoda? Me conta. "
+            "A versão e os plugins instalados vão junto, para eu conseguir ajudar "
+            "sem ficar perguntando."
+        )
+        feedback_text.setObjectName("Muted")
+        feedback_text.setWordWrap(True)
+        feedback_button = QPushButton("✉  Enviar feedback")
+        feedback_button.setObjectName("PrimaryButton")
+        feedback_button.setCursor(Qt.CursorShape.PointingHandCursor)
+        feedback_button.clicked.connect(self._open_feedback)
+        feedback_layout.addWidget(feedback_title)
+        feedback_layout.addWidget(feedback_text)
+        feedback_layout.addWidget(feedback_button, 0, Qt.AlignmentFlag.AlignLeft)
+
         profile_panel = NeonPanel(accent="#FF4FD8")
         profile_layout = QGridLayout(profile_panel)
         profile_layout.setContentsMargins(22, 20, 22, 20)
@@ -1491,6 +1513,7 @@ class HubWindow(QMainWindow):
 
         layout.addWidget(app_panel)
         layout.addWidget(donate_panel)
+        layout.addWidget(feedback_panel)
         layout.addWidget(profile_panel)
         layout.addStretch(1)
         return self._scrollable_page(page)
@@ -1500,6 +1523,12 @@ class HubWindow(QMainWindow):
 
     def _open_livepix(self) -> None:
         QDesktopServices.openUrl(QUrl("https://livepix.gg/gamoxkun"))
+
+    def _open_feedback(self) -> None:
+        plugins = [
+            (p.name, p.version) for p in self.plugin_manager.installed()
+        ]
+        FeedbackDialog(app_update.current_version(), plugins, parent=self).exec()
 
     def eventFilter(self, watched, event) -> bool:
         if isinstance(watched, QKeySequenceEdit):

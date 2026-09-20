@@ -1,13 +1,13 @@
 {
-  "version": "0.8.6",
-  "zip_url": "https://github.com/ricardothezouro-debug/streamer_sidekick/releases/download/v0.8.6/StreamerSidekick-0.8.6-portable.zip",
-  "notes": "Atualizar ou remover um plugin com o app aberto agora encerra o plugin antigo direito: atalhos globais de plugins (como o do ClipIt) continuam funcionando depois de uma atualização, em vez de morrer até reiniciar.",
+  "version": "0.8.7",
+  "zip_url": "https://github.com/ricardothezouro-debug/streamer_sidekick/releases/download/v0.8.7/StreamerSidekick-0.8.7-portable.zip",
+  "notes": "Novo botão de feedback na aba Sobre: você escreve o assunto e a mensagem, e ele abre o Gmail com o e-mail pronto — a versão e os plugins instalados vão junto, para o suporte não precisar perguntar.",
   "platforms": {
     "windows": {
-      "zip_url": "https://github.com/ricardothezouro-debug/streamer_sidekick/releases/download/v0.8.6/StreamerSidekick-0.8.6-portable.zip"
+      "zip_url": "https://github.com/ricardothezouro-debug/streamer_sidekick/releases/download/v0.8.7/StreamerSidekick-0.8.7-portable.zip"
     },
     "macos": {
-      "zip_url": "https://github.com/ricardothezouro-debug/streamer_sidekick/releases/download/v0.8.6/StreamerSidekick-0.8.6-macos.zip"
+      "zip_url": "https://github.com/ricardothezouro-debug/streamer_sidekick/releases/download/v0.8.7/StreamerSidekick-0.8.7-macos.zip"
     }
   }
 }
