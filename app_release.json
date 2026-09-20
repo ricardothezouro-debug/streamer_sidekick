@@ -1,13 +1,13 @@
 {
-  "version": "0.8.5",
-  "zip_url": "https://github.com/ricardothezouro-debug/streamer_sidekick/releases/download/v0.8.5/StreamerSidekick-0.8.5-portable.zip",
-  "notes": "macOS: a atualização automática passa a funcionar em contas que não são administradoras (o app em /Applications não conseguia se substituir e voltava sempre para a versão antiga). E se uma atualização falhar, o app agora diz o motivo em vez de ficar em silêncio.",
+  "version": "0.8.6",
+  "zip_url": "https://github.com/ricardothezouro-debug/streamer_sidekick/releases/download/v0.8.6/StreamerSidekick-0.8.6-portable.zip",
+  "notes": "Atualizar ou remover um plugin com o app aberto agora encerra o plugin antigo direito: atalhos globais de plugins (como o do ClipIt) continuam funcionando depois de uma atualização, em vez de morrer até reiniciar.",
   "platforms": {
     "windows": {
-      "zip_url": "https://github.com/ricardothezouro-debug/streamer_sidekick/releases/download/v0.8.5/StreamerSidekick-0.8.5-portable.zip"
+      "zip_url": "https://github.com/ricardothezouro-debug/streamer_sidekick/releases/download/v0.8.6/StreamerSidekick-0.8.6-portable.zip"
     },
     "macos": {
-      "zip_url": "https://github.com/ricardothezouro-debug/streamer_sidekick/releases/download/v0.8.5/StreamerSidekick-0.8.5-macos.zip"
+      "zip_url": "https://github.com/ricardothezouro-debug/streamer_sidekick/releases/download/v0.8.6/StreamerSidekick-0.8.6-macos.zip"
     }
   }
 }
