@@ -5,7 +5,7 @@ Sidekick**. Ele é autocontido: entregue este arquivo a uma IA (ou a um dev) jun
 da ideia do plugin e ela terá tudo para produzir algo que instala, aparece no hub
 e combina visualmente com o app.
 
-> **TL;DR** — Um plugin é um repositório público no GitHub, em Python + PySide6,
+> **TL;DR**: um plugin é um repositório público no GitHub, em Python + PySide6,
 > que expõe um módulo com `module_info()` e `build_page()`. O Sidekick baixa o
 > repositório como `.zip`, importa esse módulo e embute a página no hub. O plugin
 > é anunciado no catálogo `plugins.json` do Sidekick.
@@ -23,7 +23,7 @@ e combina visualmente com o app.
    **página** embutida no `QStackedWidget` do hub.
 
 Os dados do usuário do próprio plugin devem ficar em `%APPDATA%` (Windows) /
-`~/Library/Application Support` (macOS) / `~/.config` (Linux) — **nunca** dentro da
+`~/Library/Application Support` (macOS) / `~/.config` (Linux). **Nunca** dentro da
 pasta do plugin (ela é sobrescrita em atualizações).
 
 ---
@@ -65,7 +65,7 @@ def help_text() -> str:
 ### Opcional: `encerrar()` na página
 
 Se o `QWidget` devolvido por `build_page()` tiver um método `encerrar()`, o hub
-o chama **antes de destruir a página** — ao atualizar o plugin com o app
+o chama **antes de destruir a página**: ao atualizar o plugin com o app
 aberto e ao removê-lo pelo marketplace.
 
 É onde você para o que estiver vivo por baixo da página: `QThread`s em
@@ -83,8 +83,8 @@ class MinhaPagina(QWidget):
                 worker.encerrar()   # sinaliza e espera
 ```
 
-Uma exceção dentro de `encerrar()` não derruba o hub — mas o recurso fica
-órfão, então trate os seus.
+Uma exceção dentro de `encerrar()` não derruba o hub, mas o recurso fica
+órfão. Trate os seus.
 
 ### Campos de `module_info()`
 
@@ -95,7 +95,7 @@ Uma exceção dentro de `encerrar()` não derruba o hub — mas o recurso fica
 | `subtitle` | str | Uma linha explicando o que faz. |
 | `status` | str | Texto curto de estado (ex.: `"Pronto"`). |
 | `accent` | str | Cor de destaque em hex (ver paleta). |
-| `icon` | str | *(opcional)* usado pelo Sidekick, não pelo plugin — ver §5. |
+| `icon` | str | *(opcional)* usado pelo Sidekick, não pelo plugin (ver §5). |
 
 Exemplo de `module_info()` resiliente (funciona dentro e fora do Sidekick):
 
@@ -133,7 +133,7 @@ meu-plugin/                      (repositório no GitHub)
       core/                      (config, lógica…)
       ui/                        (páginas, widgets…)
       assets/brand/icon.png      <- ícone do card (ver §5)
-  requirements.txt               (só PySide6, idealmente — ver §7)
+  requirements.txt               (só PySide6, idealmente; ver §7)
   README.md
 ```
 
@@ -192,7 +192,7 @@ disponível** e mostrar o `changelog`.
 - O Sidekick renderiza esse PNG no card e na navegação; sem ele, cai num ícone
   vetorial genérico.
 - Estilo recomendado: traço neon em gradiente ciano→magenta sobre um quadrado
-  arredondado escuro (combina com a identidade — ver paleta).
+  arredondado escuro (combina com a identidade; ver paleta).
 
 ---
 
@@ -266,11 +266,11 @@ ciano→magenta, cantos cortados).
 
 0. **Windows *e* macOS. Sempre.** O Streamer Sidekick é publicado para os dois, e
    um plugin que só funciona num deles não entra no catálogo. Isso não é um
-   "seria bom": é requisito de aceitação. Veja a seção 7.1 — são quatro
+   "seria bom": é requisito de aceitação. Veja a seção 7.1: são quatro
    armadilhas, todas com solução de uma linha.
 1. **PySide6 apenas.** O Sidekick embarca o PySide6; se seu plugin importar QtCore/
    QtGui/QtWidgets, funciona inclusive no app empacotado (portable). **Evite
-   dependências de terceiros** — no build congelado elas não existem e o import
+   dependências de terceiros**: no build congelado elas não existem e o import
    falha. Se precisar de algo além do PySide6 + stdlib, documente e saiba que só
    roda a partir do código-fonte, não do portable.
 2. **Nada de bloquear.** Não faça rede, disco pesado ou `sleep` no import do módulo
@@ -279,12 +279,16 @@ ciano→magenta, cantos cortados).
 3. **Thread-safety.** Callbacks de threads/hotkeys devem voltar à thread da GUI via
    `Signal` antes de mexer em widgets.
 4. **Configuração própria.** Guarde config/estado do plugin no diretório de dados do
-   usuário do SO — não na pasta do plugin (sobrescrita em updates).
+   usuário do SO, não na pasta do plugin (sobrescrita em updates).
 5. **Sem efeitos colaterais na importação.** Não abra janelas, não registre hotkeys
    globais nem inicie processos só por ser importado. Faça isso sob ação do usuário.
 6. **Falhe suave.** Se algo der errado em `build_page()`, levante uma exceção clara
    (o hub isola e mostra uma página de erro em vez de cair).
-7. **Não conflite hotkeys.** Se usar atalhos, deixe-os configuráveis.
+7. **Não conflite hotkeys.** Se usar atalhos, deixe-os configuráveis. Registre pelo
+   backend do Sidekick e remova em `encerrar()`. A seção 7.2 mostra como.
+8. **Credencial fica na máquina.** Chave de API, token de sessão, senha: nunca no
+   repositório, nunca na pasta do plugin, nunca junto das preferências. A seção
+   7.3 mostra onde e como.
 
 
 ### 7.1 As quatro armadilhas de plataforma
@@ -333,12 +337,92 @@ funcionalidade simplesmente não acontece, calada.
 | `Popen(["/Apps/X.app"])` | No macOS um app é uma **pasta**, não um executável | `["open", "-a", caminho]` |
 
 **4. Texto que o usuário lê.** Nada de `C:\...`, `%APPDATA%` ou `.exe` fixos numa
-mensagem — para quem está no Mac isso é mentira. Monte o caminho e mostre o real.
+mensagem. Para quem está no Mac isso é mentira. Monte o caminho e mostre o real.
 
 > **Como testar sem ter os dois computadores:** rode
 > `QT_QPA_PLATFORM=offscreen python -m seu_pacote` no sistema que você tem, e no
 > GitHub Actions use uma matriz `[windows-latest, macos-latest]`. É exatamente o
-> que o Sidekick faz — e foi assim que essas quatro armadilhas apareceram.
+> que o Sidekick faz, e foi assim que essas quatro armadilhas apareceram.
+
+### 7.2 Atalho global de plugin
+
+O Sidekick expõe o backend de atalhos que o Marcador e o Contador usam. Ele já
+resolveu as armadilhas de cada sistema (Carbon no macOS, `keyboard` no Windows).
+Não registre atalho por conta própria.
+
+```python
+try:
+    from streamer_sidekick.core import hotkey_backend
+except ImportError:
+    hotkey_backend = None          # rodando fora do hub: sem atalho
+
+if hotkey_backend and hotkey_backend.is_available():
+    sequencia = hotkey_backend.normalize("Ctrl+Alt+K")
+    hotkey_backend.validate(sequencia)          # levanta se a combinação não serve
+    handle = hotkey_backend.register(sequencia, callback)
+    ...
+    hotkey_backend.unregister(handle)           # em encerrar()
+```
+
+Três coisas que não estão óbvias no código acima:
+
+- **O callback chega fora da thread da GUI.** Faça-o emitir um `Signal` de um
+  `QObject` e conecte o slot ao que precisa mexer em widget. O Qt entrega na
+  thread certa.
+- **Remova em `encerrar()`.** Sem isso o atalho vira zumbi ao atualizar o plugin
+  com o app aberto: no macOS a página nova falha com "já está em uso" (o
+  "outro aplicativo" é o zumbi) e o atalho morre até reiniciar; no Windows viram
+  dois hooks e a ação acontece duas vezes.
+- **O Sidekick não detecta conflito com atalho de plugin.** Se o usuário escolher
+  a mesma tecla do Marcador, os dois disparam. Avise na tela para escolher uma
+  combinação livre.
+
+Para o campo de captura, converta entre a notação do Qt e a do Sidekick com
+`streamer_sidekick.core.hotkey_text` (`from_key_sequence`, `to_key_sequence`).
+No macOS ele troca Ctrl por Cmd, que é o que o usuário espera.
+
+### 7.3 Credenciais
+
+Chave de API, token OAuth, senha. O padrão que o Subtitler e o ClipIt seguem:
+
+- **Arquivo separado** das preferências (`tokens.json`, não `settings.json`), em
+  `user_data_dir("<plugin>")`. Assim uma sincronização ou um backup das
+  preferências nunca leva a credencial junto.
+- **Permissão apertada**: `chmod 0o600` depois de gravar. No Windows o chmod não
+  faz nada e tudo bem, o arquivo já está no perfil do usuário.
+- **Gravação atômica**: escreva num temporário e faça `replace()`. Se faltar
+  energia no meio, o arquivo bom continua lá.
+- **No `.gitignore` do plugin** antes de existir qualquer arquivo com credencial.
+- **OAuth sem segredo no código.** O repositório é público, então um
+  `client_secret` no código é público. Use o fluxo de dispositivo (Device Code)
+  ou PKCE, que não exigem segredo para clientes públicos. O `client_id` pode ir
+  no código: ele viaja em toda requisição e não dá acesso a nada sozinho.
+- **A tela diz o que aquilo dá acesso.** "Cole a chave" não basta. Um token de
+  sessão da PSN dá acesso à conta inteira; uma chave da Groq dá acesso à cota.
+  Quem cola precisa saber o tamanho do que está entregando.
+- **Nunca peça para o usuário mandar a credencial por chat, e-mail ou issue.**
+
+### 7.4 Ler a configuração do hub
+
+O Sidekick lê a própria config com notação de ponto (`config.get("marker.folder")`),
+mas o arquivo é aninhado:
+
+```json
+{"marker": {"folder": "/pasta", "active_file": "wolong.txt"}}
+```
+
+Se o plugin abrir o `config.json` na mão, procure `dados["marker"]["folder"]`.
+A chave literal `"marker.folder"` não existe no arquivo. Prefira, quando puder,
+importar o serviço do Sidekick em vez de ler o arquivo.
+
+### 7.5 Rede fora do hub
+
+A seção 7.1 já manda usar `streamer_sidekick.core.net.urlopen`. O detalhe: se
+o seu plugin tiver um fallback para rodar standalone, no macOS ele só funciona
+com o pacote `certifi` instalado no ambiente. Dentro do hub isso não importa, o
+Sidekick embarca o certifi. Fora dele, documente no README que é preciso
+instalar. Não adicione `certifi` como dependência do plugin: a regra 1 continua
+valendo, e o import tem de ficar dentro de um `try`.
 
 ---
 
@@ -368,13 +452,13 @@ listados num catálogo próprio (`platinas.json`) e exibidos na aba **Platinas**
 dicas e, opcionalmente, imagens.
 
 - **Comece pelo template**: `ricardothezouro-debug/platina-template`. Você edita
-  só o `guide_data.py` (nome do jogo + lista de troféus) — o resto é genérico.
+  só o `guide_data.py` (nome do jogo + lista de troféus). O resto é genérico.
 - **Progresso**: guarde fora da pasta do plugin (o template usa
   `%APPDATA%/StreamerSidekick/platinas/<id>/`), para sobreviver a atualizações.
 - **Imagens**: um troféu/passo pode ter uma URL de imagem (mapa, print de guia,
   CDN). O template baixa e **cacheia em disco** (rápido depois, e offline após a
   1ª vez). Prefira CDNs estáveis para hotlink (ex.: Steam). Atenção a direitos de
-  imagens de terceiros — use com responsabilidade.
+  imagens de terceiros. Use com responsabilidade.
 - **Publicar**: suba o repositório e adicione uma entrada no `platinas.json` do
   Sidekick apontando para ele.
 
@@ -400,4 +484,4 @@ dicas e, opcionalmente, imagens.
 ---
 
 *Referência viva: o plugin **StreamOn** (`ricardothezouro-debug/StreamOn`) segue
-este padrão e serve de exemplo real — veja o `src/stream_ligar/module.py`.*
+este padrão e serve de exemplo real. Veja o `src/stream_ligar/module.py`.*
