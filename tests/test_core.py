@@ -1,5 +1,6 @@
 """Testes de unidade da lógica pura (rodam sem display, rápidos no CI)."""
 import json
+import sys
 from pathlib import Path
 
 from streamer_sidekick.core import app_update, hotkey_backend
@@ -756,3 +757,130 @@ def test_favoritos_aproveitam_a_largura_quando_ela_existe():
     assert favorite_columns(2 * 260 + 16, 260, 16) == 2
     assert favorite_columns(100, 260, 16) == 1  # nunca zero: um card cortado
     assert favorite_columns(0, 260, 16) == 1
+
+
+# --- O updater do macOS rodando de verdade ----------------------------------
+
+
+def _bundle_falso(raiz: Path, versao: str) -> Path:
+    """Um .app minimo, com o suficiente para o script agir e o teste conferir."""
+    app = raiz / "Streamer Sidekick.app"
+    (app / "Contents" / "MacOS").mkdir(parents=True)
+    (app / "Contents" / "Info.plist").write_text(versao, encoding="utf-8")
+    (app / "Contents" / "MacOS" / "StreamerSidekick").write_text("#!/bin/sh\n", encoding="utf-8")
+    return app
+
+
+def _rodar_updater(tmp_path: Path, pai_gravavel: bool):
+    """Gera o script como o app gera e o executa com um `open` inofensivo."""
+    import os
+    import stat
+    import subprocess
+
+    staging = tmp_path / "stg"
+    novo = _bundle_falso(staging, "0.8.4")
+
+    instalado_em = tmp_path / "Applications"
+    alvo = _bundle_falso(instalado_em, "0.8.2")
+    if not pai_gravavel:
+        # /Applications numa conta nao-admin: o bundle e seu, a pasta nao.
+        instalado_em.chmod(stat.S_IRUSR | stat.S_IXUSR)
+
+    # `open` de verdade tentaria abrir um app inexistente; um falso basta.
+    binarios = tmp_path / "bin"
+    binarios.mkdir()
+    (binarios / "open").write_text("#!/bin/sh\nexit 0\n", encoding="utf-8")
+    (binarios / "open").chmod(0o755)
+
+    log = tmp_path / "update_error.log"
+    script = tmp_path / "apply.sh"
+    script.write_text(
+        app_update.build_updater_sh(novo, alvo, staging, 999999, log), encoding="utf-8"
+    )
+    ambiente = dict(os.environ, PATH=f"{binarios}:{os.environ.get('PATH', '')}")
+    resultado = subprocess.run(
+        ["/bin/sh", str(script)], env=ambiente, capture_output=True, text=True, timeout=60
+    )
+    if not pai_gravavel:
+        instalado_em.chmod(0o755)  # deixa o pytest limpar
+    return resultado, alvo, log, staging
+
+
+def test_updater_macos_atualiza_mesmo_sem_poder_escrever_ao_lado(tmp_path: Path):
+    """O caso que prendeu um usuario na 0.8.2.
+
+    /Applications e root:admin; numa conta que nao e admin nao da para criar
+    o bundle irmao. Mas o .app e do usuario, entao a troca acontece por dentro.
+    """
+    if sys.platform != "darwin":
+        return  # precisa do ditto e do /bin/sh do macOS
+
+    resultado, alvo, log, staging = _rodar_updater(tmp_path, pai_gravavel=False)
+
+    assert resultado.returncode == 0, resultado.stderr
+    assert (alvo / "Contents" / "Info.plist").read_text() == "0.8.4"
+    assert not (alvo / "Contents.old").exists(), "sobra da versao antiga"
+    assert not (alvo / "Contents.new").exists()
+    assert not log.exists(), "sucesso nao deixa relato de erro"
+    assert not staging.exists(), "o staging tem de ser limpo"
+
+
+def test_updater_macos_prefere_o_bundle_irmao_quando_pode(tmp_path: Path):
+    if sys.platform != "darwin":
+        return
+
+    resultado, alvo, log, _ = _rodar_updater(tmp_path, pai_gravavel=True)
+
+    assert resultado.returncode == 0, resultado.stderr
+    assert (alvo / "Contents" / "Info.plist").read_text() == "0.8.4"
+    assert not (alvo.parent / "Streamer Sidekick.app.new").exists()
+    assert not log.exists()
+
+
+def test_updater_macos_falha_deixa_o_motivo_e_o_app_antigo_inteiro(tmp_path: Path):
+    """A falha era muda: reabria o antigo e apagava os rastros. Agora fala."""
+    if sys.platform != "darwin":
+        return
+    import os
+    import stat
+    import subprocess
+
+    staging = tmp_path / "stg"
+    novo = _bundle_falso(staging, "0.8.4")
+    instalado_em = tmp_path / "Applications"
+    alvo = _bundle_falso(instalado_em, "0.8.2")
+    # Nem a pasta nem o bundle sao gravaveis: nao ha o que fazer sem admin.
+    alvo.chmod(stat.S_IRUSR | stat.S_IXUSR)
+    instalado_em.chmod(stat.S_IRUSR | stat.S_IXUSR)
+
+    binarios = tmp_path / "bin"
+    binarios.mkdir()
+    (binarios / "open").write_text("#!/bin/sh\nexit 0\n", encoding="utf-8")
+    (binarios / "open").chmod(0o755)
+    log = tmp_path / "update_error.log"
+    script = tmp_path / "apply.sh"
+    script.write_text(
+        app_update.build_updater_sh(novo, alvo, staging, 999999, log), encoding="utf-8"
+    )
+    resultado = subprocess.run(
+        ["/bin/sh", str(script)],
+        env=dict(os.environ, PATH=f"{binarios}:{os.environ.get('PATH', '')}"),
+        capture_output=True, text=True, timeout=60,
+    )
+    instalado_em.chmod(0o755)
+    alvo.chmod(0o755)
+
+    assert resultado.returncode == 1
+    assert (alvo / "Contents" / "Info.plist").read_text() == "0.8.2", "o antigo tem de sobreviver"
+    relato = log.read_text(encoding="utf-8")
+    assert "Sem permissao" in relato
+    assert "~/Applications" in relato, "o relato diz o que fazer"
+
+
+def test_take_update_error_le_e_apaga(tmp_path: Path, monkeypatch):
+    log = tmp_path / "update_error.log"
+    monkeypatch.setattr(app_update, "update_error_path", lambda: log)
+    assert app_update.take_update_error() is None
+    log.write_text("  deu ruim  \n", encoding="utf-8")
+    assert app_update.take_update_error() == "deu ruim"
+    assert not log.exists(), "mostrar uma vez, nao toda abertura"
