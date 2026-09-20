@@ -1,0 +1,36 @@
+name: Nuvem viva
+
+# O plano gratuito do Supabase pausa o projeto depois de 7 dias sem nenhuma
+# requisicao. Duas chamadas por semana bastam para nao pausar. O uso real dos
+# usuarios tambem conta; isto e so a rede de seguranca.
+#
+# Atencao: o GitHub desliga workflows agendados em repositorios sem commit
+# por 60 dias. Se o projeto pausar mesmo assim, e so restaurar no painel.
+
+on:
+  schedule:
+    - cron: "0 9 * * 1,4"   # segunda e quinta, 09:00 UTC
+  workflow_dispatch:
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Uma consulta minima na API
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
+        run: |
+          if [ -z "$SUPABASE_URL" ] || [ -z "$SUPABASE_ANON_KEY" ]; then
+            echo "Faltam os secrets SUPABASE_URL e SUPABASE_ANON_KEY no repositorio."
+            exit 1
+          fi
+          codigo=$(curl -s -o /dev/null -w '%{http_code}' \
+            -H "apikey: $SUPABASE_ANON_KEY" \
+            "$SUPABASE_URL/rest/v1/profiles?select=id&limit=1")
+          echo "HTTP $codigo"
+          # 200 (com RLS devolve lista vazia) ou 401 servem: o projeto respondeu.
+          case "$codigo" in
+            200|401|403) exit 0 ;;
+            *) echo "O projeto nao respondeu como esperado (pausado?)"; exit 1 ;;
+          esac
