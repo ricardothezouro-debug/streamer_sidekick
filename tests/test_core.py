@@ -925,3 +925,83 @@ def test_hub_tolera_plugin_sem_encerrar_e_encerrar_que_estoura():
             raise RuntimeError("boom")
 
     HubWindow._descarregar_pagina_de_plugin(Explosiva())  # nao propaga
+
+
+# --- Feedback ----------------------------------------------------------------
+
+
+def test_feedback_gmail_url_leva_destinatario_assunto_e_contexto():
+    from urllib.parse import parse_qs, urlparse
+
+    from streamer_sidekick.core import feedback
+
+    url = feedback.gmail_url("Bug no Marcador", "Apertei F2 e nada.", "0.8.7",
+                             [("ClipIt", "1.0.0"), ("Subtitler", "1.0.2")])
+    partes = urlparse(url)
+    assert partes.netloc == "mail.google.com"
+    campos = parse_qs(partes.query)
+    assert campos["to"] == ["streamersidekick@gmail.com"]
+    assert campos["su"] == ["Bug no Marcador"]
+    corpo = campos["body"][0]
+    assert corpo.startswith("Apertei F2 e nada.")
+    assert "Versão: 0.8.7" in corpo
+    assert "ClipIt 1.0.0, Subtitler 1.0.2" in corpo
+    assert campos["view"] == ["cm"], "view=cm e o que abre a tela de escrever"
+
+
+def test_feedback_acento_e_quebra_de_linha_sobrevivem_a_url():
+    """Sem URL-encode, um 'ã' ou um Enter quebram a URL e o e-mail chega torto."""
+    from urllib.parse import parse_qs, urlparse
+
+    from streamer_sidekick.core import feedback
+
+    mensagem = "Não funciona.\nLinha dois: ação & reação."
+    url = feedback.gmail_url("Título", mensagem, "0.8.7")
+    assert " " not in url and "\n" not in url
+    corpo = parse_qs(urlparse(url).query)["body"][0]
+    assert mensagem in corpo
+
+
+def test_feedback_sem_assunto_usa_o_padrao_e_sem_plugins_diz_nenhum():
+    from urllib.parse import parse_qs, urlparse
+
+    from streamer_sidekick.core import feedback
+
+    url = feedback.gmail_url("", "", "0.8.7", [])
+    campos = parse_qs(urlparse(url).query)
+    assert campos["su"] == [feedback.ASSUNTO_PADRAO]
+    assert "Plugins: nenhum" in campos["body"][0]
+
+
+def test_feedback_mensagem_enorme_e_cortada_mas_o_contexto_fica():
+    """Navegador corta URL longa em silencio; melhor cortar a mensagem a
+    perder a versao e os plugins, que sao o que permite agir."""
+    from urllib.parse import parse_qs, urlparse
+
+    from streamer_sidekick.core import feedback
+
+    url = feedback.gmail_url("x", "ação " * 2000, "0.8.7", [("ClipIt", "1.0.0")])
+    assert len(url) <= feedback.LIMITE_URL + 50
+    corpo = parse_qs(urlparse(url).query)["body"][0]
+    assert "…" in corpo
+    assert "Versão: 0.8.7" in corpo and "ClipIt 1.0.0" in corpo
+
+
+def test_feedback_mailto_e_alternativa_para_quem_nao_usa_gmail():
+    from streamer_sidekick.core import feedback
+
+    url = feedback.mailto_url("Oi", "Tudo certo", "0.8.7")
+    assert url.startswith("mailto:streamersidekick@gmail.com?")
+    assert "subject=Oi" in url and "Vers%C3%A3o" in url
+
+
+def test_feedback_dialog_monta_e_mostra_o_contexto():
+    from streamer_sidekick.ui.feedback import FeedbackDialog
+
+    _app_qt()
+    dlg = FeedbackDialog("0.8.7", [("ClipIt", "1.0.0")])
+    assert dlg.subject.placeholderText() == "Assunto"
+    textos = [w.text() for w in dlg.findChildren(type(dlg.subject).__mro__[0].__base__)] if False else []
+    from PySide6.QtWidgets import QLabel
+    labels = " ".join(l.text() for l in dlg.findChildren(QLabel))
+    assert "0.8.7" in labels and "ClipIt 1.0.0" in labels, "o usuario ve o que vai junto"
