@@ -107,6 +107,58 @@ Os guias existentes (`Assistente-de-platina-Dredge`, `Guia-de-Platina-Wolong`,
 referência **visual** — os quatro já têm o topo em três níveis. Não copie a
 estrutura deles — o jogo é outro.
 
+### Guias não lineares e jogos de mundo aberto
+
+Não transforme todo jogo numa sequência de passos. Quando a ordem for livre, o
+guia deve funcionar como uma rede de segurança e não como um corredor.
+
+- Organize o conteúdo pelos eixos que realmente ajudam naquele jogo. Regiões,
+  capítulos, sistemas paralelos e tipos de atividade podem coexistir.
+- Deixe o usuário marcar o próprio avanço. A tela inicial deve usar esse estado
+  para mostrar o que está disponível, o que ainda está pendente e o que precisa
+  ser resolvido antes de continuar.
+- Crie **portões de segurança** antes de missões, capítulos ou ações que mudem o
+  mundo. Cada portão deve reunir numa lista curta todos os perdíveis ainda
+  abertos, mesmo quando eles pertencem a regiões diferentes.
+- Preserve a liberdade de exploração. Uma ordem recomendada pode existir, mas
+  só deve ser obrigatória quando houver uma dependência real.
+- Prefira blocos compactos com resumo e progresso agregado. Detalhes, escolhas,
+  listas grandes e explicações ficam recolhidos até o usuário pedir para vê-los.
+
+### Tags, spoilers e conteúdo perdível
+
+Tags são informação funcional, não apenas decoração. Elas precisam ter texto,
+contraste e significado consistentes em todas as telas.
+
+- `PERDÍVEL` fica sempre visível. Nunca esconda a existência de um risco atrás
+  de um spoiler.
+- `SPOILER` esconde somente a informação sensível. O conteúdo aparece ao clicar
+  na tag ou no controle associado.
+- Um item pode combinar tags, por exemplo `PERDÍVEL` e `SPOILER`.
+- Ofereça uma ação global para revelar ou esconder todos os spoilers da página,
+  sem mudar o padrão inicial de conteúdo recolhido.
+- Se uma escolha não ameaça a platina, as opções e recompensas podem aparecer
+  dentro do spoiler.
+- Se uma escolha pode bloquear a platina, mostre diretamente a ação segura. Não
+  apresente uma opção perigosa como se tivesse o mesmo peso. A explicação da
+  consequência pode continuar protegida por spoiler.
+- Quando fizer sentido, classifique atividades como `NECESSÁRIA`, `ÚTIL`,
+  `OPCIONAL` ou `PODE IGNORAR`. A interface principal deve destacar o necessário
+  e agrupar o restante para não virar uma lista poluída.
+
+### Estilo editorial
+
+O texto do guia deve parecer escrito e revisado por alguém que conhece o jogo.
+
+- Escreva em português do Brasil, com frases diretas e vocabulário natural.
+- Use o nome oficial em português e, quando ajudar na busca, acrescente o nome
+  em inglês entre parênteses.
+- Não use travessões como muleta de ritmo. Prefira ponto, vírgula, dois-pontos ou
+  parênteses.
+- Corte introduções genéricas, repetições e adjetivos promocionais. Diga o que o
+  jogador precisa fazer, quando fazer e por que aquilo importa.
+- Faça uma revisão humana de clareza e consistência antes de publicar.
+
 ## 3. Canalização de plataforma
 
 A única parte que não varia, e a que quebra se você improvisar.
@@ -129,6 +181,11 @@ from streamer_sidekick.core import net
 with net.urlopen(requisicao, timeout=20) as resposta:
     dados = resposta.read()
 ```
+
+**Cache de imagens.** Conteúdo visual remoto deve ser salvo na pasta de dados do
+guia depois do primeiro download. Nas próximas aberturas, use a cópia local e
+atualize-a somente quando necessário. Se a rede falhar, mantenha a imagem já
+armazenada e mostre um estado compreensível quando ainda não houver cache.
 
 Ambos exigem `"min_sidekick_version": "0.7.1"` no catálogo.
 
@@ -160,6 +217,25 @@ Mais a lista de troféus. Cada um precisa de um **`id` estável** — é a chave
 progresso salvo; se você renumerar entre versões, o usuário perde o que marcou.
 Junto disso vêm nome, tier, dica e, quando ajudar, uma URL de imagem (prefira CDN
 estável para hotlink, como a da Steam).
+
+Itens acompanháveis além dos troféus também precisam de IDs estáveis. Para um
+guia com exploração livre, o modelo deve conseguir representar, quando
+aplicável:
+
+- região, capítulo ou sistema a que o item pertence;
+- momento em que fica disponível e prazo máximo;
+- pré-requisitos e dependências;
+- ação que conclui, bloqueia ou falha o item;
+- relevância para a platina;
+- tags funcionais, inclusive `PERDÍVEL` e `SPOILER`;
+- escolhas, recompensas e texto protegido por spoiler;
+- troféus, colecionáveis ou outros objetivos relacionados;
+- imagem e texto alternativo;
+- estado marcado manualmente pelo usuário.
+
+Modele também os portões de segurança como dados. Não espalhe prazos críticos
+somente em textos da interface. Isso permite calcular pendências, montar o painel
+da fase atual e testar se um avanço perigoso está sendo avisado.
 
 **A partir daí, modele o que o jogo exigir**: rotas, coletáveis por região,
 receitas, ordem de chefes, o que for. Essas estruturas são o valor do guia.
@@ -228,6 +304,14 @@ O guia aparece na aba **Platinas** para instalar. Ao subir uma versão, bump o
 > - Siga a estética da aba Platinas (`NeonPanel`, `PageTitle`, `SectionTitle`,
 >   `Muted`, `StatusPill`, `PageScroll`, cores de tier), sem estilo inline
 >   concorrendo com o tema.
+> - Para jogos não lineares, preserve a exploração livre e use estado marcado
+>   pelo usuário, portões de segurança e alertas de perdíveis.
+> - Use tags combináveis. `PERDÍVEL` fica sempre visível; `SPOILER` revela o
+>   conteúdo sob demanda, com uma ação global por página.
+> - Classifique o conteúdo por relevância e mantenha a interface principal
+>   focada no que é necessário para a platina.
+> - Escreva em português do Brasil natural e revisado. Não use travessões como
+>   recurso de estilo nem encha o texto com introduções genéricas.
 > - **Desenhe a estrutura que ESTE jogo pede.** Não clone o formato de outro
 >   guia: escolha as abas e o modelo de dados a partir do que a platina deste
 >   jogo realmente exige — rota, coletáveis, chefes, receitas, o que for.
