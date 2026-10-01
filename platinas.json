@@ -51,6 +51,20 @@
       "accent": "#3E6BE8",
       "min_sidekick_version": "0.7.1",
       "changelog": "Topo com movimento: as trocas de nível agora deslizam (o conteúdo desce e o cabeçalho abre como cortina, a 60 fps), o balão de progresso nasce sobre a barra e voa até o lugar dele; o brilho da bolinha ficou redondo; e o rodapé virou um \"?\"."
+    },
+    {
+      "id": "witcher3-base",
+      "name": "The Witcher 3: Wild Hunt, platina do jogo base",
+      "description": "Guia PT-BR para uma campanha na Marcha da Morte, com portões de segurança, escolhas perdíveis, Gwent por região e as 53 conquistas do jogo base no PS5 Remastered.",
+      "repo": "ricardothezouro-debug/Platina-The-Witcher-3",
+      "ref": "main",
+      "version": "1.0.0",
+      "src_subdir": "src",
+      "module": "platina_witcher3.module",
+      "accent": "#37F2FF",
+      "icon": "assets/icon.png",
+      "min_sidekick_version": "0.7.1",
+      "changelog": "Primeira versão: os 8 pontos sem volta do jogo base com tudo que morre em cada um, as 7 cartas de Gwent sem segunda chance e as 11 que têm resgate, os 24 Locais de Poder com foto, os 25 contratos com onde começar, o que o patch Remastered mudou e os 53 troféus."
     }
   ]
 }
