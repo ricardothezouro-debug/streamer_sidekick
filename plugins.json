@@ -6,12 +6,12 @@
       "description": "Abre seus apps e painéis de live (OBS, dashboards e o que você configurar) em um clique, na ordem certa.",
       "repo": "ricardothezouro-debug/StreamOn",
       "ref": "main",
-      "version": "1.1.0",
+      "version": "1.1.1",
       "src_subdir": "src",
       "module": "stream_ligar.module",
       "accent": "#37F2FF",
       "icon": "src/stream_ligar/assets/brand/app_icon.png",
-      "changelog": "Passa a funcionar no macOS: abrir programas, links e o Chrome (com perfis) parou de quebrar fora do Windows, e a configuração agora fica na pasta certa do sistema.",
+      "changelog": "Ícone novo em pixel-art, no visual Sidekick OS do hub: o botão de ligar.",
       "min_sidekick_version": "0.4.0"
     },
     {
@@ -20,12 +20,12 @@
       "description": "Transforma vídeo ou áudio em legendas prontas: SRT, VTT e TXT, com os tempos certos.",
       "repo": "ricardothezouro-debug/Subtitler",
       "ref": "main",
-      "version": "1.0.2",
+      "version": "1.0.3",
       "src_subdir": "src",
       "module": "subtitler.module",
       "accent": "#FF4FD8",
       "icon": "src/subtitler/assets/brand/app_icon.png",
-      "changelog": "Conserta o cache que ignorava as opções: trocar de modelo ou de idioma e mandar rodar de novo devolvia o resultado antigo em segundos. Vídeo com jogo ou música ao fundo agora encontra as pausas para dividir o áudio, o que reduz frase repetida e fala perdida. E o áudio temporário deixa de ficar no disco.",
+      "changelog": "Ícone novo em pixel-art, no visual Sidekick OS do hub: a tela com as linhas de legenda.",
       "min_sidekick_version": "0.8.0"
     },
     {
@@ -34,12 +34,12 @@
       "description": "Cria o clipe na Twitch por atalho, no meio do jogo, e guarda o link junto da sua marcação. Depois da live, a pauta de cortes já está pronta.",
       "repo": "ricardothezouro-debug/ClipIt",
       "ref": "main",
-      "version": "1.0.0",
+      "version": "1.0.1",
       "src_subdir": "src",
       "module": "clipit.module",
       "accent": "#9146FF",
       "icon": "src/clipit/assets/brand/app_icon.png",
-      "changelog": "Versão oficial: testado ao vivo na Twitch. Ícone novo, no visual do hub. Clipe por atalho global, marcação com o link, e a pauta de cortes com triagem.",
+      "changelog": "Ícone novo em pixel-art, no visual Sidekick OS do hub: a claquete com o play.",
       "min_sidekick_version": "0.8.0"
     }
   ]
