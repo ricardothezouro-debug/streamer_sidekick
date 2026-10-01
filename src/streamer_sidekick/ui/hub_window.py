@@ -47,7 +47,19 @@ from streamer_sidekick.modules.counter.overlay import CounterOverlay
 from streamer_sidekick.modules.counter.service import CounterService
 from streamer_sidekick.modules.marker.service import MarkerService
 from streamer_sidekick.ui.counter_editor import CounterPresetDialog
-from streamer_sidekick.ui.components import AddPluginTile, BrandLogo, ModuleCard, NeonPanel, SectionHeader, neon_qicon, plugin_qicon
+from streamer_sidekick.ui import tokens
+from streamer_sidekick.ui.components import (
+    AddPluginTile,
+    BrandLogo,
+    ModuleCard,
+    NeonPanel,
+    SectionHeader,
+    StatusChip,
+    SynthHero,
+    nav_qicon,
+    neon_qicon,
+    plugin_qicon,
+)
 from streamer_sidekick.ui.plugin_marketplace import PluginMarketplaceDialog, _CatalogWorker
 from streamer_sidekick.ui.app_update import AppUpdateCheckWorker, AppUpdateDialog, AppUpdatedDialog
 from streamer_sidekick.ui.feedback import FeedbackDialog
@@ -161,8 +173,11 @@ class HubWindow(QMainWindow):
         self.platinas_page: Optional[PlatinasPage] = None
         # --- Dashboard do Início ---
         self._latest_release: object = None  # AppRelease quando há update
+        self._nav_icon_ids: dict[str, str] = {}  # page_id -> ícone (acende no item ativo)
+        self.home_favorites_panel: Optional[NeonPanel] = None
         self.home_update_panel: Optional[NeonPanel] = None
         self.home_update_label: Optional[QLabel] = None
+        self.home_update_chip: Optional[StatusChip] = None
         self.home_update_button: Optional[QPushButton] = None
         self.home_favorites_grid: Optional[QGridLayout] = None
         self.home_favorite_cards: list[ModuleCard] = []
@@ -258,8 +273,9 @@ class HubWindow(QMainWindow):
         ]:
             button = QPushButton(label)
             button.setObjectName("NavButton")
-            button.setIcon(neon_qicon(icon_id, 22))
+            button.setIcon(nav_qicon(icon_id, False, 22))
             button.setIconSize(QSize(22, 22))
+            self._nav_icon_ids[page_id] = icon_id
             button.setCursor(Qt.PointingHandCursor)
             if page_id == "plugins":
                 button.clicked.connect(self._toggle_plugins_menu)
@@ -281,9 +297,18 @@ class HubWindow(QMainWindow):
         scroll.setWidget(nav)
         outer.addWidget(scroll, 1)
 
-        footer = QLabel(f"Online\nBase modular v{app_update.current_version()}")
-        footer.setObjectName("Muted")
-        outer.addWidget(footer)
+        status = QLabel("ONLINE")
+        status.setObjectName("SidebarStatus")
+        status.setStyleSheet(f"color: {tokens.hex_('success')};")
+        version = QLabel(f"v{app_update.current_version()}")
+        version.setObjectName("SidebarStatus")
+        version.setToolTip("Versão do Streamer Sidekick")
+        footer = QVBoxLayout()
+        footer.setContentsMargins(6, 0, 0, 0)
+        footer.setSpacing(0)
+        footer.addWidget(status)
+        footer.addWidget(version)
+        outer.addLayout(footer)
         return sidebar
 
     def _build_plugin_subnav(self) -> QWidget:
@@ -301,8 +326,9 @@ class HubWindow(QMainWindow):
         ]:
             button = QPushButton(label)
             button.setObjectName("SubNavButton")
-            button.setIcon(neon_qicon(icon_id, 18))
-            button.setIconSize(QSize(18, 18))
+            button.setIcon(nav_qicon(icon_id, False, 20))
+            button.setIconSize(QSize(20, 20))
+            self._nav_icon_ids[page_id] = icon_id
             button.setCursor(Qt.PointingHandCursor)
             button.clicked.connect(lambda checked=False, item=page_id: self._select_page(item))
             self.plugin_nav_buttons[page_id] = button
@@ -463,31 +489,10 @@ class HubWindow(QMainWindow):
         page = QWidget()
         layout = QVBoxLayout(page)
         layout.setContentsMargins(0, 0, 22, 0)
-        layout.setSpacing(20)
+        layout.setSpacing(24)
 
-        hero = NeonPanel(accent="#37F2FF", grid=False)
-        hero_layout = QGridLayout(hero)
-        hero_layout.setContentsMargins(28, 22, 28, 22)
-        hero_layout.setHorizontalSpacing(24)
-        hero_layout.setVerticalSpacing(8)
-        hero_logo = BrandLogo()
-        hero_title = QLabel("Bem-vindo ao seu hub de live")
-        hero_title.setObjectName("PageTitle")
-        hero_title.setWordWrap(True)
-        hero_subtitle = QLabel("Um resumo rápido: atualizações, favoritos e o que há de novo.")
-        hero_subtitle.setObjectName("Muted")
-        hero_subtitle.setWordWrap(True)
-        hero_layout.addWidget(hero_logo, 0, 0, Qt.AlignmentFlag.AlignLeft)
-        hero_layout.addWidget(hero_title, 1, 0)
-        hero_layout.addWidget(hero_subtitle, 2, 0)
-        hero_layout.setColumnStretch(0, 1)
-        layout.addWidget(hero)
-
-        layout.addWidget(self._home_quick_actions())
-        layout.addWidget(self._home_update_card())
-        layout.addWidget(SectionHeader("01", "Favoritos"))
+        layout.addWidget(self._home_header())
         layout.addWidget(self._home_favorites_section())
-        layout.addWidget(SectionHeader("02", "Últimas atualizações"))
         layout.addWidget(self._home_releases_section())
         layout.addStretch(1)
 
@@ -495,72 +500,81 @@ class HubWindow(QMainWindow):
         self._refresh_home_update_card()
         return self._scrollable_page(page)
 
-    def _home_quick_actions(self) -> QWidget:
-        panel = NeonPanel(accent="#B9FF43", grid=False)
-        row = QHBoxLayout(panel)
-        row.setContentsMargins(18, 14, 18, 14)
-        row.setSpacing(12)
-        label = QLabel("Ações rápidas")
-        label.setObjectName("SectionTitle")
-        row.addWidget(label)
-        row.addStretch(1)
+    def _home_header(self) -> QWidget:
+        """Título + estado da versão + ações; a arte synthwave fica ao lado, não acima.
+
+        O logo já está na barra lateral, então não se repete aqui (DESIGN.md).
+        """
+        header = QWidget()
+        row = QHBoxLayout(header)
+        row.setContentsMargins(0, 0, 0, 0)
+        row.setSpacing(24)
+
+        left = QVBoxLayout()
+        left.setSpacing(12)
+        title = QLabel("Início")
+        title.setObjectName("PageTitle")
+
+        status_row = QHBoxLayout()
+        status_row.setSpacing(10)
+        self.home_update_chip = StatusChip("Verificando atualizações…", "neutral")
+        self.home_update_button = QPushButton("Atualizar agora")
+        self.home_update_button.setIcon(neon_qicon("update", 16, "ink"))
+        self.home_update_button.setCursor(Qt.PointingHandCursor)
+        self.home_update_button.clicked.connect(self._open_home_update_dialog)
+        self.home_update_button.setVisible(False)
+        status_row.addWidget(self.home_update_chip, 0)
+        status_row.addWidget(self.home_update_button, 0)
+        status_row.addStretch(1)
+
+        actions = QHBoxLayout()
+        actions.setSpacing(10)
         mark = QPushButton("Marcar agora")
         mark.setObjectName("PrimaryButton")
         mark.clicked.connect(self._open_quick_marker)
         new_game = QPushButton("Novo jogo")
         new_game.clicked.connect(self._open_new_game_dialog)
         check = QPushButton("Verificar atualização")
+        check.setObjectName("GhostButton")
         check.clicked.connect(self._home_check_update)
         for button in (mark, new_game, check):
             button.setCursor(Qt.PointingHandCursor)
-            row.addWidget(button)
-        return panel
+            actions.addWidget(button)
+        actions.addStretch(1)
 
-    def _home_update_card(self) -> QWidget:
-        panel = NeonPanel(accent="#FF4FD8", grid=False)
-        self.home_update_panel = panel
-        row = QHBoxLayout(panel)
-        row.setContentsMargins(18, 14, 18, 14)
-        row.setSpacing(14)
-        self.home_update_label = QLabel("Verificando atualizações…")
-        self.home_update_label.setObjectName("Muted")
-        self.home_update_label.setWordWrap(True)
-        self.home_update_button = QPushButton("Atualizar agora")
-        self.home_update_button.setObjectName("PrimaryButton")
-        self.home_update_button.setCursor(Qt.PointingHandCursor)
-        self.home_update_button.clicked.connect(self._open_home_update_dialog)
-        self.home_update_button.setVisible(False)
-        row.addWidget(self.home_update_label, 1)
-        row.addWidget(self.home_update_button, 0)
-        return panel
+        left.addWidget(title)
+        left.addLayout(status_row)
+        left.addSpacing(6)
+        left.addLayout(actions)
+        left.addStretch(1)
+
+        hero = SynthHero(height=150)
+        hero.setMaximumWidth(520)
+        row.addLayout(left, 1)
+        row.addWidget(hero, 1, Qt.AlignmentFlag.AlignTop)
+        return header
 
     def _home_check_update(self) -> None:
-        if self.home_update_label is not None:
-            self.home_update_label.setText("Verificando atualizações…")
+        if self.home_update_chip is not None:
+            self.home_update_chip.set_text("Verificando atualizações…", "neutral")
         if self.home_update_button is not None:
             self.home_update_button.setVisible(False)
         self._check_app_update_async(auto=False)
 
     def _refresh_home_update_card(self) -> None:
-        if self.home_update_label is None:
+        if self.home_update_chip is None:
             return
         release = self._latest_release
         version = getattr(release, "version", None)
         if release is not None and version:
-            headline = ""
+            self.home_update_chip.set_text(f"Atualização v{version} disponível", "info")
             notes = (getattr(release, "notes", "") or "").strip().splitlines()
-            if notes:
-                headline = notes[0].strip()
-            text = f"🔔  Atualização v{version} disponível."
-            if headline:
-                text += f"  {headline}"
-            self.home_update_label.setText(text)
+            self.home_update_chip.setToolTip(notes[0].strip() if notes else "")
             if self.home_update_button is not None:
                 self.home_update_button.setVisible(True)
         else:
-            self.home_update_label.setText(
-                f"✓  Você está na versão mais recente (v{app_update.current_version()})."
-            )
+            self.home_update_chip.set_text(f"Atualizado · v{app_update.current_version()}", "ok")
+            self.home_update_chip.setToolTip("Você está na versão mais recente.")
             if self.home_update_button is not None:
                 self.home_update_button.setVisible(False)
 
@@ -574,9 +588,10 @@ class HubWindow(QMainWindow):
     # ---- Início: favoritos ---------------------------------------------
 
     def _home_favorites_section(self) -> QWidget:
-        panel = NeonPanel(accent="#37F2FF", grid=False)
+        panel = NeonPanel(title="Favoritos", meta=f"0/{MAX_FAVORITOS}")
+        self.home_favorites_panel = panel
         outer = QVBoxLayout(panel)
-        outer.setContentsMargins(18, 16, 18, 16)
+        outer.setContentsMargins(16, 14, 16, 16)
         outer.setSpacing(12)
 
         header = QHBoxLayout()
@@ -584,6 +599,7 @@ class HubWindow(QMainWindow):
         hint.setObjectName("Muted")
         hint.setWordWrap(True)
         manage = QPushButton("Gerenciar favoritos")
+        manage.setObjectName("GhostButton")
         manage.setCursor(Qt.PointingHandCursor)
         manage.clicked.connect(self._open_favorites_dialog)
         header.addWidget(hint, 1)
@@ -658,6 +674,8 @@ class HubWindow(QMainWindow):
         valid = [fid for fid in stored if fid in lookup][:MAX_FAVORITOS]
         if valid != stored:  # limpa ids órfãos (plugin removido, etc.)
             self.config.set("hub.favorites", valid)
+        if self.home_favorites_panel is not None:
+            self.home_favorites_panel.set_meta(f"{len(valid)}/{MAX_FAVORITOS}")
 
         if not valid:
             empty = QLabel("Nenhum favorito ainda. Clique em “Gerenciar favoritos”.")
@@ -725,9 +743,9 @@ class HubWindow(QMainWindow):
     # ---- Início: últimas atualizações (releases do GitHub) -------------
 
     def _home_releases_section(self) -> QWidget:
-        panel = NeonPanel(accent="#B9FF43", grid=False)
+        panel = NeonPanel(title="Últimas atualizações", meta="GitHub")
         outer = QVBoxLayout(panel)
-        outer.setContentsMargins(18, 16, 18, 16)
+        outer.setContentsMargins(16, 14, 16, 16)
         outer.setSpacing(10)
         self.home_releases_status = QLabel("Carregando novidades…")
         self.home_releases_status.setObjectName("Muted")
@@ -779,19 +797,25 @@ class HubWindow(QMainWindow):
         title = str(getattr(note, "title", "") or "")
         date = str(getattr(note, "date", "") or "")
         box = QFrame()
-        box.setObjectName("NeonPanel")
+        box.setObjectName("ReleaseItem")
+        box.setStyleSheet(
+            f"QFrame#ReleaseItem {{ background: transparent; border: 0;"
+            f" border-bottom: 1px solid {tokens.hex_('hairline')}; }}"
+        )
         inner = QVBoxLayout(box)
-        inner.setContentsMargins(14, 10, 14, 12)
+        inner.setContentsMargins(0, 4, 0, 12)
         inner.setSpacing(4)
 
         head = QHBoxLayout()
+        head.setSpacing(12)
         tag = QLabel(f"v{version}" if version else (title or "release"))
-        tag.setObjectName("CardTitle")
+        tag.setObjectName("Numeric")
+        tag.setStyleSheet(f"color: {tokens.hex_('primary')};")
         head.addWidget(tag, 0)
         if date:
             date_label = QLabel(date)
-            date_label.setObjectName("Muted")
-            head.addWidget(date_label, 0)
+            date_label.setObjectName("Caption")
+            head.addWidget(date_label, 0, Qt.AlignmentFlag.AlignVCenter)
         head.addStretch(1)
         inner.addLayout(head)
 
@@ -837,37 +861,16 @@ class HubWindow(QMainWindow):
         page = QWidget()
         layout = QVBoxLayout(page)
         layout.setContentsMargins(0, 0, 22, 0)
-        layout.setSpacing(22)
+        layout.setSpacing(18)
 
-        hero = NeonPanel(accent="#37F2FF", grid=False)
-        hero.setMinimumHeight(200)
-        hero_layout = QGridLayout(hero)
-        hero_layout.setContentsMargins(28, 24, 28, 24)
-        hero_layout.setHorizontalSpacing(24)
-        hero_layout.setVerticalSpacing(12)
-
-        hero_logo = BrandLogo()
-        hero_title = QLabel("Plugins e ferramentas")
-        hero_title.setObjectName("PageTitle")
-        hero_title.setWordWrap(True)
-        hero_subtitle = QLabel(
-            "Suas ferramentas instaladas. Adicione novas com o card + (marketplace)."
-        )
-        hero_subtitle.setObjectName("Muted")
-        hero_subtitle.setWordWrap(True)
-        hero_status = QLabel("Hotkeys unificadas  |  Estrutura modular  |  OBS-friendly")
-        hero_status.setObjectName("StatusPill")
-        hero_status.setWordWrap(True)
-        hero_status.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Minimum)
-
-        hero_layout.addWidget(hero_logo, 0, 0, Qt.AlignmentFlag.AlignLeft)
-        hero_layout.addWidget(hero_title, 1, 0)
-        hero_layout.addWidget(hero_subtitle, 2, 0)
-        hero_layout.addWidget(hero_status, 3, 0)
-        hero_layout.setColumnStretch(0, 1)
-
-        layout.addWidget(hero)
-        layout.addWidget(SectionHeader("01", "Plugins"))
+        title = QLabel("Plugins")
+        title.setObjectName("PageTitle")
+        subtitle = QLabel("Suas ferramentas instaladas. Adicione novas pelo card +, que abre o marketplace.")
+        subtitle.setObjectName("Muted")
+        subtitle.setWordWrap(True)
+        layout.addWidget(title)
+        layout.addWidget(subtitle)
+        layout.addSpacing(6)
 
         modules_layout = QGridLayout()
         modules_layout.setHorizontalSpacing(18)
@@ -962,7 +965,7 @@ class HubWindow(QMainWindow):
         return self._scrollable_page(page)
 
     def _marker_event_box(self) -> QWidget:
-        box = NeonPanel(accent="#37F2FF")
+        box = NeonPanel()
         box.setMinimumHeight(250)
         box.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Minimum)
         layout = QVBoxLayout(box)
@@ -1006,7 +1009,7 @@ class HubWindow(QMainWindow):
         return box
 
     def _marker_custom_hotkeys_box(self) -> QWidget:
-        box = NeonPanel(accent="#FF4FD8")
+        box = NeonPanel()
         box.setMinimumHeight(360)
         box.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Minimum)
         layout = QVBoxLayout(box)
@@ -1058,7 +1061,7 @@ class HubWindow(QMainWindow):
         return box
 
     def _marker_recent_box(self) -> QWidget:
-        box = NeonPanel(accent="#37F2FF", grid=False)
+        box = NeonPanel()
         box.setMinimumHeight(235)
         box.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Minimum)
         layout = QVBoxLayout(box)
@@ -1084,7 +1087,7 @@ class HubWindow(QMainWindow):
         return box
 
     def _marker_files_box(self) -> QWidget:
-        box = NeonPanel(accent="#B9FF43")
+        box = NeonPanel()
         box.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Minimum)
         layout = QVBoxLayout(box)
         layout.setContentsMargins(18, 16, 18, 16)
@@ -1132,7 +1135,7 @@ class HubWindow(QMainWindow):
         self.counter_status_label = QLabel("Overlays abertos: 0")
         self.counter_status_label.setObjectName("Muted")
 
-        actions_panel = NeonPanel(accent="#FF4FD8")
+        actions_panel = NeonPanel()
         actions = QGridLayout(actions_panel)
         actions.setContentsMargins(18, 16, 18, 16)
         actions.setHorizontalSpacing(10)
@@ -1159,7 +1162,7 @@ class HubWindow(QMainWindow):
         for column in range(2):
             actions.setColumnStretch(column, 1)
 
-        active_box = NeonPanel(accent="#37F2FF", grid=False)
+        active_box = NeonPanel()
         active_layout = QVBoxLayout(active_box)
         active_layout.setContentsMargins(18, 16, 18, 16)
         active_layout.setSpacing(12)
@@ -1186,7 +1189,7 @@ class HubWindow(QMainWindow):
         active_layout.addWidget(self.counter_active_list)
         active_layout.addWidget(active_hint)
 
-        presets_box = NeonPanel(accent="#B9FF43")
+        presets_box = NeonPanel()
         presets_layout = QVBoxLayout(presets_box)
         presets_layout.setContentsMargins(18, 16, 18, 16)
         presets_layout.setSpacing(12)
@@ -1237,7 +1240,7 @@ class HubWindow(QMainWindow):
         layout.addWidget(subtitle)
         layout.addWidget(self.hotkey_capture_label)
 
-        panel = NeonPanel(accent="#37F2FF", grid=False)
+        panel = NeonPanel()
         grid = QGridLayout(panel)
         grid.setContentsMargins(18, 18, 18, 18)
         grid.setHorizontalSpacing(16)
@@ -1270,7 +1273,7 @@ class HubWindow(QMainWindow):
         actions.addWidget(copy)
         actions.addStretch(1)
 
-        panel = NeonPanel(accent="#B9FF43", grid=False)
+        panel = NeonPanel()
         panel_layout = QVBoxLayout(panel)
         panel_layout.setContentsMargins(18, 16, 18, 16)
         panel_layout.setSpacing(12)
@@ -1296,7 +1299,7 @@ class HubWindow(QMainWindow):
         title.setObjectName("PageTitle")
         layout.addWidget(title)
 
-        behavior_box = NeonPanel(accent="#37F2FF")
+        behavior_box = NeonPanel()
         behavior_layout = QVBoxLayout(behavior_box)
         behavior_layout.setContentsMargins(18, 16, 18, 16)
         behavior_layout.setSpacing(12)
@@ -1314,7 +1317,7 @@ class HubWindow(QMainWindow):
         behavior_layout.addWidget(self.setting_close_to_tray)
         behavior_layout.addWidget(self.setting_run_at_startup)
 
-        folders_box = NeonPanel(accent="#FF4FD8")
+        folders_box = NeonPanel()
         folders_layout = QVBoxLayout(folders_box)
         folders_layout.setContentsMargins(18, 16, 18, 16)
         folders_layout.setSpacing(12)
@@ -1346,7 +1349,7 @@ class HubWindow(QMainWindow):
         folders_layout.addLayout(marker_row)
         folders_layout.addLayout(counter_row)
 
-        backup_box = NeonPanel(accent="#B9FF43")
+        backup_box = NeonPanel()
         backup_layout = QVBoxLayout(backup_box)
         backup_layout.setContentsMargins(18, 16, 18, 16)
         backup_layout.setSpacing(12)
@@ -1389,7 +1392,7 @@ class HubWindow(QMainWindow):
         title.setObjectName("PageTitle")
         layout.addWidget(title)
 
-        app_panel = NeonPanel(accent="#37F2FF")
+        app_panel = NeonPanel()
         app_layout = QVBoxLayout(app_panel)
         app_layout.setContentsMargins(22, 20, 22, 20)
         app_layout.setSpacing(12)
@@ -1420,7 +1423,7 @@ class HubWindow(QMainWindow):
         update_row.addWidget(self.app_update_status_label, 1)
         app_layout.addLayout(update_row)
 
-        donate_panel = NeonPanel(accent="#B9FF43")
+        donate_panel = NeonPanel()
         donate_layout = QVBoxLayout(donate_panel)
         donate_layout.setContentsMargins(22, 20, 22, 20)
         donate_layout.setSpacing(12)
@@ -1433,7 +1436,7 @@ class HubWindow(QMainWindow):
         )
         donate_text.setObjectName("Muted")
         donate_text.setWordWrap(True)
-        donate_button = QPushButton("❤  Doar")
+        donate_button = QPushButton("Doar")
         donate_button.setObjectName("PrimaryButton")
         donate_button.setCursor(Qt.CursorShape.PointingHandCursor)
         donate_button.clicked.connect(self._open_livepix)
@@ -1441,7 +1444,7 @@ class HubWindow(QMainWindow):
         donate_layout.addWidget(donate_text)
         donate_layout.addWidget(donate_button, 0, Qt.AlignmentFlag.AlignLeft)
 
-        feedback_panel = NeonPanel(accent="#37F2FF")
+        feedback_panel = NeonPanel()
         feedback_layout = QVBoxLayout(feedback_panel)
         feedback_layout.setContentsMargins(22, 20, 22, 20)
         feedback_layout.setSpacing(12)
@@ -1454,15 +1457,14 @@ class HubWindow(QMainWindow):
         )
         feedback_text.setObjectName("Muted")
         feedback_text.setWordWrap(True)
-        feedback_button = QPushButton("✉  Enviar feedback")
-        feedback_button.setObjectName("PrimaryButton")
+        feedback_button = QPushButton("Enviar feedback")
         feedback_button.setCursor(Qt.CursorShape.PointingHandCursor)
         feedback_button.clicked.connect(self._open_feedback)
         feedback_layout.addWidget(feedback_title)
         feedback_layout.addWidget(feedback_text)
         feedback_layout.addWidget(feedback_button, 0, Qt.AlignmentFlag.AlignLeft)
 
-        profile_panel = NeonPanel(accent="#FF4FD8")
+        profile_panel = NeonPanel()
         profile_layout = QGridLayout(profile_panel)
         profile_layout.setContentsMargins(22, 20, 22, 20)
         profile_layout.setHorizontalSpacing(24)
@@ -1495,8 +1497,7 @@ class HubWindow(QMainWindow):
         about_text.setWordWrap(True)
 
         channel_button = QPushButton("Abrir canal no YouTube")
-        channel_button.setObjectName("PrimaryButton")
-        channel_button.setIcon(neon_qicon("about", 20))
+        channel_button.setIcon(neon_qicon("popout", 16, "ink"))
         channel_button.setIconSize(QSize(20, 20))
         channel_button.clicked.connect(self._open_youtube_channel)
 
@@ -1602,7 +1603,7 @@ class HubWindow(QMainWindow):
         widget.style().polish(widget)
 
     def _info_block(self, title: str, body: str) -> QWidget:
-        box = NeonPanel(accent="#37F2FF")
+        box = NeonPanel()
         layout = QVBoxLayout(box)
         layout.setContentsMargins(18, 16, 18, 16)
 
@@ -1642,13 +1643,18 @@ class HubWindow(QMainWindow):
         self.pages.setCurrentIndex(self.page_indexes[page_id])
         active_page = "plugins" if in_plugins_group else page_id
         for item, button in self.nav_buttons.items():
-            button.setProperty("active", item == active_page)
-            button.style().unpolish(button)
-            button.style().polish(button)
+            self._mark_nav(button, item, item == active_page, 22)
         for item, button in self.plugin_nav_buttons.items():
-            button.setProperty("active", item == page_id)
-            button.style().unpolish(button)
-            button.style().polish(button)
+            self._mark_nav(button, item, item == page_id, 20)
+
+    def _mark_nav(self, button: QPushButton, page_id: str, active: bool, size: int) -> None:
+        """Estado ativo do item de navegação: barra rosa (QSS) e ícone em ciano."""
+        button.setProperty("active", active)
+        button.style().unpolish(button)
+        button.style().polish(button)
+        icon_id = self._nav_icon_ids.get(page_id)
+        if icon_id:  # plugins de terceiros mantêm o próprio ícone
+            button.setIcon(nav_qicon(icon_id, active, size))
 
     def _toggle_plugins_menu(self) -> None:
         is_visible = self.plugin_subnav is not None and self.plugin_subnav.isVisible()
@@ -1670,6 +1676,7 @@ class HubWindow(QMainWindow):
             item = self.hotkeys_grid.takeAt(0)
             widget = item.widget()
             if widget is not None:
+                widget.setParent(None)  # sai da tela já; deleteLater só age no laço de eventos
                 widget.deleteLater()
 
         headers = ["Módulo", "Ação", "Atalho", "Ativo", ""]
@@ -1739,11 +1746,11 @@ class HubWindow(QMainWindow):
             row = QListWidgetItem(f"{prefix} | {item.title} | {item.detail}")
             row.setToolTip(item.detail)
             if item.status == "error":
-                row.setForeground(QColor("#ff7a7a"))
+                row.setForeground(tokens.color("danger"))
             elif item.status == "warn":
-                row.setForeground(QColor("#ffd37a"))
+                row.setForeground(tokens.color("warning"))
             else:
-                row.setForeground(QColor("#93e6c6"))
+                row.setForeground(tokens.color("ink-muted"))
             self.diagnostic_list.addItem(row)
 
     def _copy_diagnostics_report(self) -> None:
@@ -2091,7 +2098,7 @@ class HubWindow(QMainWindow):
     _BUILTIN_HELP = [
         (
             "Marcador",
-            "#37F2FF",
+            tokens.hex_("primary"),
             "Registra eventos da sua live com data/hora em um arquivo de texto por jogo.\n\n"
             "• \"Marcar agora\" ou a hotkey salvam uma anotação no arquivo ativo.\n"
             "• \"Novo jogo\" cria/troca o arquivo ativo (um txt por jogo/sessão).\n"
@@ -2100,7 +2107,7 @@ class HubWindow(QMainWindow):
         ),
         (
             "Contador",
-            "#FF4FD8",
+            tokens.hex_("brand"),
             "Overlays de contador transparentes, prontos para o OBS.\n\n"
             "• Crie presets com título, prefixo, limite, fonte e ícone.\n"
             "• Cada contador pode ter uma hotkey que incrementa (e opcionalmente\n"
@@ -2110,7 +2117,7 @@ class HubWindow(QMainWindow):
         ),
         (
             "Atalhos (Hotkeys)",
-            "#B9FF43",
+            tokens.hex_("success"),
             "Atalhos globais funcionam mesmo com o jogo em foco.\n\n"
             "• Configure cada ação na tela \"Atalhos\"; conflitos são detectados.\n"
             "• Funcionam sem pedir permissão nenhuma: no macOS usamos a API\n"
@@ -2183,6 +2190,7 @@ class HubWindow(QMainWindow):
             item = self.help_layout.takeAt(0)
             widget = item.widget()
             if widget is not None:
+                widget.setParent(None)  # sai da tela já; deleteLater só age no laço de eventos
                 widget.deleteLater()
 
         for title, accent, body in self._BUILTIN_HELP:
@@ -2234,7 +2242,7 @@ class HubWindow(QMainWindow):
             item = QListWidgetItem(label)
             item.setData(Qt.ItemDataRole.UserRole, path.name)
             if path.name == current:
-                item.setForeground(QColor("#B9FF43"))
+                item.setForeground(tokens.color("primary"))
                 item.setToolTip("Arquivo ativo")
             self.marker_files_list.addItem(item)
             if path.name == current:

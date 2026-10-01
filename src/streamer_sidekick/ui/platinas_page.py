@@ -22,12 +22,14 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from streamer_sidekick.ui import tokens
 from streamer_sidekick.core.plugins import (
     CATEGORY_PLATINA,
     CatalogEntry,
     InstalledPlugin,
     PluginManager,
 )
+from streamer_sidekick.ui.components import neon_qicon
 from streamer_sidekick.ui.plugin_marketplace import _CatalogWorker, _InstallWorker
 
 
@@ -63,7 +65,6 @@ class _PlatinaRow(QFrame):
         text_box.addWidget(self.status_label)
 
         self.action_button = QPushButton("")
-        self.action_button.setObjectName("PrimaryButton")
         self.action_button.setMinimumWidth(110)
         self.action_button.clicked.connect(self._on_action)
 
@@ -94,7 +95,7 @@ class _PlatinaRow(QFrame):
         if installed is None and incompatibility:
             self.action_button.setText("Incompatível")
             self.action_button.setEnabled(False)
-            self.status_label.setStyleSheet("color: #FF4FD8;")
+            self.status_label.setStyleSheet(f"color: {tokens.hex_('danger')};")
             self.status_label.setText(incompatibility)
         elif installed is None:
             self.action_button.setText("Instalar")
@@ -103,7 +104,7 @@ class _PlatinaRow(QFrame):
         elif self.manager.has_update(self.entry):
             self.action_button.setText("Atualizar")
             self.action_button.setEnabled(True)
-            self.status_label.setStyleSheet("color: #B9FF43;")
+            self.status_label.setStyleSheet(f"color: {tokens.hex_('success')};")
             self.status_label.setText(f"v{installed.version} → v{self.entry.version}")
         else:
             self.action_button.setText("Abrir")
@@ -188,11 +189,14 @@ class PlatinasPage(QWidget):
         layout.setSpacing(10)
 
         header = QHBoxLayout()
-        back = QPushButton("← Voltar aos guias")
+        back = QPushButton("Voltar aos guias")
+        back.setObjectName("GhostButton")
+        back.setIcon(neon_qicon("back", 16, "primary"))
         back.clicked.connect(self._show_browse)
         header.addWidget(back, 0)
         header.addStretch(1)
-        self.popout_button = QPushButton("⤢ Abrir em janela")
+        self.popout_button = QPushButton("Abrir em janela")
+        self.popout_button.setIcon(neon_qicon("popout", 16, "ink"))
         self.popout_button.setToolTip(
             "Abre este guia numa janela separada, que você pode manter aberta "
             "ao lado do jogo ou de outra parte do app."
@@ -263,7 +267,7 @@ class PlatinasPage(QWidget):
     def _on_install_failed(self, message: str) -> None:
         if self._active_row is not None:
             self._active_row.refresh_state()
-            self._active_row.status_label.setStyleSheet("color: #FF4FD8;")
+            self._active_row.status_label.setStyleSheet(f"color: {tokens.hex_('danger')};")
             self._active_row.status_label.setText(f"Falhou: {message}")
         self._active_row = None
 
@@ -294,6 +298,7 @@ class PlatinasPage(QWidget):
             item = self.guide_host_layout.takeAt(0)
             widget = item.widget()
             if widget is not None:
+                widget.setParent(None)  # sai da tela já; deleteLater só age no laço de eventos
                 widget.deleteLater()
         self.guide_host_layout.addWidget(self._build_guide_widget(plugin))
         self.stack.setCurrentIndex(self.guide_index)

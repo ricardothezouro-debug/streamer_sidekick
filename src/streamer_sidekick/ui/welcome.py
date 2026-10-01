@@ -6,6 +6,8 @@ from typing import Optional
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import QDialog, QHBoxLayout, QLabel, QPushButton, QVBoxLayout, QWidget
 
+from streamer_sidekick.ui import tokens
+
 
 _ITEMS = [
     ("Marcador", "anote eventos da live com horário — ótimo para cortar os melhores momentos depois."),
@@ -40,10 +42,10 @@ class WelcomeDialog(QDialog):
             row = QHBoxLayout()
             row.setSpacing(10)
             bullet = QLabel("◆")
-            bullet.setStyleSheet("color: #37F2FF; font-size: 14px;")
+            bullet.setStyleSheet(f"color: {tokens.hex_('primary')}; font-size: 14px;")
             text = QLabel(
-                f"<span style='color:#F3F6FF'><b>{name}</b></span>"
-                f"<span style='color:#A8B0BC'> — {desc}</span>"
+                f"<span style='color:{tokens.hex_('ink')}'><b>{name}</b></span>"
+                f"<span style='color:{tokens.hex_('ink-muted')}'> — {desc}</span>"
             )
             text.setWordWrap(True)
             row.addWidget(bullet, 0, Qt.AlignmentFlag.AlignTop)
