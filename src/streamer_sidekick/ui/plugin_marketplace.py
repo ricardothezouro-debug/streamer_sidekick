@@ -8,7 +8,8 @@ from __future__ import annotations
 
 from typing import Optional
 
-from PySide6.QtCore import QThread, Signal
+from PySide6.QtCore import QThread, Qt, Signal
+from PySide6.QtGui import QFontMetrics
 from PySide6.QtWidgets import (
     QDialog,
     QFrame,
@@ -60,6 +61,39 @@ class _InstallWorker(QThread):
         self.finished_ok.emit(plugin)
 
 
+class _UninstallWorker(QThread):
+    """Remove a pasta do plugin/guia fora da thread da interface (guias têm muitas imagens)."""
+
+    done = Signal(str, bool)  # plugin id, sucesso
+
+    def __init__(self, manager: PluginManager, plugin_id: str) -> None:
+        super().__init__()
+        self._manager = manager
+        self._plugin_id = plugin_id
+
+    def run(self) -> None:
+        try:
+            ok = bool(self._manager.uninstall(self._plugin_id))
+        except Exception:
+            ok = False
+        self.done.emit(self._plugin_id, ok)
+
+
+ACTION_LABELS = ("Instalar", "Atualizar", "Abrir", "Instalado", "Incompatível", "Tentar de novo",
+                 "Instalando…", "Atualizando…")
+
+
+def button_width_for(labels) -> int:
+    """Largura mínima que cabe o maior rótulo possível do botão (13px semibold + padding do tema)."""
+    metrics = QFontMetrics(tokens.font("button"))
+    return max(metrics.horizontalAdvance(text) for text in labels) + 36
+
+
+def friendly_install_error(message: str) -> str:
+    """Erro de instalação com o que fazer; o detalhe técnico vai na dica (tooltip)."""
+    return "Não foi possível instalar. Verifique a conexão e tente de novo."
+
+
 class _PluginRow(QFrame):
     """Uma linha do catalogo com nome, descricao e botao de acao."""
 
@@ -80,6 +114,7 @@ class _PluginRow(QFrame):
         text_box.setSpacing(4)
         self.name_label = QLabel(entry.name)
         self.name_label.setObjectName("CardTitle")
+        self.name_label.setWordWrap(True)  # nome longo quebra a linha em vez de empurrar os botões
         self.desc_label = QLabel(entry.description)
         self.desc_label.setObjectName("Muted")
         self.desc_label.setWordWrap(True)
@@ -92,27 +127,32 @@ class _PluginRow(QFrame):
         text_box.addWidget(self.desc_label)
         text_box.addWidget(self.changelog_label)
 
+        # Status (progresso, versão, erro) fica embaixo da descrição, quebrando linha:
+        # ao lado dos botões ele espremia a descrição e forçava rolagem horizontal.
         self.status_label = QLabel("")
         self.status_label.setObjectName("Muted")
+        self.status_label.setWordWrap(True)
+        text_box.addWidget(self.status_label)
 
         self.action_button = QPushButton("")
-        self.action_button.setMinimumWidth(120)
+        self.action_button.setMinimumWidth(button_width_for(ACTION_LABELS))
         self.action_button.clicked.connect(lambda: self.install_requested.emit(self.entry))
 
         self.remove_button = QPushButton("Remover")
-        self.remove_button.setMinimumWidth(96)
+        self.remove_button.setObjectName("DangerButton")
+        self.remove_button.setMinimumWidth(button_width_for(("Remover", "Removendo…")))
         self.remove_button.clicked.connect(lambda: self.remove_requested.emit(self.entry.id))
         self.remove_button.setVisible(False)
 
         layout.addLayout(text_box, 1)
-        layout.addWidget(self.status_label, 0)
-        layout.addWidget(self.action_button, 0)
-        layout.addWidget(self.remove_button, 0)
+        layout.addWidget(self.action_button, 0, Qt.AlignmentFlag.AlignTop)
+        layout.addWidget(self.remove_button, 0, Qt.AlignmentFlag.AlignTop)
 
         self.refresh_state()
 
     def refresh_state(self) -> None:
         installed = self.manager.get(self.entry.id)
+        self.status_label.setToolTip("")
         self.remove_button.setVisible(installed is not None)
         self.remove_button.setEnabled(installed is not None)
         incompatibility = self.manager.incompatibility_reason(self.entry)
@@ -147,10 +187,16 @@ class _PluginRow(QFrame):
 
     def set_busy(self, message: str) -> None:
         self.action_button.setEnabled(False)
-        self.action_button.setText("...")
+        updating = self.manager.get(self.entry.id) is not None
+        self.action_button.setText("Atualizando…" if updating else "Instalando…")
         self.remove_button.setEnabled(False)
         self.status_label.setStyleSheet("")
         self.status_label.setText(message)
+
+    def set_removing(self) -> None:
+        self.action_button.setEnabled(False)
+        self.remove_button.setEnabled(False)
+        self.remove_button.setText("Removendo…")
 
 
 class PluginMarketplaceDialog(QDialog):
@@ -167,7 +213,8 @@ class PluginMarketplaceDialog(QDialog):
         self._active_row: Optional[_PluginRow] = None
 
         self.setWindowTitle("Instalar plugins")
-        self.setMinimumSize(560, 420)
+        self.setMinimumSize(680, 480)
+        self._uninstall_worker: Optional[_UninstallWorker] = None
 
         layout = QVBoxLayout(self)
         layout.setContentsMargins(22, 20, 22, 20)
@@ -181,9 +228,17 @@ class PluginMarketplaceDialog(QDialog):
         layout.addWidget(title)
         layout.addWidget(subtitle)
 
-        self.status_label = QLabel("Carregando catálogo...")
+        self.status_label = QLabel("Carregando catálogo…")
         self.status_label.setObjectName("Muted")
-        layout.addWidget(self.status_label)
+        self.status_label.setWordWrap(True)
+        self.retry_button = QPushButton("Tentar de novo")
+        self.retry_button.setObjectName("GhostButton")
+        self.retry_button.clicked.connect(self._load_catalog)
+        self.retry_button.setVisible(False)
+        status_row = QHBoxLayout()
+        status_row.addWidget(self.status_label, 1)
+        status_row.addWidget(self.retry_button, 0)
+        layout.addLayout(status_row)
 
         self.rows_container = QWidget()
         self.rows_layout = QVBoxLayout(self.rows_container)
@@ -204,15 +259,26 @@ class PluginMarketplaceDialog(QDialog):
         close_row.addWidget(close_button)
         layout.addLayout(close_row)
 
-        self._catalog_worker = _CatalogWorker(manager)
+        self._load_catalog()
+
+    def _load_catalog(self) -> None:
+        self.status_label.setText("Carregando catálogo…")
+        self.retry_button.setVisible(False)
+        self._catalog_worker = _CatalogWorker(self.manager)
         self._catalog_worker.loaded.connect(self._on_catalog_loaded)
         self._catalog_worker.start()
 
     def _on_catalog_loaded(self, entries: list) -> None:
+        for row in self._rows:
+            row.setParent(None)
+            row.deleteLater()
+        self._rows.clear()
         if not entries:
-            self.status_label.setText("Nenhum plugin disponível no momento (ou sem conexão).")
+            self.status_label.setText("Não consegui carregar o catálogo. Verifique a internet e tente de novo.")
+            self.retry_button.setVisible(True)
             return
-        self.status_label.setText(f"{len(entries)} plugin(s) no catálogo.")
+        total = len(entries)
+        self.status_label.setText("1 plugin no catálogo." if total == 1 else f"{total} plugins no catálogo.")
         for entry in entries:
             row = _PluginRow(entry, self.manager)
             row.install_requested.connect(self._on_install_requested)
@@ -237,12 +303,25 @@ class PluginMarketplaceDialog(QDialog):
         )
         if answer != QMessageBox.StandardButton.Yes:
             return
-        if not self.manager.uninstall(plugin_id):
-            self.status_label.setText("Não foi possível remover o plugin.")
-            return
         row = next((r for r in self._rows if r.entry.id == plugin_id), None)
         if row is not None:
+            row.set_removing()
+        self.status_label.setText(f"Removendo {name}…")
+        worker = _UninstallWorker(self.manager, plugin_id)
+        worker.done.connect(lambda pid, ok, n=name: self._on_uninstalled(pid, ok, n))
+        self._uninstall_worker = worker
+        worker.start()
+
+    def _on_uninstalled(self, plugin_id: str, ok: bool, name: str) -> None:
+        row = next((r for r in self._rows if r.entry.id == plugin_id), None)
+        if row is not None:
+            row.remove_button.setText("Remover")
             row.refresh_state()
+        if not ok:
+            self.status_label.setText(
+                f"Não foi possível remover {name}. Feche o que estiver usando o plugin e tente de novo."
+            )
+            return
         self.status_label.setText(f"{name} removido.")
         self.plugin_removed.emit(plugin_id)
 
@@ -254,7 +333,7 @@ class PluginMarketplaceDialog(QDialog):
         if row is None:
             return
         self._active_row = row
-        row.set_busy("Iniciando...")
+        row.set_busy("Iniciando…")
 
         worker = _InstallWorker(self.manager, entry)
         worker.progress.connect(row.set_busy)
@@ -278,10 +357,12 @@ class PluginMarketplaceDialog(QDialog):
             # atualizacao que falhou.
             self._active_row.refresh_state()
             self._active_row.status_label.setStyleSheet(f"color: {tokens.hex_('danger')};")
-            self._active_row.status_label.setText("Falhou")
+            self._active_row.status_label.setText(friendly_install_error(message))
+            self._active_row.status_label.setToolTip(f"Detalhe: {message}")
             self._active_row.action_button.setEnabled(True)
             self._active_row.action_button.setText("Tentar de novo")
-        self.status_label.setText(f"Erro na instalação: {message}")
+        self.status_label.setText(friendly_install_error(message))
+        self.status_label.setToolTip(f"Detalhe: {message}")
         self._active_row = None
 
     def _refresh_all_rows(self) -> None:

@@ -11,21 +11,22 @@ from pathlib import Path
 
 from PySide6.QtGui import QColor, QFont, QFontDatabase
 
+# Neutros puxados para o roxo: harmonizam com o papel de parede vaporwave.
 COLORS: dict[str, str] = {
-    "canvas": "#090A12",
-    "sunken": "#06070C",
-    "surface": "#0F1320",
-    "surface-raised": "#161B2C",
-    "hairline": "#262E42",
-    "hairline-strong": "#3A4560",
-    "control-border": "#5C6886",
-    "ink": "#EEF2FF",
-    "ink-muted": "#A3ACC2",
-    "ink-faint": "#7A84A0",
+    "canvas": "#120A24",
+    "sunken": "#0B0716",
+    "surface": "#161029",
+    "surface-raised": "#211839",
+    "hairline": "#352A54",
+    "hairline-strong": "#4B3E72",
+    "control-border": "#7465A0",
+    "ink": "#F4F0FF",
+    "ink-muted": "#BCB2DA",
+    "ink-faint": "#9388B6",
     "primary": "#37F2FF",
     "primary-hover": "#7AF6FF",
     "on-primary": "#04131A",
-    "primary-tint": "#0E3640",
+    "primary-tint": "#123B4A",
     "brand": "#FF4FD8",
     "on-brand": "#1A0414",
     "success": "#B9FF43",
@@ -37,6 +38,17 @@ COLORS: dict[str, str] = {
     "synth-sun-bottom": "#FF4FD8",
     "shadow-hard": "#000000",
 }
+
+# Papel de parede do "SO": fica fixo atrás das páginas; os painéis são janelas por cima.
+# Texto solto sobre ele (título e subtítulo de página) fica no céu, a parte escura.
+WALLPAPERS: dict[str, dict] = {
+    "futurefunk": {"label": "Future funk", "top": "#1C0C3C", "mid": "#4A1777", "horizon": "#6A1C70",
+                   "glow": 115, "grid": 80, "horizon_at": 0.78, "scanlines": True},
+    "noite": {"label": "Noite roxa", "top": "#120A26", "mid": "#2A1050", "horizon": "#4A1660",
+              "glow": 70, "grid": 50, "horizon_at": 0.80, "scanlines": True},
+    "liso": {"label": "Liso", "flat": True},
+}
+DEFAULT_WALLPAPER = "futurefunk"
 
 RADII = {"none": 0, "xs": 2, "sm": 4, "md": 6, "full": 9999}
 SPACING = {"xxs": 4, "xs": 8, "sm": 12, "md": 16, "lg": 24, "xl": 32, "xxl": 48}
@@ -53,12 +65,12 @@ FONT_STACKS: dict[str, tuple[str, ...]] = {
 TYPE = {
     "display": ("display", 32, 700),
     "heading": ("display", 22, 600),
-    "title": ("display", 17, 600),
+    "title": ("display", 18, 600),
     "body": ("body", 14, 400),
     "body-strong": ("body", 14, 600),
     "caption": ("body", 12, 400),
     "button": ("body", 13, 600),
-    "hud-label": ("hud", 18, 400),
+    "hud-label": ("hud", 20, 400),
     "numeric-lg": ("hud", 44, 400),
     "numeric-md": ("hud", 24, 400),
     "mono": ("mono", 12, 400),

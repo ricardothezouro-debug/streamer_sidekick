@@ -226,7 +226,7 @@ def download_and_apply(
             f"Auto-update automático ainda não está disponível em {sys.platform}."
         )
 
-    report("Baixando a nova versão...", 0.0)
+    report("Baixando a nova versão…", 0.0)
     payload = _download(
         release.zip_url,
         on_progress=lambda read, total: report(
@@ -235,7 +235,7 @@ def download_and_apply(
         ),
     )
 
-    report("Preparando arquivos...")
+    report("Preparando arquivos…")
     staging = Path(tempfile.mkdtemp(prefix="ssk_update_"))
     _extract_payload(payload, staging)
     new_root = _single_top_dir(staging)
@@ -244,14 +244,14 @@ def download_and_apply(
 
     if sys.platform == "darwin":
         script = _write_updater_sh(new_root, target, staging, os.getpid())
-        report("Reiniciando para concluir a atualização...")
+        report("Reiniciando para concluir a atualização…")
         # start_new_session: o updater precisa sobreviver à morte deste processo.
         subprocess.Popen(["/bin/sh", str(script)], close_fds=True, start_new_session=True)
         return
 
     ps_path = _write_updater_ps1(new_root, target, staging, os.getpid(), release.version)
 
-    report("Reiniciando para concluir a atualização...")
+    report("Reiniciando para concluir a atualização…")
     subprocess.Popen(
         [
             "powershell", "-NoProfile", "-NonInteractive", "-WindowStyle", "Hidden",

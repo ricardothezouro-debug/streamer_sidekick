@@ -12,9 +12,9 @@ class CounterService:
         self.config = config
 
     def module_info(self) -> ModuleInfo:
-        folder = self.presets_folder()
         count = len(self.presets())
-        status = f"{count} presets em {folder.name}" if count else "Nenhum preset encontrado"
+        # Curto para caber no chip do card; a pasta aparece na página do Contador.
+        status = ("1 preset" if count == 1 else f"{count} presets") if count else "Nenhum preset ainda"
         return ModuleInfo(
             module_id="counter",
             title="Contador",
