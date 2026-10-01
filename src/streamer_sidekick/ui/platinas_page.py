@@ -29,7 +29,7 @@ from streamer_sidekick.core.plugins import (
     InstalledPlugin,
     PluginManager,
 )
-from streamer_sidekick.ui.components import neon_qicon
+from streamer_sidekick.ui.components import NeonPanel, neon_qicon
 from streamer_sidekick.ui.plugin_marketplace import (
     ACTION_LABELS,
     _CatalogWorker,
@@ -40,7 +40,7 @@ from streamer_sidekick.ui.plugin_marketplace import (
 )
 
 
-class _PlatinaRow(QFrame):
+class _PlatinaRow(NeonPanel):
     """Linha de um guia no marketplace de platinas."""
 
     install_requested = Signal(object)  # CatalogEntry
@@ -51,7 +51,6 @@ class _PlatinaRow(QFrame):
         super().__init__(parent)
         self.entry = entry
         self.manager = manager
-        self.setObjectName("NeonPanel")
 
         layout = QHBoxLayout(self)
         layout.setContentsMargins(16, 14, 16, 14)

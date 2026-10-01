@@ -354,7 +354,7 @@ class HubWindow(QMainWindow):
         button = QPushButton()
         button.setObjectName("SubNavButton")
         self._set_subnav_label(button, label)
-        button.setIcon(plugin_qicon(plugin.icon_path or "", "plugin", 20))
+        button.setIcon(plugin_qicon(plugin.icon_path or "", plugin.id, 20))
         button.setIconSize(QSize(20, 20))
         button.setCursor(Qt.PointingHandCursor)
         button.clicked.connect(lambda checked=False, item=plugin.id: self._select_page(item))
@@ -469,7 +469,7 @@ class HubWindow(QMainWindow):
         if button is not None:
             info = plugin.module_info
             self._set_subnav_label(button, getattr(info, "title", plugin.name) or plugin.name)
-            button.setIcon(plugin_qicon(plugin.icon_path or "", "plugin", 20))
+            button.setIcon(plugin_qicon(plugin.icon_path or "", plugin.id, 20))
 
         self._refresh_help_page()
 
@@ -2247,7 +2247,7 @@ class HubWindow(QMainWindow):
         self._refresh_help_page()
         return self._scrollable_page(page)
 
-    def _help_panel(self, title: str, body: str, accent: str, icon_path: str = "") -> QWidget:
+    def _help_panel(self, title: str, body: str, accent: str, icon_path: str = "", plugin_id: str = "") -> QWidget:
         panel = NeonPanel(accent=accent)
         panel_layout = QVBoxLayout(panel)
         panel_layout.setContentsMargins(18, 16, 18, 16)
@@ -2255,18 +2255,11 @@ class HubWindow(QMainWindow):
 
         header = QHBoxLayout()
         header.setSpacing(10)
-        if icon_path and Path(icon_path).exists():
-            pixmap = QPixmap(icon_path)
-            if not pixmap.isNull():
-                icon_label = QLabel()
-                icon_label.setFixedSize(28, 28)
-                icon_label.setPixmap(
-                    pixmap.scaled(
-                        28, 28, Qt.AspectRatioMode.KeepAspectRatio,
-                        Qt.TransformationMode.SmoothTransformation,
-                    )
-                )
-                header.addWidget(icon_label, 0)
+        if plugin_id:
+            icon_label = QLabel()
+            icon_label.setFixedSize(28, 28)
+            icon_label.setPixmap(plugin_qicon(icon_path, plugin_id, 28).pixmap(28, 28))
+            header.addWidget(icon_label, 0)
         title_label = QLabel(title)
         title_label.setObjectName("SectionTitle")
         header.addWidget(title_label, 1)
@@ -2303,7 +2296,7 @@ class HubWindow(QMainWindow):
                 getattr(info, "subtitle", "") or "Este plugin não forneceu texto de ajuda."
             )
             self.help_layout.addWidget(
-                self._help_panel(name, body, plugin.accent, icon_path=plugin.icon_path or "")
+                self._help_panel(name, body, plugin.accent, icon_path=plugin.icon_path or "", plugin_id=plugin.id)
             )
 
     def _refresh_marker_page(self) -> None:
