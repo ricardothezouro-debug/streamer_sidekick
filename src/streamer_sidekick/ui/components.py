@@ -38,9 +38,13 @@ MUTED = tokens.hex_("ink-muted")
 BRAND_ASSET_DIR = Path(__file__).resolve().parents[1] / "assets" / "brand"
 
 # icon_id antigo -> ícone de interface / ícone de marca
-_UI_ALIASES = {"document": "marker", "plugin": "plugins", "bot": "home"}
+# Plugins oficiais desenhados no próprio sistema de ícones: o hub usa o desenho dele
+# em vez do icon.png do pacote, para combinar com o resto da interface.
+_OFFICIAL_PLUGIN_ICONS = {"clipit": "clip", "launcher": "power", "subtitler": "captions"}
+_UI_ALIASES = {"document": "marker", "plugin": "plugins", "bot": "home", **_OFFICIAL_PLUGIN_ICONS}
 _BRAND_ALIASES = {"marker": "marker", "document": "marker", "counter": "counter", "home": "sidekick",
-                  "plugins": "puzzle", "plugin": "puzzle", "platinas": "trophy", "backup": "floppy"}
+                  "plugins": "puzzle", "plugin": "puzzle", "platinas": "trophy", "backup": "floppy",
+                  **_OFFICIAL_PLUGIN_ICONS}
 
 
 def _chamfer_path(rect: QRectF, cut: float) -> QPainterPath:
@@ -716,8 +720,7 @@ class ModuleTile(QFrame):
 
         header = QHBoxLayout()
         header.setSpacing(14)
-        pixmap = _load_pixmap(getattr(module, "icon", "") or "", 96)
-        icon = IconBox(brand="" if pixmap is not None else _module_brand(module), pixmap=pixmap)
+        icon = _make_module_icon(module)
         title_box = QVBoxLayout()
         title_box.setSpacing(4)
         self.title_label = ElidedLabel(module.title, lines=1)
@@ -947,13 +950,19 @@ def _load_pixmap(path: str, size: int) -> Optional[QPixmap]:
 
 
 def _make_module_icon(module: ModuleInfo, accent: str = "", size: int = 56) -> QWidget:
-    """Quadro do ícone do card: PNG do plugin quando existir; senão o ícone de marca."""
+    """Quadro do ícone do card: ícone de marca dos oficiais, PNG do plugin quando existir,
+    senão o ícone de marca genérico."""
+    if module.module_id in _OFFICIAL_PLUGIN_ICONS:
+        return IconBox(brand=_module_brand(module), size=size)
     pixmap = _load_pixmap(getattr(module, "icon", "") or "", 96)
     return IconBox(brand="" if pixmap is not None else _module_brand(module), pixmap=pixmap, size=size)
 
 
 def plugin_qicon(icon_path: str, fallback_id: str = "plugin", size: int = 18) -> QIcon:
-    """QIcon para a subnav: PNG do plugin quando existir, senão o ícone de interface."""
+    """QIcon para a subnav: ícone de interface dos oficiais (``fallback_id`` = id do plugin),
+    PNG do plugin quando existir, senão o ícone de interface genérico."""
+    if fallback_id in _OFFICIAL_PLUGIN_ICONS:
+        return neon_qicon(fallback_id, size)
     pixmap = _load_pixmap(icon_path or "", size * 2)
     if pixmap is not None:
         return QIcon(pixmap)

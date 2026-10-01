@@ -24,6 +24,7 @@ from PySide6.QtWidgets import (
 
 from streamer_sidekick.ui import tokens
 from streamer_sidekick.core.plugins import CATEGORY_TOOL, CatalogEntry, PluginManager
+from streamer_sidekick.ui.components import NeonPanel
 
 
 class _CatalogWorker(QThread):
@@ -94,7 +95,7 @@ def friendly_install_error(message: str) -> str:
     return "Não foi possível instalar. Verifique a conexão e tente de novo."
 
 
-class _PluginRow(QFrame):
+class _PluginRow(NeonPanel):
     """Uma linha do catalogo com nome, descricao e botao de acao."""
 
     install_requested = Signal(object)  # CatalogEntry
@@ -104,7 +105,6 @@ class _PluginRow(QFrame):
         super().__init__(parent)
         self.entry = entry
         self.manager = manager
-        self.setObjectName("NeonPanel")
 
         layout = QHBoxLayout(self)
         layout.setContentsMargins(16, 14, 16, 14)

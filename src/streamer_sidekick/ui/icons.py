@@ -129,6 +129,21 @@ def _ui(name):
         _poly(s, [(14, 10), (14, 17)])
     elif name == "back":
         _poly(s, [(14, 5), (7, 12), (14, 19)])
+    elif name == "clip":  # claquete (ClipIt)
+        _poly(s, [(3, 4), (21, 4), (21, 8), (3, 8)], close=True)
+        _poly(s, [(8, 4), (10, 8)])
+        _poly(s, [(14, 4), (16, 8)])
+        _poly(s, [(3, 8), (3, 20), (21, 20), (21, 8)])
+        _poly(f, [(10, 11.5), (15.5, 14.5), (10, 17.5)], close=True)
+    elif name == "power":  # liga (StreamOn)
+        _poly(s, [(15.5, 5.5), (20, 10), (20, 16.5), (15.5, 21), (8.5, 21), (4, 16.5), (4, 10), (8.5, 5.5)])
+        _poly(s, [(12, 2.5), (12, 11)])
+    elif name == "captions":  # legenda (Subtitler)
+        _ch_rect(s, 3, 5, 18, 14)
+        _poly(s, [(6.5, 11.5), (10, 11.5)])
+        _poly(s, [(13, 11.5), (17.5, 11.5)])
+        _poly(s, [(6.5, 15), (13, 15)])
+        _poly(s, [(15.5, 15), (17.5, 15)])
     else:
         raise KeyError(name)
     return s, f
@@ -136,12 +151,13 @@ def _ui(name):
 
 UI_ICONS = ["home", "plugins", "platinas", "hotkey", "diagnostics", "settings", "help", "about",
             "marker", "counter", "folder", "backup", "alert", "favorite", "live", "update", "popout",
-            "remove", "back"]
+            "remove", "back", "clip", "power", "captions"]
 UI_NAMES = {"home": "Início", "plugins": "Plugins", "platinas": "Platinas", "hotkey": "Atalhos",
             "diagnostics": "Diagnóstico", "settings": "Configurações", "help": "Ajuda", "about": "Sobre",
             "marker": "Marcador", "counter": "Contador", "folder": "Pasta", "backup": "Backup",
             "alert": "Alerta", "favorite": "Favorito", "live": "Ao vivo", "update": "Atualizar",
-            "popout": "Abrir em janela", "remove": "Remover", "back": "Voltar"}
+            "popout": "Abrir em janela", "remove": "Remover", "back": "Voltar",
+            "clip": "ClipIt", "power": "StreamOn", "captions": "Subtitler"}
 
 
 def draw_ui(p: QPainter, name, x, y, size, color: QColor, stroke=None):
@@ -197,10 +213,20 @@ BRAND = {
     "counter": ("primary", "brand", [
         "############", "#..........#", "#.......#..#", "#..+...##..#", "#..+....#..#", "#.+++...#..#",
         "#..+....#..#", "#..+....#..#", "#......###.#", "#..........#", "############", "............"]),
+    "clip": ("primary", "brand", [
+        "............", "#++##++##++#", "............", "############", "#..........#", "#...*......#",
+        "#...**.....#", "#...***....#", "#...**.....#", "#...*......#", "############", "............"]),
+    "power": ("primary", "brand", [
+        "............", ".....++.....", "..#..++..#..", ".#...++...#.", "#....++....#", "#....++....#",
+        "#..........#", "#..........#", ".#........#.", "..#......#..", "...######...", "............"]),
+    "captions": ("brand", "primary", [
+        "............", "############", "#..........#", "#..........#", "#..........#", "#.+++.****.#",
+        "#..........#", "#.****.+++.#", "#..........#", "############", "....#.......", "...##......."]),
 }
 BRAND_NAMES = {"sidekick": "Sidekick", "trophy": "Troféu", "floppy": "Disquete", "gamepad": "Controle",
                "crt": "Monitor CRT", "cassette": "Fita", "star": "Favorito", "live": "Ao vivo",
-               "puzzle": "Plugin", "marker": "Marcador", "counter": "Contador"}
+               "puzzle": "Plugin", "marker": "Marcador", "counter": "Contador",
+               "clip": "ClipIt", "power": "StreamOn", "captions": "Subtitler"}
 
 
 def draw_brand(p: QPainter, name, x, y, size, palette, main=None, accent=None, grid=False):
