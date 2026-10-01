@@ -177,7 +177,26 @@ components:
     border: "1px solid {colors.hairline}"
     rounded: "{rounded.sm}"
     padding: "{spacing.md}"
-    iconSize: 48px
+    iconBox: "56px, {colors.sunken}, {rounded.md}"
+    icon: "icon-brand de 48px (ferramentas nativas) ou o ícone do próprio plugin"
+  icon-ui:
+    grid: "24 x 24"
+    stroke: "2px reais (1,5px no tamanho 16), pontas quadradas, junções em quina"
+    corner: "chanfro de 3 unidades no canto superior direito, como o panel-window"
+    sizes: "24 (nav), 20 (subnav), 16 (dentro de botão e chip)"
+    color: "{colors.ink-muted}"
+  icon-ui-hover:
+    color: "{colors.ink}"
+  icon-ui-active:
+    color: "{colors.primary}"
+  icon-ui-destructive:
+    color: "{colors.danger}"
+  icon-ui-disabled:
+    color: "{colors.ink-faint}"
+  icon-brand:
+    grid: "12 x 12 células sólidas, sem antisserrilhado"
+    sizes: "48 (cards, telas vazias, conquistas) e 96 (onboarding); nunca abaixo de 48"
+    inks: "cor do papel do ícone + 1 acento + {colors.ink} para brilho"
   module-card-hover:
     border: "1px solid {colors.hairline-strong}"
   callout-info:
@@ -249,7 +268,7 @@ A estética synthwave (sol listrado, grid em perspectiva, roxo) é **tempero, n�
 - **Brilho é exceção:** só o painel em destaque, a barra de progresso e o indicador "ao vivo" podem brilhar. No máximo um painel em destaque por tela.
 - Cores com papel fixo: ciano `{colors.primary}` = agir, rosa `{colors.brand}` = marca e ao vivo, limão `{colors.success}` = progresso e conquista.
 - Três famílias de fonte embarcadas, iguais no Windows e no macOS: Chakra Petch (títulos), IBM Plex Sans (interface e texto) e VT323 (rótulos de HUD e números).
-- Ícones são vetoriais de traço (o `NeonIcon` atual), nunca emoji.
+- Dois conjuntos de ícones: linha HUD (`icon-ui`) na interface e pixel-art 12×12 (`icon-brand`) nos momentos de marca. Nunca emoji, nunca degradê.
 
 ## Colors
 
@@ -366,6 +385,26 @@ A sombra dura é pintada no `paintEvent` (um retângulo deslocado, sem desfoque)
 
 Regra única: **tudo é quase reto** (`{rounded.sm}`). As exceções escritas são: chips de status e o ponto de estado são pílula (`{rounded.full}`); callouts usam `{rounded.xs}`; ícones de app (os quadrados de 48px dos cards) usam `{rounded.md}`. O chanfro de 10px no canto superior direito é exclusivo do `panel-window`: é a assinatura herdada da identidade atual.
 
+## Iconography
+
+Dois conjuntos com funções diferentes. A interface precisa de clareza; os momentos de marca precisam de personalidade.
+
+### Ícones de interface (`icon-ui`)
+
+Linha "HUD" na grade 24: traço reto de 2px, pontas quadradas, junções em quina e o chanfro do `panel-window` nos retângulos. Uma cor só, pelo estado: `{colors.ink-muted}` em repouso, `{colors.ink}` no hover, `{colors.primary}` ativo, `{colors.danger}` destrutivo e `{colors.ink-faint}` desabilitado. A espessura não escala com o desenho: são 2px reais em 20 e 24px, e 1,5px em 16px.
+
+Conjunto: `home` (o robô sidekick), `plugins`, `platinas`, `hotkey`, `diagnostics`, `settings`, `help`, `about`, `marker`, `counter`, `folder`, `backup` (disquete), `alert`, `favorite`, `live`, `update`, `popout`, `remove` e `back`.
+
+Ícone sem texto tem nome acessível (`setAccessibleName`) e tooltip. Ícone com texto fica à esquerda do rótulo.
+
+### Ícones de marca (`icon-brand`)
+
+Pixel-art na grade 12×12, com células sólidas e sem antisserrilhado. Usa três tintas: a cor do papel do ícone (por exemplo `{colors.success}` no troféu, `{colors.brand}` no ao vivo), um acento e `{colors.ink}` para brilho.
+
+Só aparecem em 48px (cards das ferramentas nativas, telas vazias, conquistas) ou 96px (onboarding). Com 4px por célula em 48px, a arte continua inteira nas escalas 125%, 150% e 200% do Windows. Abaixo de 48px as células ficam desiguais.
+
+Conjunto: `sidekick`, `trophy`, `floppy`, `gamepad`, `crt`, `cassette`, `star`, `live`, `puzzle` (plugin sem ícone próprio), `marker` e `counter`.
+
 ## Motion
 
 - Hover e pressionado: 120ms, ease-out. Botão pressionado desce 1px.
@@ -390,7 +429,7 @@ Um `button-primary` por área visível: é a ação que o usuário veio fazer ("
 
 ### Navigation
 
-Barra lateral em `{colors.sunken}`. Item ativo: fundo `{colors.surface-raised}`, texto `{colors.ink}` e barra de 3px em `{colors.brand}` à esquerda, sem caixa contornada. Subitens (ferramentas dentro de Plugins) com recuo de 18px e ícone de 18px com traço mais grosso, para continuar legível.
+Barra lateral em `{colors.sunken}`. Item ativo: fundo `{colors.surface-raised}`, texto `{colors.ink}` e barra de 3px em `{colors.brand}` à esquerda, sem caixa contornada. Ícones de 24px (`icon-ui`), em `{colors.primary}` no item ativo. Subitens (ferramentas dentro de Plugins) com recuo de 18px e ícone de 20px, ainda com traço de 2px.
 
 ### Badges & Status
 
@@ -421,7 +460,9 @@ Selos em `{typography.hud-label}`:
 
 ### Don't
 - Não coloque borda neon em degradê em todo painel: brilho é exceção.
-- Não use emoji na interface (🔔 ✓ ❤ ✉ 🎉); use o `NeonIcon` correspondente.
+- Não use emoji na interface (🔔 ✓ ❤ ✉ 🎉); use o `icon-ui` correspondente.
+- Não use degradê em ícone, nem misture os dois conjuntos num mesmo grupo (barra lateral é sempre `icon-ui`).
+- Não use `icon-brand` abaixo de 48px.
 - Não repita o logo na área de conteúdo: ele já está na barra lateral.
 - Não use VT323 em frases nem abaixo de 18px.
 - Não use `{colors.brand}` em botões nem `{colors.synth}` em controles.
@@ -463,6 +504,7 @@ Estado em 2026-10-01 (o código ainda é o tema 0.8.x):
 - `tokens.py` ainda não existe. O tema tem 33 cores literais espalhadas (veja a Migração abaixo).
 - Fontes ainda não embarcadas. Além disso, `_load_optional_fonts` procura em `src/assets/fonts`, e não em `src/streamer_sidekick/assets/fonts`.
 - `panel-window`, `status-chip`, `segmented-progress`, `numeric-display` e `synth-hero` ainda não foram implementados.
+- Os ícones `icon-ui` e `icon-brand` estão desenhados (manual em `docs/design/`), mas o app ainda usa o `NeonIcon` e os PNGs `marker_icon`/`counter_icon`.
 - A configuração "Reduzir animações" não existe.
 - Sem tema claro (decisão: o app é só escuro).
 - API de tokens para plugins ainda não definida.
@@ -490,3 +532,5 @@ Estado em 2026-10-01 (o código ainda é o tema 0.8.x):
 | `#FF7A7A` | `{colors.danger}` |
 | Bahnschrift / Segoe UI / Consolas | Chakra Petch / IBM Plex Sans / IBM Plex Mono |
 | raios 5, 6, 7, 8, 10px | `{rounded.sm}` (exceções na seção Shapes) |
+| `NeonIcon` (degradê ciano→rosa) | `icon-ui` |
+| `marker_icon.png`, `counter_icon.png` | `icon-brand` `marker` e `counter` |
