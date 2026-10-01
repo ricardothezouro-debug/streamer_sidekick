@@ -3,13 +3,15 @@ from __future__ import annotations
 
 from typing import Callable, Optional
 
-from PySide6.QtCore import QThread, Signal
+from PySide6.QtCore import QThread, QUrl, Signal
+from PySide6.QtGui import QDesktopServices
 from PySide6.QtWidgets import (
     QDialog,
     QHBoxLayout,
     QLabel,
     QMessageBox,
     QPushButton,
+    QTextBrowser,
     QVBoxLayout,
     QWidget,
 )
@@ -90,11 +92,14 @@ class AppUpdateDialog(QDialog):
         layout.addWidget(current)
 
         if release.notes:
-            notes_title = QLabel("Novidades:")
+            notes_title = QLabel("Novidades")
             notes_title.setObjectName("SectionTitle")
-            notes = QLabel(release.notes)
-            notes.setObjectName("Muted")
-            notes.setWordWrap(True)
+            # Notas longas rolam dentro da caixa: os botões nunca saem da tela.
+            notes = QTextBrowser()
+            notes.setPlainText(release.notes)
+            notes.setOpenExternalLinks(True)
+            notes.setMaximumHeight(240)
+            notes.setMinimumHeight(64)
             layout.addWidget(notes_title)
             layout.addWidget(notes)
 
@@ -109,6 +114,13 @@ class AppUpdateDialog(QDialog):
         layout.addWidget(self.status_label)
 
         actions = QHBoxLayout()
+        self.releases_button = QPushButton("Abrir página de releases")
+        self.releases_button.setObjectName("GhostButton")
+        self.releases_button.clicked.connect(
+            lambda: QDesktopServices.openUrl(QUrl("https://github.com/ricardothezouro-debug/streamer_sidekick/releases/latest"))
+        )
+        self.releases_button.setVisible(False)
+        actions.addWidget(self.releases_button)
         actions.addStretch(1)
         self.later_button = QPushButton("Depois")
         self.later_button.clicked.connect(self.reject)
@@ -129,6 +141,7 @@ class AppUpdateDialog(QDialog):
                 "Baixe a versão nova manualmente na página de releases do projeto "
                 "(ou, rodando do código, use git pull).",
             )
+            self.releases_button.setVisible(True)
             return
 
         self.update_button.setEnabled(False)
@@ -162,7 +175,26 @@ class AppUpdateDialog(QDialog):
         self.update_button.setEnabled(True)
         self.later_button.setEnabled(True)
         self.progress_bar.setVisible(False)
-        self.status_label.setText(f"Falha ao atualizar: {message}")
+        self.status_label.setText(
+            "Não foi possível atualizar. Verifique a conexão e tente de novo, "
+            "ou baixe a versão nova na página de releases."
+        )
+        self.status_label.setToolTip(f"Detalhe: {message}")
+        self.releases_button.setVisible(True)
+
+    def _busy(self) -> bool:
+        return self._worker is not None and self._worker.isRunning()
+
+    def reject(self) -> None:  # Esc e "Depois"
+        if self._busy():
+            return  # não deixa fechar no meio do download/aplicação
+        super().reject()
+
+    def closeEvent(self, event) -> None:  # o X da janela
+        if self._busy():
+            event.ignore()
+            return
+        super().closeEvent(event)
 
 
 class AppUpdatedDialog(QDialog):
@@ -179,7 +211,6 @@ class AppUpdatedDialog(QDialog):
 
         title = QLabel(f"Atualizado para a v{version}")
         title.setObjectName("PageTitle")
-        title.setStyleSheet("font-size: 24px;")
         title.setWordWrap(True)
         message = QLabel(
             "O Streamer Sidekick foi atualizado com sucesso. Confira as novidades na "
@@ -190,7 +221,7 @@ class AppUpdatedDialog(QDialog):
 
         row = QHBoxLayout()
         row.addStretch(1)
-        ok = QPushButton("Show!")
+        ok = QPushButton("Fechar")
         ok.setObjectName("PrimaryButton")
         ok.clicked.connect(self.accept)
         row.addWidget(ok)

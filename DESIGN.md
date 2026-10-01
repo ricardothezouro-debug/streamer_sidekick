@@ -14,20 +14,20 @@ description: >-
   plugins e guias de terceiros.
 
 colors:
-  canvas: "#090A12"
-  sunken: "#06070C"
-  surface: "#0F1320"
-  surface-raised: "#161B2C"
-  hairline: "#262E42"
-  hairline-strong: "#3A4560"
-  control-border: "#5C6886"
-  ink: "#EEF2FF"
-  ink-muted: "#A3ACC2"
-  ink-faint: "#7A84A0"
+  canvas: "#120A24"
+  sunken: "#0B0716"
+  surface: "#161029"
+  surface-raised: "#211839"
+  hairline: "#352A54"
+  hairline-strong: "#4B3E72"
+  control-border: "#7465A0"
+  ink: "#F4F0FF"
+  ink-muted: "#BCB2DA"
+  ink-faint: "#9388B6"
   primary: "#37F2FF"
   primary-hover: "#7AF6FF"
   on-primary: "#04131A"
-  primary-tint: "#0E3640"
+  primary-tint: "#123B4A"
   brand: "#FF4FD8"
   on-brand: "#1A0414"
   success: "#B9FF43"
@@ -42,12 +42,12 @@ colors:
 typography:
   display:     { fontFamily: Chakra Petch, fontSize: 32px, fontWeight: 700, lineHeight: 1.15 }
   heading:     { fontFamily: Chakra Petch, fontSize: 22px, fontWeight: 600, lineHeight: 1.25 }
-  title:       { fontFamily: Chakra Petch, fontSize: 17px, fontWeight: 600, lineHeight: 1.30 }
+  title:       { fontFamily: Chakra Petch, fontSize: 18px, fontWeight: 600, lineHeight: 1.30 }
   body:        { fontFamily: IBM Plex Sans, fontSize: 14px, fontWeight: 400, lineHeight: 1.50 }
   body-strong: { fontFamily: IBM Plex Sans, fontSize: 14px, fontWeight: 600, lineHeight: 1.50 }
   caption:     { fontFamily: IBM Plex Sans, fontSize: 12px, fontWeight: 400, lineHeight: 1.45 }
   button:      { fontFamily: IBM Plex Sans, fontSize: 13px, fontWeight: 600, lineHeight: 1.20 }
-  hud-label:   { fontFamily: VT323, fontSize: 18px, fontWeight: 400, lineHeight: 1.00, letterSpacing: 1px }
+  hud-label:   { fontFamily: VT323, fontSize: 20px, fontWeight: 400, lineHeight: 1.00, letterSpacing: 1px }
   numeric-lg:  { fontFamily: VT323, fontSize: 44px, fontWeight: 400, lineHeight: 1.00 }
   numeric-md:  { fontFamily: VT323, fontSize: 24px, fontWeight: 400, lineHeight: 1.00 }
   mono:        { fontFamily: IBM Plex Mono, fontSize: 12px, fontWeight: 400, lineHeight: 1.45 }
@@ -260,10 +260,10 @@ components:
 
 O Streamer Sidekick é usado **durante a live**, com o jogo aberto e a atenção dividida. Por isso o sistema é escuro, calmo e previsível: a interface se apaga e só o que importa acende (a ação principal, o progresso, o "ao vivo"). A personalidade vem de outro lugar: da metáfora de um **SO retrô de gamer**. Cada bloco da tela é uma janela com barra de título, os números aparecem num display de terminal e o progresso das platinas avança em blocos, como uma barra de vida.
 
-A estética synthwave (sol listrado, grid em perspectiva, roxo) é **tempero, não prato**. Ela aparece no topo do Início, no onboarding, nas telas vazias e no Sobre. Nunca atrás de texto longo, nunca dentro de um guia.
+A estética synthwave/future funk (sol listrado, grid em perspectiva, roxo e magenta) é **tempero, não prato**. Ela aparece no papel de parede da área de conteúdo, no topo do Início, no onboarding, nas telas vazias e no Sobre. Texto nunca fica direto sobre a arte: fica sempre dentro de um painel opaco.
 
 **Key Characteristics:**
-- Fundo quase preto azulado em quatro níveis: `{colors.sunken}` < `{colors.canvas}` < `{colors.surface}` < `{colors.surface-raised}`.
+- Neutros escuros tingidos de roxo em quatro níveis: `{colors.sunken}` < `{colors.canvas}` < `{colors.surface}` < `{colors.surface-raised}`.
 - Painéis-janela (`panel-window`) com barra de título em `{typography.hud-label}`, canto superior direito chanfrado e sombra dura deslocada, sem desfoque.
 - **Brilho é exceção:** só o painel em destaque, a barra de progresso e o indicador "ao vivo" podem brilhar. No máximo um painel em destaque por tela.
 - Cores com papel fixo: ciano `{colors.primary}` = agir, rosa `{colors.brand}` = marca e ao vivo, limão `{colors.success}` = progresso e conquista.
@@ -288,20 +288,20 @@ A estética synthwave (sol listrado, grid em perspectiva, roxo) é **tempero, n�
 | Token | Uso |
 |---|---|
 | `{colors.sunken}` | barra lateral, campos de texto, poços (área de lista) |
-| `{colors.canvas}` | fundo da janela e da área de conteúdo |
+| `{colors.canvas}` | fundo da janela; base do papel de parede "Liso" |
 | `{colors.surface}` | corpo de painéis e cards |
 | `{colors.surface-raised}` | barra de título, hover, chips, callouts, item de nav ativo |
 | `{colors.hairline}` | divisórias e borda de painel |
 | `{colors.hairline-strong}` | borda de botão secundário e hover de card |
-| `{colors.control-border}` | borda de campos de formulário (3,3:1 sobre a superfície, mínimo WCAG para componentes) |
+| `{colors.control-border}` | borda de campos de formulário (3,6:1 sobre a superfície, acima do mínimo WCAG de 3:1 para componentes) |
 
 ### Text
 
 | Token | Uso | Contraste sobre `surface` |
 |---|---|---|
-| `{colors.ink}` | texto principal e títulos | 16,6:1 |
-| `{colors.ink-muted}` | texto secundário e descrições | 8,1:1 |
-| `{colors.ink-faint}` | placeholder, desabilitado, metadados | 5,0:1 |
+| `{colors.ink}` | texto principal e títulos | 16,4:1 |
+| `{colors.ink-muted}` | texto secundário e descrições | 9,2:1 |
+| `{colors.ink-faint}` | placeholder, desabilitado, metadados | 5,6:1 |
 
 ### Semantic
 
@@ -324,12 +324,12 @@ As quatro são OFL e vão embarcadas em `src/streamer_sidekick/assets/fonts/`, r
 |---|---|---|---|
 | Título de página | `{typography.display}` | 32 / 700 | um por página |
 | Seção | `{typography.heading}` | 22 / 600 | blocos dentro da página |
-| Título de card | `{typography.title}` | 17 / 600 | cards, itens de lista, diálogos |
+| Título de card | `{typography.title}` | 18 / 600 | cards, itens de lista, diálogos |
 | Texto | `{typography.body}` | 14 / 400 | descrições, parágrafos |
 | Texto forte | `{typography.body-strong}` | 14 / 600 | itens de nav, rótulos de campo |
 | Legenda | `{typography.caption}` | 12 / 400 | metadados, chips, dicas |
 | Botão | `{typography.button}` | 13 / 600 | todos os botões |
-| HUD | `{typography.hud-label}` | 18 VT323, caixa alta, +1px | barras de título de janela |
+| HUD | `{typography.hud-label}` | 20 VT323, caixa alta, +1px | barras de título de janela |
 | Número grande | `{typography.numeric-lg}` | 44 VT323 | contador, porcentagem em destaque |
 | Número médio | `{typography.numeric-md}` | 24 VT323 | "24/40", progresso em linha |
 
@@ -354,18 +354,30 @@ Base 4: `{spacing.xxs}` 4, `{spacing.xs}` 8, `{spacing.sm}` 12, `{spacing.md}` 1
 
 - Janela mínima 980 × 620. Barra lateral fixa de 232px em `{colors.sunken}`.
 - Área de conteúdo com margens de 28px nas laterais e 24px em cima e embaixo.
-- Cards de módulo/plugin em grade que reflui de 1 a 3 colunas conforme a largura (comportamento atual do hub).
+- Cards de módulo/plugin em grade que reflui de 1 a 3 colunas conforme a largura. O card tem largura mínima de 284px (`ModuleCard.MIN_WIDTH`): o título elide com dica e a descrição quebra linha inteira, nunca é cortada.
 - Guia de platina em janela própria: mínimo 720 × 560.
 
 ### Whitespace Philosophy
 
 Ferramenta de live é densidade média: tudo à mão, sem rolagem desnecessária. Espaço vazio separa grupos; ele não é decoração. Sem hero gigante em página de ferramenta: o topo da página é título + ação principal.
 
+### Wallpaper
+
+A área de conteúdo é pintada por `WallpaperSurface` com um pixmap em cache: degradê vertical, sol listrado no horizonte, grid em perspectiva e scanlines. Os painéis ficam por cima, opacos, então o texto nunca encosta na arte. As opções ficam em `tokens.WALLPAPERS` e o usuário escolhe em Configurações › "Papel de parede" (chave `hub.wallpaper`):
+
+| Chave | Rótulo | Clima |
+|---|---|---|
+| `futurefunk` (padrão) | Future funk | roxo → magenta, sol e grid fortes |
+| `noite` | Noite roxa | mesmo desenho, mais escuro e discreto |
+| `liso` | Liso | `{colors.canvas}` plano, para quem quer zero distração |
+
+Papel de parede novo entra como mais uma chave em `WALLPAPERS`, sempre com um painel opaco por cima garantindo o contraste do texto.
+
 ## Elevation & Depth
 
 | Nível | Como | Onde |
 |---|---|---|
-| 0 | plano, `{colors.canvas}` | fundo |
+| 0 | papel de parede (ou `{colors.canvas}` liso) | fundo da área de conteúdo |
 | 1 | `{colors.surface}` + borda `{colors.hairline}` + sombra dura 4/4 | `panel-window`, `module-card` |
 | 2 | nível 1 + borda `{colors.primary}` + faixa `{colors.brand}` + brilho suave | `panel-window-featured` (máx. 1 por tela) |
 | sobreposto | diálogo modal com o fundo escurecido a 60% | `QDialog`, `QMessageBox` |
@@ -454,7 +466,7 @@ Selos em `{typography.hud-label}`:
 - Um `panel-window-featured` por tela, no máximo.
 - Use `{colors.success}` para todo progresso e conquista, e só para isso.
 - Mostre números que mudam em `{typography.numeric-md}` ou `{typography.numeric-lg}`.
-- Elida texto com "…" (`QFontMetrics.elidedText`) em vez de cortar.
+- Elida texto com "…" (`ElidedLabel`, `QFontMetrics.elidedText`) em vez de cortar, sempre com o texto inteiro na dica (tooltip). Descrições quebram linha em vez de elidir.
 - Dê a toda lista vazia uma mensagem e a próxima ação ("Nenhum favorito ainda. Gerenciar favoritos").
 - Leia cores, fontes e espaços de `tokens.py`, nunca de um hex escrito no widget.
 
@@ -467,7 +479,7 @@ Selos em `{typography.hud-label}`:
 - Não use VT323 em frases nem abaixo de 18px.
 - Não use `{colors.brand}` em botões nem `{colors.synth}` em controles.
 - Não faça chip de status com cara de campo de texto.
-- Não use synthwave atrás de texto longo.
+- Não ponha texto direto sobre o papel de parede ou o `synth-hero`: sempre dentro de um painel.
 
 ## Responsive Behavior
 
@@ -502,6 +514,7 @@ Quando a API de tokens existir, `PLUGIN_STANDARD.md` e `GUIA_DE_PLATINA.md` pass
 Estado em 2026-10-01 (branch `sidekick-os`, ainda não publicada):
 
 - Feito: `ui/tokens.py` (fonte única), QSS e `QPalette` gerados dos tokens, fontes embarcadas em `assets/fonts`, `panel-window` (`NeonPanel`), `status-chip`, `segmented-progress`, `synth-hero`, ícones `icon-ui`/`icon-brand`, Início e Plugins reorganizados, nenhum hex nem emoji escrito à mão na UI.
+- Feito: papel de parede future funk com seletor, neutros roxos, estados de foco/pressionado/desabilitado em todos os botões, `ElidedLabel` com dica, confirmação em toda ação destrutiva, estados vazios nas listas. Verificador de texto cortado: 0 problemas em 980×620, 1280×800 e 1600×900.
 - `numeric-display` ainda não substituiu o número do Contador e dos overlays.
 - Os guias de platina e os plugins de terceiros pintam a própria página: herdam tema e fontes, mas só adotam painel-janela, progresso em blocos e tags quando forem atualizados.
 - A configuração "Reduzir animações" não existe.

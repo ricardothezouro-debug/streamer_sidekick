@@ -8,7 +8,19 @@ from pathlib import Path
 from typing import Optional
 
 from PySide6.QtCore import QPointF, QRectF, QSize, Qt, QTimer, Signal
-from PySide6.QtGui import QBrush, QColor, QFont, QFontMetrics, QIcon, QLinearGradient, QPainter, QPainterPath, QPen, QPixmap
+from PySide6.QtGui import (
+    QBrush,
+    QColor,
+    QFont,
+    QFontMetrics,
+    QIcon,
+    QLinearGradient,
+    QPainter,
+    QPainterPath,
+    QPen,
+    QPixmap,
+    QRadialGradient,
+)
 from PySide6.QtWidgets import QFrame, QHBoxLayout, QLabel, QPushButton, QSizePolicy, QVBoxLayout, QWidget
 
 from streamer_sidekick.core.modules import ModuleInfo
@@ -84,10 +96,12 @@ class NeonPanel(QFrame):
         self._title = title
         self._meta = meta
         self._apply_margins()
+        self._sync_tooltip()
         self.update()
 
     def set_meta(self, meta: str) -> None:
         self._meta = meta
+        self._sync_tooltip()
         self.update()
 
     def set_featured(self, featured: bool) -> None:
@@ -101,7 +115,7 @@ class NeonPanel(QFrame):
         cut = tokens.PANEL_CHAMFER
         rect = QRectF(0.5, 0.5, self.width() - shadow - 1.0, self.height() - shadow - 1.0)
 
-        painter.fillPath(_chamfer_path(rect.translated(shadow, shadow), cut), QColor(0, 0, 0, 178))
+        painter.fillPath(_chamfer_path(rect.translated(shadow, shadow), cut), tokens.color("shadow-hard", 178))
         path = _chamfer_path(rect, cut)
         painter.fillPath(path, tokens.color("surface"))
 
@@ -123,18 +137,40 @@ class NeonPanel(QFrame):
             painter.drawPath(path)
 
         if self._title:
-            font = hud_font(20)
-            painter.setFont(font)
-            metrics = QFontMetrics(font)
-            bar = QRectF(rect.left() + 12, rect.top(), rect.width() - 24 - cut, tokens.PANEL_TITLEBAR)
-            meta_w = metrics.horizontalAdvance(self._meta) + 8 if self._meta else 0
+            title, meta, bar = self._titlebar_texts(rect)
+            painter.setFont(hud_font(20))
             painter.setPen(tokens.color("ink-muted"))
-            title = metrics.elidedText(self._title.upper(), Qt.TextElideMode.ElideRight, int(bar.width() - meta_w))
             painter.drawText(bar, int(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter), title)
-            if self._meta:
+            if meta:
                 painter.setPen(tokens.color("ink-faint"))
-                painter.drawText(bar, int(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter), self._meta)
+                painter.drawText(bar, int(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter), meta)
         # Sem super().paintEvent: o QFrame desenharia a borda retangular do QSS por cima do chanfro.
+
+    def _titlebar_texts(self, rect: QRectF) -> tuple[str, str, QRectF]:
+        """Título e metadado que cabem na barra (com "…"). O metadado ocupa no máximo 40%."""
+        metrics = QFontMetrics(hud_font(20))
+        bar = QRectF(rect.left() + 12, rect.top(), rect.width() - 24 - tokens.PANEL_CHAMFER, tokens.PANEL_TITLEBAR)
+        meta = ""
+        meta_w = 0
+        if self._meta:
+            meta = metrics.elidedText(self._meta, Qt.TextElideMode.ElideRight, int(bar.width() * 0.4))
+            meta_w = metrics.horizontalAdvance(meta) + 12
+        title = metrics.elidedText(self._title.upper(), Qt.TextElideMode.ElideRight, int(max(0, bar.width() - meta_w)))
+        return title, meta, bar
+
+    def resizeEvent(self, event) -> None:
+        super().resizeEvent(event)
+        self._sync_tooltip()
+
+    def _sync_tooltip(self) -> None:
+        if not self._title:
+            return
+        shadow = tokens.PANEL_SHADOW
+        rect = QRectF(0.5, 0.5, self.width() - shadow - 1.0, self.height() - shadow - 1.0)
+        title, meta, _bar = self._titlebar_texts(rect)
+        clipped = title != self._title.upper() or meta != self._meta
+        full = f"{self._title} · {self._meta}" if self._meta else self._title
+        self.setToolTip(full if clipped else "")
 
 
 class PanelWindow(NeonPanel):
@@ -167,15 +203,23 @@ class SectionHeader(QWidget):
 
 
 class ElidedLabel(QLabel):
-    """Rótulo que termina em "…" em vez de cortar, em 1 ou 2 linhas."""
+    """Rótulo que termina em "…" em vez de cortar, em 1 ou mais linhas.
 
-    def __init__(self, text: str = "", lines: int = 1, parent: Optional[QWidget] = None) -> None:
+    Nunca encolhe a ponto de ficar ilegível (``minimumSizeHint`` reserva umas 8
+    letras) e, sempre que algo some, o texto inteiro vai para o tooltip.
+    ``mode=Qt.TextElideMode.ElideMiddle`` serve para caminhos de arquivo.
+    """
+
+    def __init__(self, text: str = "", lines: int = 1, parent: Optional[QWidget] = None,
+                 mode: Qt.TextElideMode = Qt.TextElideMode.ElideRight) -> None:
         super().__init__(parent)
-        self._full = text
+        self._full = text or ""
         self._lines = max(1, lines)
-        self.setSizePolicy(QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Fixed)
+        self._mode = mode
+        self.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Fixed)
         self.setTextFormat(Qt.TextFormat.PlainText)
         self.setWordWrap(False)
+        self.setAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignTop)
         self._refresh()
 
     def full_text(self) -> str:
@@ -183,15 +227,24 @@ class ElidedLabel(QLabel):
 
     def setText(self, text: str) -> None:  # noqa: N802 (API do Qt)
         self._full = text or ""
+        self.updateGeometry()
         self._refresh()
+
+    def _height(self) -> int:
+        m = self.contentsMargins()
+        return self.fontMetrics().lineSpacing() * self._lines + 2 + m.top() + m.bottom()
 
     def sizeHint(self) -> QSize:
         fm = self.fontMetrics()
-        width = min(fm.horizontalAdvance(self._full) + 4, 420)
-        return QSize(width, fm.lineSpacing() * self._lines + 2)
+        m = self.contentsMargins()
+        width = min(fm.horizontalAdvance(self._full) + 4, 420) + m.left() + m.right()
+        return QSize(width, self._height())
 
     def minimumSizeHint(self) -> QSize:
-        return QSize(16, self.sizeHint().height())
+        fm = self.fontMetrics()
+        m = self.contentsMargins()
+        floor = min(fm.horizontalAdvance(self._full), fm.horizontalAdvance(self._full[:8] + "…"))
+        return QSize(floor + 4 + m.left() + m.right(), self._height())
 
     def resizeEvent(self, event) -> None:
         super().resizeEvent(event)
@@ -204,9 +257,9 @@ class ElidedLabel(QLabel):
 
     def _refresh(self) -> None:
         fm = self.fontMetrics()
-        width = max(16, self.width())
+        width = max(16, self.contentsRect().width())
         if self._lines == 1:
-            shown = fm.elidedText(self._full, Qt.TextElideMode.ElideRight, width)
+            lines = [fm.elidedText(self._full, self._mode, width)]
         else:
             words, lines, current = self._full.split(), [], ""
             for word in words:
@@ -220,12 +273,14 @@ class ElidedLabel(QLabel):
                 lines.append(current)
             if len(lines) > self._lines:
                 head = lines[: self._lines - 1]
-                tail = fm.elidedText(" ".join(lines[self._lines - 1:]), Qt.TextElideMode.ElideRight, width)
-                lines = head + [tail]
-            shown = "\n".join(lines)
+                lines = head + [" ".join(lines[self._lines - 1:])]
+            # Elide cada linha: uma palavra sozinha mais larga que o rótulo também ganha "…".
+            lines = [fm.elidedText(line, Qt.TextElideMode.ElideRight, width) for line in lines]
+        shown = "\n".join(lines)
         QLabel.setText(self, shown)
-        self.setToolTip(self._full if shown.replace("\n", " ") != self._full else "")
-        self.setFixedHeight(fm.lineSpacing() * self._lines + 2)
+        self.setToolTip(self._full if " ".join(shown.split()) != " ".join(self._full.split()) else "")
+        self.setAccessibleName(self._full)
+        self.setFixedHeight(self._height())
 
 
 class StatusChip(QWidget):
@@ -234,17 +289,22 @@ class StatusChip(QWidget):
     STATES = {"ok": "success", "warn": "warning", "error": "danger", "neutral": "ink-faint", "live": "brand",
               "info": "primary"}
 
+    PAD_LEFT = 25  # ponto + respiro
+    PAD_RIGHT = 10
+
     def __init__(self, text: str = "", state: str = "neutral", parent: Optional[QWidget] = None) -> None:
         super().__init__(parent)
         self._text = text
         self._state = state
         self.setSizePolicy(QSizePolicy.Policy.Maximum, QSizePolicy.Policy.Fixed)
+        self._sync_accessibility()
 
     def set_text(self, text: str, state: Optional[str] = None) -> None:
         self._text = text
         if state:
             self._state = state
         self.updateGeometry()
+        self._sync_accessibility()
         self.update()
 
     def set_state(self, state: str) -> None:
@@ -255,16 +315,29 @@ class StatusChip(QWidget):
         return self._text
 
     def _font(self) -> QFont:
-        f = QFont(tokens.family("body"))
-        f.setPixelSize(13)
-        return f
+        return tokens.font("caption")
+
+    def _shown(self) -> str:
+        fm = QFontMetrics(self._font())
+        return fm.elidedText(self._text, Qt.TextElideMode.ElideRight,
+                             max(0, self.width() - self.PAD_LEFT - self.PAD_RIGHT))
+
+    def _sync_accessibility(self) -> None:
+        self.setAccessibleName(self._text)
+        self.setToolTip(self._text if self._shown() != self._text else "")
+
+    def resizeEvent(self, event) -> None:
+        super().resizeEvent(event)
+        self._sync_accessibility()
 
     def sizeHint(self) -> QSize:
         fm = QFontMetrics(self._font())
-        return QSize(fm.horizontalAdvance(self._text) + 36, 26)
+        return QSize(fm.horizontalAdvance(self._text) + self.PAD_LEFT + self.PAD_RIGHT + 2, 26)
 
     def minimumSizeHint(self) -> QSize:
-        return QSize(40, 26)
+        fm = QFontMetrics(self._font())
+        floor = min(fm.horizontalAdvance(self._text), fm.horizontalAdvance("Mmmmm…"))
+        return QSize(floor + self.PAD_LEFT + self.PAD_RIGHT + 2, 26)
 
     def paintEvent(self, event) -> None:
         painter = QPainter(self)
@@ -278,10 +351,8 @@ class StatusChip(QWidget):
         painter.drawEllipse(QPointF(14, rect.center().y()), 4, 4)
         painter.setFont(self._font())
         painter.setPen(tokens.color("ink-muted"))
-        fm = QFontMetrics(self._font())
-        text_rect = rect.adjusted(25, 0, -10, 0)
-        text = fm.elidedText(self._text, Qt.TextElideMode.ElideRight, int(text_rect.width()))
-        painter.drawText(text_rect, int(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter), text)
+        text_rect = rect.adjusted(self.PAD_LEFT, 0, -self.PAD_RIGHT, 0)
+        painter.drawText(text_rect, int(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter), self._shown())
 
 
 def guess_state(status: str) -> str:
@@ -298,6 +369,23 @@ def guess_state(status: str) -> str:
     return "ok"
 
 
+def _has_own_tile(pixmap: QPixmap) -> bool:
+    """O PNG já vem com o próprio quadrado de fundo (opaco perto das bordas)?
+
+    Ícones de plugin costumam trazer um "app icon" pronto. Desenhar o nosso quadro
+    em volta vira caixa dentro de caixa; nesse caso o PNG ocupa o quadro inteiro.
+    Amostra o meio de cada borda, um pouco para dentro (os cantos são arredondados).
+    """
+    image = pixmap.toImage()
+    w, h = image.width(), image.height()
+    if w < 8 or h < 8:
+        return False
+    inset_x, inset_y = max(1, w // 20), max(1, h // 20)
+    points = [(w // 2, inset_y), (w // 2, h - 1 - inset_y), (inset_x, h // 2), (w - 1 - inset_x, h // 2)]
+    opaque = sum(1 for x, y in points if image.pixelColor(x, y).alpha() > 200)
+    return opaque >= 3
+
+
 class IconBox(QWidget):
     """Quadro de 56 px em sunken com o ícone do módulo/plugin (DESIGN.md: module-card)."""
 
@@ -306,15 +394,29 @@ class IconBox(QWidget):
         super().__init__(parent)
         self._brand = brand
         self._pixmap = pixmap
+        self._tiled = pixmap is not None and not pixmap.isNull() and _has_own_tile(pixmap)
         self.setFixedSize(size, size)
 
     def paintEvent(self, event) -> None:
         painter = QPainter(self)
         painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+        painter.setRenderHint(QPainter.RenderHint.SmoothPixmapTransform)
         rect = QRectF(0.5, 0.5, self.width() - 1, self.height() - 1)
+        radius = tokens.RADII["md"]
+        if self._tiled:
+            # O ícone já tem o próprio fundo: ocupa o quadro inteiro, recortado no nosso raio.
+            clip = QPainterPath()
+            clip.addRoundedRect(rect, radius, radius)
+            painter.setClipPath(clip)
+            painter.drawPixmap(rect, self._pixmap, QRectF(self._pixmap.rect()))
+            painter.setClipping(False)
+            painter.setBrush(Qt.BrushStyle.NoBrush)
+            painter.setPen(QPen(tokens.color("hairline-strong"), 1))
+            painter.drawRoundedRect(rect, radius, radius)
+            return
         painter.setBrush(tokens.color("sunken"))
         painter.setPen(QPen(tokens.color("hairline-strong"), 1))
-        painter.drawRoundedRect(rect, tokens.RADII["md"], tokens.RADII["md"])
+        painter.drawRoundedRect(rect, radius, radius)
         if self._pixmap is not None and not self._pixmap.isNull():
             inner = rect.adjusted(8, 8, -8, -8)
             _draw_pixmap_fit(painter, self._pixmap, inner)
@@ -323,6 +425,88 @@ class IconBox(QWidget):
             x = (self.width() - size) / 2
             y = (self.height() - size) / 2
             icons.draw_brand(painter, self._brand, x, y, size, tokens.color)
+
+
+def paint_wallpaper(p: QPainter, r: QRectF, name: str) -> None:
+    """Papel de parede do Sidekick OS (céu degradê, brilho no horizonte, grid, scanlines)."""
+    spec = tokens.WALLPAPERS.get(name) or tokens.WALLPAPERS[tokens.DEFAULT_WALLPAPER]
+    if spec.get("flat"):
+        p.fillRect(r, tokens.color("canvas"))
+        return
+    hy = r.top() + r.height() * spec["horizon_at"]
+    sky = QLinearGradient(0, r.top(), 0, hy)
+    sky.setColorAt(0.0, QColor(spec["top"]))
+    sky.setColorAt(0.65, QColor(spec["mid"]))
+    sky.setColorAt(1.0, QColor(spec["horizon"]))
+    p.fillRect(QRectF(r.left(), r.top(), r.width(), hy - r.top()), sky)
+    floor = QLinearGradient(0, hy, 0, r.bottom())
+    floor.setColorAt(0.0, tokens.color("canvas"))
+    floor.setColorAt(1.0, tokens.color("sunken"))
+    p.fillRect(QRectF(r.left(), hy, r.width(), r.bottom() - hy), floor)
+
+    glow = QRadialGradient(QPointF(r.center().x(), hy), r.width() * 0.55)
+    glow.setColorAt(0.0, tokens.color("brand", spec["glow"]))
+    glow.setColorAt(1.0, tokens.color("brand", 0))
+    p.fillRect(QRectF(r.left(), hy - r.height() * 0.40, r.width(), r.height() * 0.45), glow)
+
+    p.setPen(QPen(tokens.color("primary", spec["grid"]), 1))
+    cx = r.center().x()
+    span = r.width() / 7
+    for i in range(-30, 31):
+        p.drawLine(QPointF(cx + i * span * 0.1, hy), QPointF(cx + i * span, r.bottom()))
+    y, step = hy, max(2.0, r.height() * 0.012)
+    while y < r.bottom():
+        p.drawLine(QPointF(r.left(), y), QPointF(r.right(), y))
+        y += step
+        step *= 1.38
+    p.setPen(QPen(tokens.color("brand", 200), 1.5))
+    p.drawLine(QPointF(r.left(), hy), QPointF(r.right(), hy))
+    if spec.get("scanlines"):
+        p.setPen(QPen(QColor(0, 0, 0, 38), 1))
+        yy = r.top()
+        while yy < hy:
+            p.drawLine(QPointF(r.left(), yy), QPointF(r.right(), yy))
+            yy += 3
+
+
+class WallpaperSurface(QWidget):
+    """Área de conteúdo com o papel de parede fixo atrás das páginas.
+
+    O desenho fica em cache (pixmap) e só é refeito quando o tamanho ou o papel
+    de parede mudam: rolar a página não redesenha o grid a cada quadro.
+    """
+
+    def __init__(self, wallpaper: str = tokens.DEFAULT_WALLPAPER, parent: Optional[QWidget] = None) -> None:
+        super().__init__(parent)
+        self._wallpaper = wallpaper if wallpaper in tokens.WALLPAPERS else tokens.DEFAULT_WALLPAPER
+        self._cache: Optional[QPixmap] = None
+
+    def wallpaper(self) -> str:
+        return self._wallpaper
+
+    def set_wallpaper(self, name: str) -> None:
+        name = name if name in tokens.WALLPAPERS else tokens.DEFAULT_WALLPAPER
+        if name != self._wallpaper:
+            self._wallpaper = name
+            self._cache = None
+            self.update()
+
+    def resizeEvent(self, event) -> None:
+        self._cache = None
+        super().resizeEvent(event)
+
+    def paintEvent(self, event) -> None:
+        dpr = self.devicePixelRatioF()
+        if self._cache is None or self._cache.size() != self.size() * dpr:
+            pm = QPixmap(self.size() * dpr)
+            pm.setDevicePixelRatio(dpr)
+            cp = QPainter(pm)
+            cp.setRenderHint(QPainter.RenderHint.Antialiasing)
+            paint_wallpaper(cp, QRectF(0, 0, self.width(), self.height()), self._wallpaper)
+            cp.end()
+            self._cache = pm
+        painter = QPainter(self)
+        painter.drawPixmap(0, 0, self._cache)  # o Qt recorta na área suja (event.rect)
 
 
 class SynthHero(QWidget):
@@ -425,15 +609,21 @@ class BrandLogo(QWidget):
         floor = 13 if self.compact else 24
         family = tokens.family("display")
         while size > floor:
-            font = QFont(family, size, QFont.Weight.Bold)
+            font = QFont(family)
+            font.setPixelSize(size)
+            font.setWeight(QFont.Weight.Bold)
             metrics = QFontMetrics(font)
             total = sum(metrics.horizontalAdvance(text) for _, text in segments)
             if total <= available:
                 break
             size -= 1
 
-        font = QFont(family, size, QFont.Weight.Bold)
+        font = QFont(family)
+        font.setPixelSize(size)
+        font.setWeight(QFont.Weight.Bold)
         metrics = QFontMetrics(font)
+        if sum(metrics.horizontalAdvance(text) for _, text in segments) > available:
+            return  # nem no menor tamanho cabe: melhor só o robô do que o nome cortado
         baseline = int((height + metrics.ascent() - metrics.descent()) / 2)
         cursor = int(text_x)
         painter.setFont(font)
@@ -507,13 +697,17 @@ class ModuleTile(QFrame):
 
     opened = Signal(str)
 
+    #: Largura mínima: ícone (56) + respiro (14) + ~180 de texto + margens (32).
+    #: Abaixo disso título e status começariam a virar "…".
+    MIN_WIDTH = 284
+
     def __init__(self, module: ModuleInfo, parent: Optional[QWidget] = None) -> None:
         super().__init__(parent)
         self.module = module
         self.setObjectName("ModuleCard")
         self.setAttribute(Qt.WidgetAttribute.WA_Hover, True)
-        self.setMinimumHeight(176)
-        self.setMinimumWidth(0)
+        self.setMinimumHeight(184)
+        self.setMinimumWidth(self.MIN_WIDTH)
         self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Minimum)
 
         root = QVBoxLayout(self)
@@ -528,8 +722,11 @@ class ModuleTile(QFrame):
         title_box.setSpacing(4)
         self.title_label = ElidedLabel(module.title, lines=1)
         self.title_label.setObjectName("CardTitle")
-        self.subtitle_label = ElidedLabel(module.subtitle, lines=2)
+        # Descrição inteira, quebrando linha: o card cresce em vez de cortar o texto.
+        self.subtitle_label = QLabel(module.subtitle)
         self.subtitle_label.setObjectName("Muted")
+        self.subtitle_label.setWordWrap(True)
+        self.subtitle_label.setAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignTop)
         title_box.addWidget(self.title_label)
         title_box.addWidget(self.subtitle_label)
         title_box.addStretch(1)
@@ -541,6 +738,8 @@ class ModuleTile(QFrame):
         self.status_chip = StatusChip(module.status, guess_state(module.status))
         open_button = QPushButton("Abrir")
         open_button.setObjectName("GhostButton")
+        open_button.setAccessibleName(f"Abrir {module.title}")
+        open_button.setToolTip(f"Abrir {module.title}")
         open_button.setCursor(Qt.CursorShape.PointingHandCursor)
         open_button.clicked.connect(lambda: self.opened.emit(module.module_id))
         footer.addWidget(self.status_chip, 1, Qt.AlignmentFlag.AlignLeft)
@@ -583,13 +782,20 @@ class AddPluginTile(QFrame):
         super().__init__(parent)
         self.setObjectName("AddPluginCard")
         self.setAttribute(Qt.WidgetAttribute.WA_Hover, True)
-        self.setMinimumHeight(176)
+        self.setMinimumHeight(184)
+        self.setMinimumWidth(ModuleTile.MIN_WIDTH)
         self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Minimum)
         self.setCursor(Qt.CursorShape.PointingHandCursor)
+        # Funciona como botão: recebe foco por Tab e abre com Enter/Espaço.
+        self.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
+        self.setAccessibleName("Adicionar plugin")
+        self.setToolTip("Abrir o marketplace de plugins")
+        radius = tokens.RADII["sm"]
         self.setStyleSheet(
-            f"QFrame#AddPluginCard {{ background: transparent; border: 1px dashed {tokens.hex_('hairline-strong')};"
-            f" border-radius: 4px; }}"
+            f"QFrame#AddPluginCard {{ background: {tokens.hex_('surface')};"
+            f" border: 1px dashed {tokens.hex_('hairline-strong')}; border-radius: {radius}px; }}"
             f"QFrame#AddPluginCard:hover {{ border-color: {tokens.hex_('success')}; }}"
+            f"QFrame#AddPluginCard:focus {{ border: 1px solid {tokens.hex_('primary')}; }}"
         )
 
         root = QVBoxLayout(self)
@@ -620,17 +826,30 @@ class AddPluginTile(QFrame):
         root.addWidget(self.badge, 0, Qt.AlignmentFlag.AlignHCenter)
         root.addStretch(1)
 
-    def mousePressEvent(self, event) -> None:
-        if event.button() == Qt.MouseButton.LeftButton:
+    def mouseReleaseEvent(self, event) -> None:
+        # Dispara ao soltar (como um botão), e só se o cursor ainda estiver no card.
+        if event.button() == Qt.MouseButton.LeftButton and self.rect().contains(event.position().toPoint()):
             self.clicked.emit()
             event.accept()
+            return
+        super().mouseReleaseEvent(event)
+
+    def keyPressEvent(self, event) -> None:
+        if event.key() in (Qt.Key.Key_Return, Qt.Key.Key_Enter, Qt.Key.Key_Space):
+            self.clicked.emit()
+            event.accept()
+            return
+        super().keyPressEvent(event)
 
     def set_update_badge(self, count: int) -> None:
         if count > 0:
-            self.badge.set_text(f"{count} atualização(ões) disponível(is)", "ok")
+            text = "1 atualização" if count == 1 else f"{count} atualizações"
+            self.badge.set_text(text, "ok")
             self.badge.setVisible(True)
+            self.setAccessibleName(f"Adicionar plugin ({text} de plugins)")
         else:
             self.badge.setVisible(False)
+            self.setAccessibleName("Adicionar plugin")
 
 
 ModuleCard = ModuleTile
@@ -662,15 +881,29 @@ class NeonProgressBar(QWidget):
         self._indeterminate = False
         self._timer.stop()
         self._value = max(0.0, min(1.0, value / 100.0))
+        self.setAccessibleName(f"Progresso: {int(round(self._value * 100))}%")
         self.update()
 
     def setIndeterminate(self, on: bool = True) -> None:  # noqa: N802
         self._indeterminate = bool(on)
-        if self._indeterminate:
+        self.setAccessibleName("Progresso: em andamento" if self._indeterminate else "")
+        self._sync_timer()
+        self.update()
+
+    def _sync_timer(self) -> None:
+        # Só anima quando indeterminado e visível: nada de timer rodando à toa.
+        if self._indeterminate and self.isVisible():
             self._timer.start()
         else:
             self._timer.stop()
-        self.update()
+
+    def showEvent(self, event) -> None:
+        super().showEvent(event)
+        self._sync_timer()
+
+    def hideEvent(self, event) -> None:
+        super().hideEvent(event)
+        self._timer.stop()
 
     def paintEvent(self, event) -> None:
         painter = QPainter(self)

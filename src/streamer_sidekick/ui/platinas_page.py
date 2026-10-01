@@ -30,7 +30,14 @@ from streamer_sidekick.core.plugins import (
     PluginManager,
 )
 from streamer_sidekick.ui.components import neon_qicon
-from streamer_sidekick.ui.plugin_marketplace import _CatalogWorker, _InstallWorker
+from streamer_sidekick.ui.plugin_marketplace import (
+    ACTION_LABELS,
+    _CatalogWorker,
+    _InstallWorker,
+    _UninstallWorker,
+    button_width_for,
+    friendly_install_error,
+)
 
 
 class _PlatinaRow(QFrame):
@@ -55,27 +62,30 @@ class _PlatinaRow(QFrame):
         text_box.setSpacing(4)
         self.name_label = QLabel(entry.name)
         self.name_label.setObjectName("CardTitle")
+        self.name_label.setWordWrap(True)  # nome longo quebra a linha em vez de empurrar os botões
         self.desc_label = QLabel(entry.description)
         self.desc_label.setObjectName("Muted")
         self.desc_label.setWordWrap(True)
         self.status_label = QLabel("")
         self.status_label.setObjectName("Muted")
+        self.status_label.setWordWrap(True)
         text_box.addWidget(self.name_label)
         text_box.addWidget(self.desc_label)
         text_box.addWidget(self.status_label)
 
         self.action_button = QPushButton("")
-        self.action_button.setMinimumWidth(110)
+        self.action_button.setMinimumWidth(button_width_for(ACTION_LABELS))
         self.action_button.clicked.connect(self._on_action)
 
         self.remove_button = QPushButton("Remover")
-        self.remove_button.setMinimumWidth(90)
+        self.remove_button.setObjectName("DangerButton")
+        self.remove_button.setMinimumWidth(button_width_for(("Remover", "Removendo…")))
         self.remove_button.clicked.connect(lambda: self.remove_requested.emit(self.entry.id))
         self.remove_button.setVisible(False)
 
         layout.addLayout(text_box, 1)
-        layout.addWidget(self.action_button, 0)
-        layout.addWidget(self.remove_button, 0)
+        layout.addWidget(self.action_button, 0, Qt.AlignmentFlag.AlignTop)
+        layout.addWidget(self.remove_button, 0, Qt.AlignmentFlag.AlignTop)
         self.refresh_state()
 
     def _on_action(self) -> None:
@@ -91,7 +101,10 @@ class _PlatinaRow(QFrame):
         installed = self.manager.get(self.entry.id)
         incompatibility = self.manager.incompatibility_reason(self.entry)
         self.remove_button.setVisible(installed is not None)
+        self.remove_button.setEnabled(installed is not None)
+        self.remove_button.setText("Remover")
         self.status_label.setStyleSheet("")
+        self.status_label.setToolTip("")
         if installed is None and incompatibility:
             self.action_button.setText("Incompatível")
             self.action_button.setEnabled(False)
@@ -113,10 +126,16 @@ class _PlatinaRow(QFrame):
 
     def set_busy(self, message: str) -> None:
         self.action_button.setEnabled(False)
-        self.action_button.setText("...")
+        updating = self.manager.get(self.entry.id) is not None
+        self.action_button.setText("Atualizando…" if updating else "Instalando…")
         self.remove_button.setEnabled(False)
         self.status_label.setStyleSheet("")
         self.status_label.setText(message)
+
+    def set_removing(self) -> None:
+        self.action_button.setEnabled(False)
+        self.remove_button.setEnabled(False)
+        self.remove_button.setText("Removendo…")
 
 
 class PlatinasPage(QWidget):
@@ -130,6 +149,7 @@ class PlatinasPage(QWidget):
         self._active_row: Optional[_PlatinaRow] = None
         self._current_guide: Optional[InstalledPlugin] = None
         self._windows: list[QWidget] = []  # janelas de guia abertas (mantém referência)
+        self._uninstall_worker: Optional[_UninstallWorker] = None
 
         outer = QVBoxLayout(self)
         outer.setContentsMargins(0, 0, 0, 0)
@@ -160,12 +180,22 @@ class PlatinasPage(QWidget):
 
         self.search = QLineEdit()
         self.search.setPlaceholderText("Pesquisar jogo…")
+        self.search.setAccessibleName("Pesquisar guias")
+        self.search.setClearButtonEnabled(True)
         self.search.textChanged.connect(self._apply_filter)
         layout.addWidget(self.search)
 
         self.status_label = QLabel("Carregando catálogo…")
         self.status_label.setObjectName("Muted")
-        layout.addWidget(self.status_label)
+        self.status_label.setWordWrap(True)
+        self.retry_button = QPushButton("Tentar de novo")
+        self.retry_button.setObjectName("GhostButton")
+        self.retry_button.clicked.connect(self._load_catalog)
+        self.retry_button.setVisible(False)
+        status_row = QHBoxLayout()
+        status_row.addWidget(self.status_label, 1)
+        status_row.addWidget(self.retry_button, 0)
+        layout.addLayout(status_row)
 
         self.rows_container = QWidget()
         self.rows_layout = QVBoxLayout(self.rows_container)
@@ -213,18 +243,22 @@ class PlatinasPage(QWidget):
 
     def _load_catalog(self) -> None:
         self.status_label.setText("Carregando catálogo…")
+        if hasattr(self, "retry_button"):
+            self.retry_button.setVisible(False)
         self._catalog_worker = _CatalogWorker(self.manager, CATEGORY_PLATINA)
         self._catalog_worker.loaded.connect(self._on_catalog_loaded)
         self._catalog_worker.start()
 
     def _on_catalog_loaded(self, entries: list) -> None:
         for row in self._rows:
+            row.setParent(None)
             row.deleteLater()
         self._rows.clear()
         if not entries:
-            self.status_label.setText("Nenhum guia disponível no momento (ou sem conexão).")
+            self.status_label.setText("Não consegui carregar o catálogo. Verifique a internet e tente de novo.")
+            self.retry_button.setVisible(True)
             return
-        self.status_label.setText(f"{len(entries)} guia(s) no catálogo.")
+        self._catalog_total = len(entries)
         for entry in entries:
             row = _PlatinaRow(entry, self.manager)
             row.install_requested.connect(self._on_install_requested)
@@ -236,9 +270,21 @@ class PlatinasPage(QWidget):
 
     def _apply_filter(self) -> None:
         query = self.search.text().strip().lower()
+        visible = 0
         for row in self._rows:
             text = f"{row.entry.name} {row.entry.description}".lower()
-            row.setVisible(query in text)
+            shown = query in text
+            row.setVisible(shown)
+            visible += int(shown)
+        if not self._rows:
+            return
+        if query and not visible:
+            self.status_label.setText(f"Nenhum guia encontrado para “{self.search.text().strip()}”. Limpe a busca.")
+        elif query:
+            self.status_label.setText("1 guia encontrado." if visible == 1 else f"{visible} guias encontrados.")
+        else:
+            total = len(self._rows)
+            self.status_label.setText("1 guia no catálogo." if total == 1 else f"{total} guias no catálogo.")
 
     # ---- instalar / abrir / remover ------------------------------------
 
@@ -268,7 +314,8 @@ class PlatinasPage(QWidget):
         if self._active_row is not None:
             self._active_row.refresh_state()
             self._active_row.status_label.setStyleSheet(f"color: {tokens.hex_('danger')};")
-            self._active_row.status_label.setText(f"Falhou: {message}")
+            self._active_row.status_label.setText(friendly_install_error(message))
+            self._active_row.status_label.setToolTip(f"Detalhe: {message}")
         self._active_row = None
 
     def _on_remove_requested(self, plugin_id: str) -> None:
@@ -283,9 +330,22 @@ class PlatinasPage(QWidget):
         )
         if answer != QMessageBox.StandardButton.Yes:
             return
-        self.manager.uninstall(plugin_id)
+        row = next((r for r in self._rows if r.entry.id == plugin_id), None)
+        if row is not None:
+            row.set_removing()
+        worker = _UninstallWorker(self.manager, plugin_id)
+        worker.done.connect(self._on_uninstalled)
+        self._uninstall_worker = worker
+        worker.start()
+
+    def _on_uninstalled(self, plugin_id: str, ok: bool) -> None:
         for row in self._rows:
             row.refresh_state()
+        if not ok:
+            row = next((r for r in self._rows if r.entry.id == plugin_id), None)
+            if row is not None:
+                row.status_label.setStyleSheet(f"color: {tokens.hex_('danger')};")
+                row.status_label.setText("Não foi possível remover. Feche a janela do guia e tente de novo.")
 
     def _open_guide_by_id(self, plugin_id: str) -> None:
         plugin = self.manager.get(plugin_id)
@@ -322,7 +382,10 @@ class PlatinasPage(QWidget):
         layout = QVBoxLayout(window)
         layout.setContentsMargins(16, 16, 16, 16)
         layout.addWidget(self._build_guide_widget(plugin))
-        window.resize(960, 820)
+        # 960x820 de preferência, mas nunca maior que a tela (1366x768 cortaria o rodapé).
+        window.setMinimumSize(720, 560)
+        screen = (self.screen() or QGuiApplication.primaryScreen()).availableGeometry()
+        window.resize(min(960, screen.width() - 40), min(820, screen.height() - 60))
         window.destroyed.connect(lambda: self._forget_window(window))
         self._windows.append(window)
         window.show()
@@ -349,7 +412,11 @@ class PlatinasPage(QWidget):
         layout = QVBoxLayout(box)
         title = QLabel(plugin.name)
         title.setObjectName("SectionTitle")
-        detail = QLabel(f"Não foi possível abrir este guia:\n{message}")
+        title.setWordWrap(True)
+        detail = QLabel(
+            f"Não foi possível abrir este guia:\n{message}\n\n"
+            "Remova e instale o guia de novo pela lista de Guias de Platina."
+        )
         detail.setObjectName("Muted")
         detail.setWordWrap(True)
         layout.addWidget(title)

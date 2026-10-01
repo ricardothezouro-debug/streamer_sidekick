@@ -243,43 +243,55 @@ from streamer_sidekick.ui import tokens  # noqa: E402
 _cache: dict = {}
 
 
-def ui_pixmap(name: str, size: int = 24, color: str = "ink-muted") -> QPixmap:
-    """Pixmap nítido (respeita a escala da tela) de um ícone de interface."""
-    key = ("ui", name, size, color)
-    if key not in _cache:
-        from PySide6.QtGui import QGuiApplication
-
-        dpr = QGuiApplication.primaryScreen().devicePixelRatio() if QGuiApplication.primaryScreen() else 1.0
-        pm = QPixmap(int(size * dpr), int(size * dpr))
+def _render(key: tuple, size: int, dpr: float, paint) -> QPixmap:
+    full = key + (dpr,)
+    if full not in _cache:
+        pm = QPixmap(int(round(size * dpr)), int(round(size * dpr)))
         pm.setDevicePixelRatio(dpr)
         pm.fill(Qt.GlobalColor.transparent)
         p = QPainter(pm)
+        paint(p)
+        p.end()
+        _cache[full] = pm
+    return _cache[full]
+
+
+def _screen_dpr() -> float:
+    from PySide6.QtGui import QGuiApplication
+
+    screen = QGuiApplication.primaryScreen()
+    return screen.devicePixelRatio() if screen else 1.0
+
+
+def ui_pixmap(name: str, size: int = 24, color: str = "ink-muted", dpr: float | None = None) -> QPixmap:
+    """Pixmap nítido de um ícone de interface (na escala ``dpr``; padrão: tela principal)."""
+
+    def paint(p: QPainter) -> None:
         p.setRenderHint(QPainter.RenderHint.Antialiasing)
         draw_ui(p, name, 0, 0, size, tokens.color(color))
-        p.end()
-        _cache[key] = pm
-    return _cache[key]
+
+    return _render(("ui", name, size, color), size, dpr or _screen_dpr(), paint)
 
 
 def ui_icon(name: str, size: int = 24, color: str = "ink-muted") -> QIcon:
-    return QIcon(ui_pixmap(name, size, color))
+    """QIcon com 1x e 2x (nítido em qualquer monitor) e os estados do DESIGN.md:
+    hover em ``ink`` e desabilitado em ``ink-faint``."""
+    icon = QIcon()
+    for dpr in (1.0, 2.0):
+        icon.addPixmap(ui_pixmap(name, size, color, dpr), QIcon.Mode.Normal)
+        icon.addPixmap(ui_pixmap(name, size, "ink-faint", dpr), QIcon.Mode.Disabled)
+        if color == "ink-muted":
+            icon.addPixmap(ui_pixmap(name, size, "ink", dpr), QIcon.Mode.Active)
+    return icon
 
 
-def brand_pixmap(name: str, size: int = 48) -> QPixmap:
+def brand_pixmap(name: str, size: int = 48, dpr: float | None = None) -> QPixmap:
     """Ícone de marca em pixel. ``size`` deve ser múltiplo de 12 (48 ou 96)."""
-    key = ("brand", name, size)
-    if key not in _cache:
-        from PySide6.QtGui import QGuiApplication
 
-        dpr = QGuiApplication.primaryScreen().devicePixelRatio() if QGuiApplication.primaryScreen() else 1.0
-        pm = QPixmap(int(size * dpr), int(size * dpr))
-        pm.setDevicePixelRatio(dpr)
-        pm.fill(Qt.GlobalColor.transparent)
-        p = QPainter(pm)
+    def paint(p: QPainter) -> None:
         draw_brand(p, name, 0, 0, size, tokens.color)
-        p.end()
-        _cache[key] = pm
-    return _cache[key]
+
+    return _render(("brand", name, size), size, dpr or _screen_dpr(), paint)
 
 
 def has_ui(name: str) -> bool:

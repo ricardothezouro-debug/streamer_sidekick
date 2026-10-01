@@ -69,6 +69,7 @@ def build_palette() -> QPalette:
 
 def build_stylesheet() -> str:
     c = tokens.COLORS
+    t = tokens.TYPE
     check = _indicator_image("check")
     arrow = _indicator_image("arrow")
     return f"""
@@ -76,8 +77,6 @@ def build_stylesheet() -> str:
            (build_palette) e os widgets internos ficam transparentes. */
         QWidget {{
             color: {c['ink']};
-            font-family: "{BODY_FONT}";
-            font-size: 14px;
         }}
 
         QLabel, QCheckBox, QRadioButton {{
@@ -85,10 +84,6 @@ def build_stylesheet() -> str:
         }}
 
         QMainWindow, QDialog, QMessageBox, QWidget#GuideWindow {{
-            background: {c['canvas']};
-        }}
-
-        QWidget#ContentSurface {{
             background: {c['canvas']};
         }}
 
@@ -129,6 +124,10 @@ def build_stylesheet() -> str:
             min-width: 36px;
         }}
 
+        QScrollBar::handle:horizontal:hover {{
+            background: {c['primary']};
+        }}
+
         QScrollBar::add-line, QScrollBar::sub-line,
         QScrollBar::add-page, QScrollBar::sub-page {{
             height: 0;
@@ -155,7 +154,7 @@ def build_stylesheet() -> str:
 
         QLabel#CardTitle {{
             font-family: "{TITLE_FONT}";
-            font-size: 18px;
+            font-size: {t['title'][1]}px;
             font-weight: 600;
             color: {c['ink']};
         }}
@@ -172,7 +171,7 @@ def build_stylesheet() -> str:
         QLabel#Kicker, QLabel#HudLabel {{
             font-family: "{HUD_FONT}";
             color: {c['primary']};
-            font-size: 20px;
+            font-size: {t['hud-label'][1]}px;
             letter-spacing: 1px;
         }}
 
@@ -206,10 +205,10 @@ def build_stylesheet() -> str:
         QLabel#StatusPill {{
             background: {c['surface-raised']};
             border: 0;
-            border-radius: 11px;
+            border-radius: 13px;
             padding: 4px 12px;
             color: {c['ink-muted']};
-            font-size: 13px;
+            font-size: {t['caption'][1]}px;
         }}
 
         QLabel#ModuleStatusText {{
@@ -278,7 +277,7 @@ def build_stylesheet() -> str:
         }}
 
         QPushButton:focus {{
-            border-color: {c['primary']};
+            border-color: {c['ink']};
         }}
 
         QPushButton:disabled {{
@@ -299,7 +298,7 @@ def build_stylesheet() -> str:
         }}
 
         QPushButton#PrimaryButton:focus {{
-            border: 2px solid {c['ink']};
+            border-color: {c['ink']};
         }}
 
         QPushButton#PrimaryButton:disabled {{
@@ -320,6 +319,21 @@ def build_stylesheet() -> str:
             color: {c['primary-hover']};
         }}
 
+        QPushButton#GhostButton:focus {{
+            border-color: {c['primary']};
+        }}
+
+        QPushButton#GhostButton:pressed {{
+            background: {c['surface']};
+            padding-top: 9px;
+            padding-bottom: 7px;
+        }}
+
+        QPushButton#GhostButton:disabled {{
+            background: transparent;
+            color: {c['ink-faint']};
+        }}
+
         QPushButton#DangerButton {{
             background: transparent;
             border: 1px solid {c['danger']};
@@ -328,6 +342,22 @@ def build_stylesheet() -> str:
 
         QPushButton#DangerButton:hover {{
             background: {c['surface-raised']};
+        }}
+
+        QPushButton#DangerButton:focus {{
+            background: {c['surface-raised']};
+            border-color: {c['ink']};
+        }}
+
+        QPushButton#DangerButton:pressed {{
+            background: {c['surface']};
+            padding-top: 9px;
+            padding-bottom: 7px;
+        }}
+
+        QPushButton#DangerButton:disabled {{
+            border-color: {c['hairline']};
+            color: {c['ink-faint']};
         }}
 
         QPushButton#NavButton, QPushButton#SubNavButton {{
@@ -354,6 +384,19 @@ def build_stylesheet() -> str:
         QPushButton#NavButton:hover, QPushButton#SubNavButton:hover {{
             background: {c['surface-raised']};
             color: {c['ink']};
+        }}
+
+        QPushButton#NavButton:focus, QPushButton#SubNavButton:focus {{
+            background: {c['surface-raised']};
+            color: {c['ink']};
+        }}
+
+        QPushButton#NavButton:pressed, QPushButton#SubNavButton:pressed {{
+            background: {c['surface']};
+        }}
+
+        QPushButton#NavButton:disabled, QPushButton#SubNavButton:disabled {{
+            color: {c['ink-faint']};
         }}
 
         QPushButton#NavButton[active="true"], QPushButton#SubNavButton[active="true"] {{
@@ -421,7 +464,8 @@ def build_stylesheet() -> str:
             border-color: {c['primary']};
         }}
 
-        QLineEdit:disabled, QComboBox:disabled, QSpinBox:disabled {{
+        QLineEdit:disabled, QComboBox:disabled, QSpinBox:disabled, QPlainTextEdit:disabled,
+        QTextEdit:disabled, QKeySequenceEdit:disabled {{
             background: {c['surface']};
             border-color: {c['hairline']};
             color: {c['ink-faint']};
@@ -443,9 +487,19 @@ def build_stylesheet() -> str:
             border: 1px solid {c['hairline-strong']};
             selection-background-color: {c['primary-tint']};
             color: {c['ink']};
+            outline: 0;
         }}
 
-        QKeySequenceEdit[recording="true"] {{
+        QComboBox QAbstractItemView::item {{
+            padding: 6px 10px;
+            min-height: 22px;
+        }}
+
+        QComboBox QAbstractItemView::item:hover {{
+            background: {c['surface']};
+        }}
+
+        QKeySequenceEdit[recording="true"], QKeySequenceEdit[recording="true"] QLineEdit {{
             background: {c['primary-tint']};
             border: 1px solid {c['primary']};
             color: {c['ink']};
@@ -475,16 +529,21 @@ def build_stylesheet() -> str:
             color: {c['ink']};
         }}
 
-        QListWidget::item {{
+        QListWidget:focus, QListView:focus, QTreeView:focus, QTableView:focus {{
+            border-color: {c['primary']};
+        }}
+
+        QListWidget::item, QListView::item, QTreeView::item, QTableView::item {{
             border-radius: 2px;
             padding: 8px 10px;
             border-left: 2px solid transparent;
         }}
 
-        QListWidget::item:hover {{
+        QListWidget::item:hover, QListView::item:hover, QTreeView::item:hover, QTableView::item:hover {{
             background: {c['surface-raised']};
         }}
 
+        QListView::item:selected, QTreeView::item:selected, QTableView::item:selected,
         QListWidget::item:selected {{
             background: {c['primary-tint']};
             color: {c['ink']};
@@ -514,6 +573,40 @@ def build_stylesheet() -> str:
             image: url("{check}");
         }}
 
+        QCheckBox::indicator:focus, QRadioButton::indicator:focus {{
+            border: 1px solid {c['ink']};
+        }}
+
+        QCheckBox::indicator:disabled, QRadioButton::indicator:disabled {{
+            background: {c['surface']};
+            border-color: {c['hairline']};
+        }}
+
+        QCheckBox::indicator:checked:disabled {{
+            background: {c['hairline']};
+        }}
+
+        QCheckBox:disabled, QRadioButton:disabled {{
+            color: {c['ink-faint']};
+        }}
+
+        QRadioButton::indicator {{
+            width: 18px;
+            height: 18px;
+            border-radius: 9px;
+            border: 1px solid {c['control-border']};
+            background: {c['sunken']};
+        }}
+
+        QRadioButton::indicator:hover {{
+            border-color: {c['primary']};
+        }}
+
+        QRadioButton::indicator:checked {{
+            background: {c['primary']};
+            border: 4px solid {c['sunken']};
+        }}
+
         QTabWidget::pane {{
             border: 0;
             border-top: 1px solid {c['hairline']};
@@ -536,6 +629,14 @@ def build_stylesheet() -> str:
         QTabBar::tab:selected {{
             color: {c['ink']};
             border-bottom: 2px solid {c['primary']};
+        }}
+
+        QTabBar::tab:focus {{
+            background: {c['surface-raised']};
+        }}
+
+        QTabBar::tab:disabled {{
+            color: {c['ink-faint']};
         }}
 
         QHeaderView::section {{

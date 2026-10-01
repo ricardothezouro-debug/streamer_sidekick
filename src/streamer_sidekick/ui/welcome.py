@@ -13,7 +13,7 @@ _ITEMS = [
     ("Marcador", "anote eventos da live com horário — ótimo para cortar os melhores momentos depois."),
     ("Contador", "overlays de contador transparentes para o OBS, com hotkeys e presets."),
     ("Atalhos", "hotkeys globais que funcionam mesmo com o jogo em foco."),
-    ("Plugins (+)", "instale ferramentas extras direto do card \"+\" na aba Plugins."),
+    ("Plugins (+)", "instale ferramentas extras direto do card “+” na aba Plugins."),
     ("Ajuda", "explica cada ferramenta — e os plugins que você instalar aparecem lá também."),
 ]
 
@@ -30,7 +30,6 @@ class WelcomeDialog(QDialog):
 
         title = QLabel("Bem-vindo ao Streamer Sidekick")
         title.setObjectName("PageTitle")
-        title.setStyleSheet("font-size: 26px;")
         title.setWordWrap(True)
         subtitle = QLabel("Um hub de ferramentas rápidas para a sua live. Um tour de 10 segundos:")
         subtitle.setObjectName("Muted")
