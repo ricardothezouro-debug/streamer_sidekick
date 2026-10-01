@@ -83,6 +83,7 @@ class AppUpdateDialog(QDialog):
 
         title = QLabel(f"Streamer Sidekick {release.version} disponível")
         title.setObjectName("PageTitle")
+        title.setWordWrap(True)
         current = QLabel(f"Você está na versão {app_update.current_version()}.")
         current.setObjectName("Muted")
         layout.addWidget(title)
@@ -176,7 +177,7 @@ class AppUpdatedDialog(QDialog):
         layout.setContentsMargins(24, 22, 24, 22)
         layout.setSpacing(12)
 
-        title = QLabel(f"🎉 Atualizado para a v{version}!")
+        title = QLabel(f"Atualizado para a v{version}")
         title.setObjectName("PageTitle")
         title.setStyleSheet("font-size: 24px;")
         title.setWordWrap(True)

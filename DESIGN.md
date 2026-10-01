@@ -499,15 +499,13 @@ Quando a API de tokens existir, `PLUGIN_STANDARD.md` e `GUIA_DE_PLATINA.md` pass
 
 ## Known Gaps
 
-Estado em 2026-10-01 (o código ainda é o tema 0.8.x):
+Estado em 2026-10-01 (branch `sidekick-os`, ainda não publicada):
 
-- `tokens.py` ainda não existe. O tema tem 33 cores literais espalhadas (veja a Migração abaixo).
-- Fontes ainda não embarcadas. Além disso, `_load_optional_fonts` procura em `src/assets/fonts`, e não em `src/streamer_sidekick/assets/fonts`.
-- `panel-window`, `status-chip`, `segmented-progress`, `numeric-display` e `synth-hero` ainda não foram implementados.
-- Os ícones `icon-ui` e `icon-brand` estão desenhados (manual em `docs/design/`), mas o app ainda usa o `NeonIcon` e os PNGs `marker_icon`/`counter_icon`.
+- Feito: `ui/tokens.py` (fonte única), QSS e `QPalette` gerados dos tokens, fontes embarcadas em `assets/fonts`, `panel-window` (`NeonPanel`), `status-chip`, `segmented-progress`, `synth-hero`, ícones `icon-ui`/`icon-brand`, Início e Plugins reorganizados, nenhum hex nem emoji escrito à mão na UI.
+- `numeric-display` ainda não substituiu o número do Contador e dos overlays.
+- Os guias de platina e os plugins de terceiros pintam a própria página: herdam tema e fontes, mas só adotam painel-janela, progresso em blocos e tags quando forem atualizados.
 - A configuração "Reduzir animações" não existe.
 - Sem tema claro (decisão: o app é só escuro).
-- API de tokens para plugins ainda não definida.
 - Tempos de animação são a proposta inicial; ajustar no uso real.
 
 ## Migração a partir da 0.8.x

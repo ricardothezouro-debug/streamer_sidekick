@@ -4,6 +4,7 @@ from typing import Any, Callable, Optional
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QFontDatabase, QKeySequence
 
+from streamer_sidekick.ui import tokens
 from streamer_sidekick.core import hotkey_backend, hotkey_text
 from PySide6.QtWidgets import (
     QCheckBox,
@@ -353,7 +354,9 @@ class CounterForm(QWidget):
         self.preview = QLabel()
         self.preview.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.preview.setMinimumHeight(140)
-        self.preview.setStyleSheet("background: #11161c; border: 1px solid #303946; border-radius: 8px;")
+        self.preview.setStyleSheet(
+            f"background: {tokens.hex_('surface')}; border: 1px solid {tokens.hex_('hairline-strong')}; border-radius: 4px;"
+        )
 
         layout.addLayout(form)
         layout.addWidget(QLabel("Preview"))

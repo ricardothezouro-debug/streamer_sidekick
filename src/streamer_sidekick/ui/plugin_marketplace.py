@@ -21,6 +21,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from streamer_sidekick.ui import tokens
 from streamer_sidekick.core.plugins import CATEGORY_TOOL, CatalogEntry, PluginManager
 
 
@@ -85,7 +86,7 @@ class _PluginRow(QFrame):
         self.changelog_label = QLabel("")
         self.changelog_label.setObjectName("Muted")
         self.changelog_label.setWordWrap(True)
-        self.changelog_label.setStyleSheet("color: #B9FF43;")
+        self.changelog_label.setStyleSheet(f"color: {tokens.hex_('success')};")
         self.changelog_label.setVisible(False)
         text_box.addWidget(self.name_label)
         text_box.addWidget(self.desc_label)
@@ -95,7 +96,6 @@ class _PluginRow(QFrame):
         self.status_label.setObjectName("Muted")
 
         self.action_button = QPushButton("")
-        self.action_button.setObjectName("PrimaryButton")
         self.action_button.setMinimumWidth(120)
         self.action_button.clicked.connect(lambda: self.install_requested.emit(self.entry))
 
@@ -120,7 +120,7 @@ class _PluginRow(QFrame):
             self.action_button.setText("Incompatível")
             self.action_button.setEnabled(False)
             self.status_label.setText("")
-            self.changelog_label.setStyleSheet("color: #FF4FD8;")
+            self.changelog_label.setStyleSheet(f"color: {tokens.hex_('danger')};")
             self.changelog_label.setText(incompatibility)
             self.changelog_label.setVisible(True)
         elif installed is None:
@@ -132,7 +132,7 @@ class _PluginRow(QFrame):
             self.action_button.setText("Atualizar")
             self.action_button.setEnabled(True)
             self.status_label.setText(f"v{installed.version} → v{self.entry.version}")
-            self.status_label.setStyleSheet("color: #B9FF43;")
+            self.status_label.setStyleSheet(f"color: {tokens.hex_('success')};")
             if self.entry.changelog:
                 self.changelog_label.setText(f"Novidades: {self.entry.changelog}")
                 self.changelog_label.setVisible(True)
@@ -277,7 +277,7 @@ class PluginMarketplaceDialog(QDialog):
             # -- um plugin ja instalado virava irremovivel depois de uma
             # atualizacao que falhou.
             self._active_row.refresh_state()
-            self._active_row.status_label.setStyleSheet("color: #FF4FD8;")
+            self._active_row.status_label.setStyleSheet(f"color: {tokens.hex_('danger')};")
             self._active_row.status_label.setText("Falhou")
             self._active_row.action_button.setEnabled(True)
             self._active_row.action_button.setText("Tentar de novo")
