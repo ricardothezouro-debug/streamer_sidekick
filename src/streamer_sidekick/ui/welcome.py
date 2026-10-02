@@ -6,12 +6,14 @@ from typing import Optional
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import QDialog, QHBoxLayout, QLabel, QPushButton, QVBoxLayout, QWidget
 
+from streamer_sidekick.ui import tokens
+
 
 _ITEMS = [
     ("Marcador", "anote eventos da live com horário — ótimo para cortar os melhores momentos depois."),
     ("Contador", "overlays de contador transparentes para o OBS, com hotkeys e presets."),
     ("Atalhos", "hotkeys globais que funcionam mesmo com o jogo em foco."),
-    ("Plugins (+)", "instale ferramentas extras direto do card \"+\" na aba Plugins."),
+    ("Plugins (+)", "instale ferramentas extras direto do card “+” na aba Plugins."),
     ("Ajuda", "explica cada ferramenta — e os plugins que você instalar aparecem lá também."),
 ]
 
@@ -28,7 +30,6 @@ class WelcomeDialog(QDialog):
 
         title = QLabel("Bem-vindo ao Streamer Sidekick")
         title.setObjectName("PageTitle")
-        title.setStyleSheet("font-size: 26px;")
         title.setWordWrap(True)
         subtitle = QLabel("Um hub de ferramentas rápidas para a sua live. Um tour de 10 segundos:")
         subtitle.setObjectName("Muted")
@@ -40,10 +41,10 @@ class WelcomeDialog(QDialog):
             row = QHBoxLayout()
             row.setSpacing(10)
             bullet = QLabel("◆")
-            bullet.setStyleSheet("color: #37F2FF; font-size: 14px;")
+            bullet.setStyleSheet(f"color: {tokens.hex_('primary')}; font-size: 14px;")
             text = QLabel(
-                f"<span style='color:#F3F6FF'><b>{name}</b></span>"
-                f"<span style='color:#A8B0BC'> — {desc}</span>"
+                f"<span style='color:{tokens.hex_('ink')}'><b>{name}</b></span>"
+                f"<span style='color:{tokens.hex_('ink-muted')}'> — {desc}</span>"
             )
             text.setWordWrap(True)
             row.addWidget(bullet, 0, Qt.AlignmentFlag.AlignTop)

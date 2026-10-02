@@ -4,6 +4,8 @@ from typing import Any, Callable, Optional
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QFontDatabase, QKeySequence
 
+from streamer_sidekick.ui import tokens
+from streamer_sidekick.ui.components import ElidedLabel
 from streamer_sidekick.core import hotkey_backend, hotkey_text
 from PySide6.QtWidgets import (
     QCheckBox,
@@ -65,6 +67,8 @@ class CounterPresetDialog(QDialog):
         root.addLayout(name_row)
 
         self.tabs = QTabWidget()
+        self.tabs.setElideMode(Qt.TextElideMode.ElideRight)
+        self.tabs.setUsesScrollButtons(True)
         root.addWidget(self.tabs, 1)
 
         actions = QHBoxLayout()
@@ -73,7 +77,10 @@ class CounterPresetDialog(QDialog):
         duplicate_counter = QPushButton("Duplicar contador")
         duplicate_counter.clicked.connect(self._duplicate_current_counter)
         remove_counter = QPushButton("Remover contador")
+        remove_counter.setObjectName("DangerButton")
         remove_counter.clicked.connect(self._remove_current_counter)
+        for button in (add_counter, duplicate_counter, remove_counter):
+            button.setAutoDefault(False)  # Enter nos campos salva, em vez de criar contador
         actions.addWidget(add_counter)
         actions.addWidget(duplicate_counter)
         actions.addWidget(remove_counter)
@@ -83,9 +90,11 @@ class CounterPresetDialog(QDialog):
         footer = QHBoxLayout()
         footer.addStretch(1)
         cancel = QPushButton("Cancelar")
+        cancel.setAutoDefault(False)
         cancel.clicked.connect(self.reject)
         save = QPushButton("Salvar")
         save.setObjectName("PrimaryButton")
+        save.setDefault(True)
         save.clicked.connect(self._accept_if_valid)
         footer.addWidget(cancel)
         footer.addWidget(save)
@@ -103,7 +112,7 @@ class CounterPresetDialog(QDialog):
 
     def _add_counter(self, config: Optional[dict[str, Any]] = None) -> None:
         if len(self.forms) >= 4:
-            QMessageBox.information(self, "Limite", "Por enquanto, use no maximo 4 contadores por preset.")
+            QMessageBox.information(self, "Limite", "Por enquanto, use no máximo 4 contadores por preset.")
             return
 
         index = len(self.forms)
@@ -126,13 +135,23 @@ class CounterPresetDialog(QDialog):
 
         index = self.tabs.currentIndex()
         widget = self.tabs.widget(index)
+        answer = QMessageBox.question(
+            self,
+            "Remover contador",
+            f"Remover “{self.tabs.tabToolTip(index) or self.tabs.tabText(index)}” deste preset? "
+            "A configuração dele será perdida.",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+            QMessageBox.StandardButton.No,
+        )
+        if answer != QMessageBox.StandardButton.Yes:
+            return
         self.tabs.removeTab(index)
         self.forms = [form for form in self.forms if form is not widget]
         self._rename_tabs()
 
     def _duplicate_current_counter(self) -> None:
         if len(self.forms) >= 4:
-            QMessageBox.information(self, "Limite", "Por enquanto, use no maximo 4 contadores por preset.")
+            QMessageBox.information(self, "Limite", "Por enquanto, use no máximo 4 contadores por preset.")
             return
 
         current = self.tabs.currentWidget()
@@ -147,10 +166,10 @@ class CounterPresetDialog(QDialog):
     def _copy_title(self, title: object) -> str:
         base = str(title or "Contador").strip()
         names = {form.title_input.text().strip().casefold() for form in self.forms}
-        candidate = f"{base} copia"
+        candidate = f"{base} cópia"
         number = 2
         while candidate.casefold() in names:
-            candidate = f"{base} copia {number}"
+            candidate = f"{base} cópia {number}"
             number += 1
         return candidate
 
@@ -169,9 +188,9 @@ class CounterPresetDialog(QDialog):
         for index, form in enumerate(self.forms):
             form.index = index
             title = form.title_input.text().strip() or f"Contador {index + 1}"
-            if len(title) > 24:
-                title = f"{title[:21]}..."
+            # A própria aba corta com "…" (setElideMode); o título inteiro vai na dica.
             self.tabs.setTabText(index, title)
+            self.tabs.setTabToolTip(index, title)
 
     def _accept_if_valid(self) -> None:
         if not self.preset_name():
@@ -193,8 +212,8 @@ class CounterPresetDialog(QDialog):
             if not title:
                 QMessageBox.warning(
                     self,
-                    "Titulo do contador",
-                    f"Digite um titulo para o contador {index + 1}.",
+                    "Título do contador",
+                    f"Digite um título para o contador {index + 1}.",
                 )
                 self.tabs.setCurrentWidget(form)
                 form.title_input.setFocus()
@@ -204,9 +223,9 @@ class CounterPresetDialog(QDialog):
             if normalized in seen:
                 QMessageBox.warning(
                     self,
-                    "Titulo repetido",
-                    "Cada contador do preset precisa ter um titulo unico. "
-                    f"O titulo repetido e: {title}",
+                    "Título repetido",
+                    "Cada contador do preset precisa ter um título único. "
+                    f"O título repetido é: {title}",
                 )
                 self.tabs.setCurrentWidget(form)
                 form.title_input.setFocus()
@@ -227,8 +246,8 @@ class CounterPresetDialog(QDialog):
                 QMessageBox.warning(
                     self,
                     "Atalho em uso",
-                    f"O atalho {sequence} ja esta em uso por: {self.reserved_hotkeys[normalized]}. "
-                    "Escolha outro para evitar acionar duas acoes ao mesmo tempo.",
+                    f"O atalho {sequence} já está em uso por: {self.reserved_hotkeys[normalized]}. "
+                    "Escolha outro para evitar acionar duas ações ao mesmo tempo.",
                 )
                 self.tabs.setCurrentWidget(form)
                 form.hotkey_input.setFocus()
@@ -239,7 +258,7 @@ class CounterPresetDialog(QDialog):
                 QMessageBox.warning(
                     self,
                     "Atalho repetido",
-                    f"O atalho {sequence} esta repetido em {previous_title} e {title}.",
+                    f"O atalho {sequence} está repetido em {previous_title} e {title}.",
                 )
                 self.tabs.setCurrentWidget(form)
                 form.hotkey_input.setFocus()
@@ -254,8 +273,8 @@ class CounterPresetDialog(QDialog):
             if marker_text and not form.hotkey_text():
                 QMessageBox.warning(
                     self,
-                    "Marcacao automatica",
-                    "Para salvar uma marcacao automatica, esse contador tambem precisa de uma hotkey.",
+                    "Marcação automática",
+                    "Para salvar uma marcação automática, esse contador também precisa de uma hotkey.",
                 )
                 self.tabs.setCurrentWidget(form)
                 form.hotkey_input.setFocus()
@@ -296,15 +315,16 @@ class CounterForm(QWidget):
 
         self.title_input = QLineEdit()
         self.prefix_input = QLineEdit()
-        self.prefix_input.setPlaceholderText("Ex: Mortes: ")
+        self.prefix_input.setPlaceholderText("Ex.: Mortes: ")
         self.infinite_input = QCheckBox("Contador infinito")
         self.limit_input = QSpinBox()
         self.limit_input.setRange(1, 99999)
         self.hotkey_input = QKeySequenceEdit()
         self.marker_text_input = QLineEdit()
-        self.marker_text_input.setPlaceholderText("Opcional: texto salvo no Marcador ao apertar a hotkey")
+        self.marker_text_input.setPlaceholderText("Opcional. Ex.: morri pro boss…")
+        self.marker_text_input.setToolTip("Texto salvo no Marcador ao apertar a hotkey do contador")
         self.marker_file_input = QComboBox()
-        self.marker_file_input.addItem("Sem vinculo", "")
+        self.marker_file_input.addItem("Sem vínculo", "")
         for file_name in self.marker_files:
             self.add_marker_file_option(file_name)
         self.marker_file_button = QPushButton("Criar txt")
@@ -321,10 +341,11 @@ class CounterForm(QWidget):
         self.height_input.setRange(80, 2160)
 
         icon_row = QHBoxLayout()
-        self.icon_label = QLabel("Nenhum icone")
+        # Nome de arquivo longo: corta no meio, com o caminho todo na dica.
+        self.icon_label = ElidedLabel("Nenhum ícone", mode=Qt.TextElideMode.ElideMiddle)
         self.icon_button = QPushButton("Escolher imagem")
         self.icon_button.clicked.connect(self._choose_icon)
-        self.icon_clear_button = QPushButton("Remover")
+        self.icon_clear_button = QPushButton("Remover ícone")
         self.icon_clear_button.clicked.connect(self._clear_icon)
         icon_row.addWidget(self.icon_label, 1)
         icon_row.addWidget(self.icon_button)
@@ -333,7 +354,7 @@ class CounterForm(QWidget):
         self.icon_size_input = QSpinBox()
         self.icon_size_input.setRange(16, 256)
 
-        form.addRow("Titulo", self.title_input)
+        form.addRow("Título", self.title_input)
         form.addRow("Prefixo", self.prefix_input)
         form.addRow("", self.infinite_input)
         form.addRow("Limite", self.limit_input)
@@ -347,13 +368,15 @@ class CounterForm(QWidget):
         form.addRow("Tamanho da fonte", self.font_size_input)
         form.addRow("Largura", self.width_input)
         form.addRow("Altura", self.height_input)
-        form.addRow("Icone", icon_row)
-        form.addRow("Tamanho do icone", self.icon_size_input)
+        form.addRow("Ícone", icon_row)
+        form.addRow("Tamanho do ícone", self.icon_size_input)
 
         self.preview = QLabel()
         self.preview.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.preview.setMinimumHeight(140)
-        self.preview.setStyleSheet("background: #11161c; border: 1px solid #303946; border-radius: 8px;")
+        self.preview.setStyleSheet(
+            f"background: {tokens.hex_('surface')}; border: 1px solid {tokens.hex_('hairline-strong')}; border-radius: 4px;"
+        )
 
         layout.addLayout(form)
         layout.addWidget(QLabel("Preview"))
@@ -412,7 +435,7 @@ class CounterForm(QWidget):
         self.width_input.setValue(int(config.get("largura") or 400))
         self.height_input.setValue(int(config.get("altura") or 160))
         self.icon_path = str(config.get("icone")) if config.get("icone") else None
-        self.icon_label.setText(Path(self.icon_path).name if self.icon_path else "Nenhum icone")
+        self.icon_label.setText(Path(self.icon_path).name if self.icon_path else "Nenhum ícone")
         self.icon_size_input.setValue(int(config.get("icon_size") or 48))
 
     def _wire_preview(self) -> None:
@@ -435,7 +458,7 @@ class CounterForm(QWidget):
 
     def _clear_icon(self) -> None:
         self.icon_path = None
-        self.icon_label.setText("Nenhum icone")
+        self.icon_label.setText("Nenhum ícone")
         self._update_preview()
 
     def _update_limit_state(self) -> None:
@@ -488,6 +511,12 @@ class CounterForm(QWidget):
 
         file_name = self.create_marker_file(name.strip())
         if not file_name:
+            QMessageBox.warning(
+                self,
+                "Criar txt do Marcador",
+                "Não foi possível criar o arquivo. Tente outro nome (sem / \\ : * ? \" < > |) "
+                "ou confira a pasta do Marcador em Configurações.",
+            )
             return
         self.add_marker_file_option(file_name)
         index = self.marker_file_input.findData(file_name)
