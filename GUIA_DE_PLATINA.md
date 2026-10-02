@@ -72,21 +72,27 @@ tema do hub já estiliza (lista completa no `PLUGIN_STANDARD.md`, seção 6):
 
 | Elemento | `objectName` |
 |---|---|
-| Painel de canto cortado | `NeonPanel` |
+| Painel-janela (chanfro e sombra dura) | `NeonPanel` |
 | Título da página | `PageTitle` |
 | Título de seção | `SectionTitle` |
 | Texto secundário | `Muted` |
+| Número (troféus, "24/40") | `Numeric` |
 | Selo de status | `StatusPill` |
 | Área rolável | `PageScroll` |
+
+Desde a v0.9 o design system é o **Sidekick OS** ([`DESIGN.md`](DESIGN.md)): cores
+lidas de `streamer_sidekick.ui.tokens`, progresso em blocos (`SegmentedProgress`),
+tags `PERDÍVEL` em `warning` e `SPOILER` neutra, callouts de um nível só (nunca
+caixa dentro de caixa) e nada de emoji.
 
 Convenções da aba Platinas:
 
 - **Cores de tier** — bronze `#CD7F32`, prata `#C0C0C0`, ouro `#FFD700`,
   platina `#E5E4E2`.
 - **Progresso sempre visível**, no topo: barra + contagem.
-- **Topo em três níveis.** Entre o topo e o conteúdo vai uma linha no
-  gradiente do design system (ciano → magenta, a mesma da base dos `NeonPanel`)
-  com bolinhas neon no meio — em repouso são pontos; ao passar o mouse crescem e
+- **Topo em três níveis.** Entre o topo e o conteúdo vai uma linha fina
+  (`hairline`, sem degradê: no Sidekick OS o brilho é exceção) com bolinhas em
+  `primary` no meio — em repouso são pontos; ao passar o mouse crescem e
   mostram a seta do que fazem. Nível 1: tudo à vista (uma bolinha ▲). Nível 2:
   só título, progresso e abas — é o nível em que o guia SEMPRE abre (duas
   bolinhas, ▼ e ▲). Nível 3: some tudo e o progresso vira um balão flutuante,
@@ -100,7 +106,7 @@ Convenções da aba Platinas:
   guias trazem o componente pronto em `topbar.py` — copie-o.
 - **Busca**, quando o guia for grande o bastante para justificar.
 - **Nada de estilo inline concorrendo com o tema.** O `QApplication` já aplica a
-  paleta neon; se você redefinir fundo e fonte na mão, o guia destoa.
+  paleta do Sidekick OS; se você redefinir fundo e fonte na mão, o guia destoa.
 
 Os guias existentes (`Assistente-de-platina-Dredge`, `Guia-de-Platina-Wolong`,
 `House-fliper-assistente-de-platina`, `Guia-De-Platina-KingdomHearts1`) servem de

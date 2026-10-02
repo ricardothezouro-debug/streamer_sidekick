@@ -316,17 +316,17 @@ class PluginManager:
         if incompatibility:
             raise RuntimeError(incompatibility)
 
-        report("Baixando do GitHub...")
+        report("Baixando do GitHub…")
         payload = self._download_zip(entry.zip_url())
 
-        report("Extraindo arquivos...")
+        report("Extraindo arquivos…")
         with tempfile.TemporaryDirectory() as tmp:
             tmp_path = Path(tmp)
             with zipfile.ZipFile(io.BytesIO(payload)) as archive:
                 archive.extractall(tmp_path)
             extracted_root = self._single_top_dir(tmp_path)
 
-            report("Instalando...")
+            report("Instalando…")
             target = plugins_dir() / entry.id
             if target.exists():
                 shutil.rmtree(target, ignore_errors=True)
@@ -334,7 +334,7 @@ class PluginManager:
 
         self._write_manifest(entry, plugins_dir() / entry.id)
 
-        report("Carregando plugin...")
+        report("Carregando plugin…")
         self.load()
         plugin = self._installed.get(entry.id)
         if plugin is None:
