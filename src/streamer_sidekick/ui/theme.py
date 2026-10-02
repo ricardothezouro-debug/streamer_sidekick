@@ -1,35 +1,90 @@
-from PySide6.QtGui import QFont, QFontDatabase
+"""Tema global do app (Sidekick OS), gerado a partir de ``ui/tokens.py``.
+
+Os ``objectName``s estilizados aqui são API pública: plugins e guias usam
+``PageTitle``, ``SectionTitle``, ``CardTitle``, ``Muted``, ``Kicker``,
+``StatusPill``, ``PrimaryButton`` e ``NeonPanel``. Não renomeie.
+"""
+import tempfile
+from pathlib import Path
+
+from PySide6.QtCore import QPointF, Qt
+from PySide6.QtGui import QFont, QPainter, QPainterPath, QPalette, QPen, QPixmap
 from PySide6.QtWidgets import QApplication
 
+from streamer_sidekick.ui import tokens
 
-TITLE_FONT = "Bahnschrift"
-BODY_FONT = "Segoe UI"
-MONO_FONT = "Consolas"
+# Compatibilidade: nomes antigos, agora resolvidos para as fontes embarcadas.
+TITLE_FONT = "Chakra Petch"
+BODY_FONT = "IBM Plex Sans"
+MONO_FONT = "IBM Plex Mono"
+HUD_FONT = "VT323"
 
 
 def apply_theme(app: QApplication) -> None:
-    _load_optional_fonts()
-    app.setFont(QFont(BODY_FONT, 10))
-    app.setStyleSheet(
-        f"""
+    global TITLE_FONT, BODY_FONT, MONO_FONT, HUD_FONT
+    tokens.load_fonts()
+    TITLE_FONT = tokens.family("display")
+    BODY_FONT = tokens.family("body")
+    MONO_FONT = tokens.family("mono")
+    HUD_FONT = tokens.family("hud")
+    base = QFont(BODY_FONT)
+    base.setPixelSize(14)
+    app.setFont(base)
+    app.setPalette(build_palette())
+    app.setStyleSheet(build_stylesheet())
+
+
+def build_palette() -> QPalette:
+    """Paleta coerente com o QSS.
+
+    O fundo das janelas vem daqui (inclusive janelas de plugins que não definem
+    estilo). Widgets internos ficam transparentes, então nada pinta uma faixa de
+    canvas por cima da superfície dos painéis.
+    """
+    t = tokens.color
+    pal = QPalette()
+    for group in (QPalette.ColorGroup.Active, QPalette.ColorGroup.Inactive):
+        pal.setColor(group, QPalette.ColorRole.Window, t("canvas"))
+        pal.setColor(group, QPalette.ColorRole.WindowText, t("ink"))
+        pal.setColor(group, QPalette.ColorRole.Base, t("sunken"))
+        pal.setColor(group, QPalette.ColorRole.AlternateBase, t("surface"))
+        pal.setColor(group, QPalette.ColorRole.Text, t("ink"))
+        pal.setColor(group, QPalette.ColorRole.PlaceholderText, t("ink-faint"))
+        pal.setColor(group, QPalette.ColorRole.Button, t("surface-raised"))
+        pal.setColor(group, QPalette.ColorRole.ButtonText, t("ink"))
+        pal.setColor(group, QPalette.ColorRole.Highlight, t("primary-tint"))
+        pal.setColor(group, QPalette.ColorRole.HighlightedText, t("ink"))
+        pal.setColor(group, QPalette.ColorRole.ToolTipBase, t("surface-raised"))
+        pal.setColor(group, QPalette.ColorRole.ToolTipText, t("ink"))
+        pal.setColor(group, QPalette.ColorRole.Link, t("primary"))
+        pal.setColor(group, QPalette.ColorRole.BrightText, t("ink"))
+    disabled = QPalette.ColorGroup.Disabled
+    for role in (QPalette.ColorRole.WindowText, QPalette.ColorRole.Text, QPalette.ColorRole.ButtonText):
+        pal.setColor(disabled, role, t("ink-faint"))
+    pal.setColor(disabled, QPalette.ColorRole.Window, t("canvas"))
+    pal.setColor(disabled, QPalette.ColorRole.Base, t("surface"))
+    pal.setColor(disabled, QPalette.ColorRole.Button, t("surface"))
+    return pal
+
+
+def build_stylesheet() -> str:
+    c = tokens.COLORS
+    t = tokens.TYPE
+    check = _indicator_image("check")
+    arrow = _indicator_image("arrow")
+    return f"""
+        /* Sem background no QWidget genérico: o fundo das janelas vem da paleta
+           (build_palette) e os widgets internos ficam transparentes. */
         QWidget {{
-            background: #0A0B12;
-            color: #F3F6FF;
-            font-family: "{BODY_FONT}";
-            font-size: 14px;
-            letter-spacing: 0px;
+            color: {c['ink']};
         }}
 
-        QLabel {{
+        QLabel, QCheckBox, QRadioButton {{
             background: transparent;
         }}
 
-        QMainWindow, QStackedWidget {{
-            background: #0A0B12;
-        }}
-
-        QWidget#ContentSurface {{
-            background: #0A0B12;
+        QMainWindow, QDialog, QMessageBox, QWidget#GuideWindow {{
+            background: {c['canvas']};
         }}
 
         QScrollArea#PageScroll {{
@@ -43,55 +98,96 @@ def apply_theme(app: QApplication) -> None:
 
         QScrollBar:vertical {{
             background: transparent;
-            width: 12px;
+            width: 10px;
             margin: 2px;
         }}
 
         QScrollBar::handle:vertical {{
-            background: #273140;
-            border-radius: 5px;
+            background: {c['hairline-strong']};
+            border-radius: 2px;
             min-height: 36px;
         }}
 
         QScrollBar::handle:vertical:hover {{
-            background: #37F2FF;
+            background: {c['primary']};
         }}
 
-        QScrollBar::add-line:vertical,
-        QScrollBar::sub-line:vertical {{
+        QScrollBar:horizontal {{
+            background: transparent;
+            height: 10px;
+            margin: 2px;
+        }}
+
+        QScrollBar::handle:horizontal {{
+            background: {c['hairline-strong']};
+            border-radius: 2px;
+            min-width: 36px;
+        }}
+
+        QScrollBar::handle:horizontal:hover {{
+            background: {c['primary']};
+        }}
+
+        QScrollBar::add-line, QScrollBar::sub-line,
+        QScrollBar::add-page, QScrollBar::sub-page {{
             height: 0;
+            width: 0;
             border: 0;
             background: transparent;
         }}
 
+        /* ---------- tipografia (API de objectName) ---------- */
+
         QLabel#PageTitle {{
             font-family: "{TITLE_FONT}";
-            font-size: 38px;
+            font-size: 32px;
             font-weight: 700;
-            color: #F3F6FF;
+            color: {c['ink']};
         }}
 
         QLabel#SectionTitle {{
-            font-size: 18px;
-            font-weight: 700;
-            color: #F3F6FF;
+            font-family: "{TITLE_FONT}";
+            font-size: 20px;
+            font-weight: 600;
+            color: {c['ink']};
+        }}
+
+        QLabel#CardTitle {{
+            font-family: "{TITLE_FONT}";
+            font-size: {t['title'][1]}px;
+            font-weight: 600;
+            color: {c['ink']};
         }}
 
         QLabel#Muted {{
-            color: #A8B0BC;
+            color: {c['ink-muted']};
         }}
 
-        QLabel#Kicker {{
-            font-family: "{MONO_FONT}";
-            color: #37F2FF;
-            font-size: 18px;
-            font-weight: 700;
+        QLabel#Caption {{
+            color: {c['ink-faint']};
+            font-size: 12px;
+        }}
+
+        QLabel#Kicker, QLabel#HudLabel {{
+            font-family: "{HUD_FONT}";
+            color: {c['primary']};
+            font-size: {t['hud-label'][1]}px;
+            letter-spacing: 1px;
+        }}
+
+        QLabel#HudLabel {{
+            color: {c['ink-muted']};
         }}
 
         QLabel#AccentDivider {{
-            color: #FF4FD8;
+            color: {c['hairline-strong']};
             font-size: 18px;
-            font-weight: 700;
+        }}
+
+        QLabel#Numeric {{
+            font-family: "{HUD_FONT}";
+            font-size: 24px;
+            color: {c['ink']};
         }}
 
         QLabel#BrandTitle {{
@@ -106,268 +202,500 @@ def apply_theme(app: QApplication) -> None:
             font-weight: 700;
         }}
 
-        QFrame#Sidebar {{
-            background: #080A10;
-            border-right: 1px solid #273140;
+        QLabel#StatusPill {{
+            background: {c['surface-raised']};
+            border: 0;
+            border-radius: 13px;
+            padding: 4px 12px;
+            color: {c['ink-muted']};
+            font-size: {t['caption'][1]}px;
         }}
 
+        QLabel#ModuleStatusText {{
+            color: {c['ink-muted']};
+            font-size: 13px;
+            padding-top: 4px;
+        }}
+
+        QLabel#SidebarStatus {{
+            font-family: "{HUD_FONT}";
+            font-size: 18px;
+            letter-spacing: 1px;
+            color: {c['ink-faint']};
+        }}
+
+        /* ---------- estrutura ---------- */
+
+        QFrame#Sidebar {{
+            background: {c['sunken']};
+            border-right: 1px solid {c['hairline']};
+        }}
+
+        QFrame#Sidebar QWidget {{
+            background: transparent;
+        }}
+
+        QFrame#ModuleCard {{
+            background: {c['surface']};
+            border: 1px solid {c['hairline']};
+            border-radius: 4px;
+        }}
+
+        QFrame#ModuleCard:hover {{
+            border-color: {c['hairline-strong']};
+        }}
+
+        /* QFrame comum com objectName NeonPanel (plugins, guias, linhas de catálogo).
+           O ponto restringe à classe exata: a classe NeonPanel se pinta sozinha. */
+        .QFrame#NeonPanel {{
+            background: {c['surface']};
+            border: 1px solid {c['hairline']};
+            border-radius: 4px;
+        }}
+
+        /* ---------- botões ---------- */
+
         QPushButton {{
-            background: #111722;
-            border: 1px solid #273140;
-            border-radius: 8px;
-            padding: 10px 14px;
-            color: #F3F6FF;
+            background: {c['surface-raised']};
+            border: 1px solid {c['hairline-strong']};
+            border-radius: 4px;
+            padding: 8px 16px;
+            min-height: 18px;
+            color: {c['ink']};
+            font-size: 13px;
             font-weight: 600;
         }}
 
         QPushButton:hover {{
-            background: #151E2C;
-            border-color: #37F2FF;
-            color: #FFFFFF;
+            border-color: {c['primary']};
         }}
 
         QPushButton:pressed {{
-            background: #0D121B;
-            border-color: #FF4FD8;
+            background: {c['surface']};
+            padding-top: 9px;
+            padding-bottom: 7px;
+        }}
+
+        QPushButton:focus {{
+            border-color: {c['ink']};
+        }}
+
+        QPushButton:disabled {{
+            background: {c['surface']};
+            border-color: {c['hairline']};
+            color: {c['ink-faint']};
         }}
 
         QPushButton#PrimaryButton {{
-            background: #14383F;
-            border-color: #37F2FF;
-            color: #FFFFFF;
+            background: {c['primary']};
+            border: 1px solid {c['primary']};
+            color: {c['on-primary']};
         }}
 
         QPushButton#PrimaryButton:hover {{
-            background: #174A52;
-            border-color: #FF4FD8;
+            background: {c['primary-hover']};
+            border-color: {c['primary-hover']};
+        }}
+
+        QPushButton#PrimaryButton:focus {{
+            border-color: {c['ink']};
+        }}
+
+        QPushButton#PrimaryButton:disabled {{
+            background: {c['hairline']};
+            border-color: {c['hairline']};
+            color: {c['ink-faint']};
+        }}
+
+        QPushButton#GhostButton {{
+            background: transparent;
+            border: 1px solid transparent;
+            color: {c['primary']};
+            padding: 8px 10px;
+        }}
+
+        QPushButton#GhostButton:hover {{
+            background: {c['surface-raised']};
+            color: {c['primary-hover']};
+        }}
+
+        QPushButton#GhostButton:focus {{
+            border-color: {c['primary']};
+        }}
+
+        QPushButton#GhostButton:pressed {{
+            background: {c['surface']};
+            padding-top: 9px;
+            padding-bottom: 7px;
+        }}
+
+        QPushButton#GhostButton:disabled {{
+            background: transparent;
+            color: {c['ink-faint']};
+        }}
+
+        QPushButton#DangerButton {{
+            background: transparent;
+            border: 1px solid {c['danger']};
+            color: {c['danger']};
+        }}
+
+        QPushButton#DangerButton:hover {{
+            background: {c['surface-raised']};
+        }}
+
+        QPushButton#DangerButton:focus {{
+            background: {c['surface-raised']};
+            border-color: {c['ink']};
+        }}
+
+        QPushButton#DangerButton:pressed {{
+            background: {c['surface']};
+            padding-top: 9px;
+            padding-bottom: 7px;
+        }}
+
+        QPushButton#DangerButton:disabled {{
+            border-color: {c['hairline']};
+            color: {c['ink-faint']};
+        }}
+
+        QPushButton#NavButton, QPushButton#SubNavButton {{
+            text-align: left;
+            background: transparent;
+            border: 0;
+            border-left: 3px solid transparent;
+            border-top-right-radius: 4px;
+            border-bottom-right-radius: 4px;
+            color: {c['ink-muted']};
+            font-weight: 600;
         }}
 
         QPushButton#NavButton {{
-            text-align: left;
-            background: transparent;
-            border: 1px solid transparent;
-            border-radius: 8px;
-            padding: 11px 14px;
-            color: #A8B0BC;
+            padding: 10px 12px 10px 13px;
+            font-size: 15px;
         }}
 
-        QPushButton#NavButton:hover {{
-            background: #101722;
-            border-color: #273140;
-            color: #F3F6FF;
+        QPushButton#SubNavButton {{
+            padding: 7px 10px;
+            font-size: 14px;
         }}
 
-        QPushButton#NavButton[active="true"] {{
-            background: #101B28;
-            border-color: #37F2FF;
-            color: #FFFFFF;
+        QPushButton#NavButton:hover, QPushButton#SubNavButton:hover {{
+            background: {c['surface-raised']};
+            color: {c['ink']};
+        }}
+
+        QPushButton#NavButton:focus, QPushButton#SubNavButton:focus {{
+            background: {c['surface-raised']};
+            color: {c['ink']};
+        }}
+
+        QPushButton#NavButton:pressed, QPushButton#SubNavButton:pressed {{
+            background: {c['surface']};
+        }}
+
+        QPushButton#NavButton:disabled, QPushButton#SubNavButton:disabled {{
+            color: {c['ink-faint']};
+        }}
+
+        QPushButton#NavButton[active="true"], QPushButton#SubNavButton[active="true"] {{
+            background: {c['surface-raised']};
+            border-left: 3px solid {c['brand']};
+            color: {c['ink']};
         }}
 
         QWidget#PluginSubnav {{
             background: transparent;
         }}
 
-        QPushButton#SubNavButton {{
-            text-align: left;
-            background: transparent;
-            border: 1px solid transparent;
-            border-radius: 7px;
-            padding: 8px 10px;
-            color: #A8B0BC;
-            font-size: 13px;
-            font-weight: 600;
-        }}
-
-        QPushButton#SubNavButton:hover {{
-            background: #0E1621;
-            border-color: #273140;
-            color: #F3F6FF;
-        }}
-
-        QPushButton#SubNavButton[active="true"] {{
-            background: #101B28;
-            border-color: #FF4FD8;
-            color: #FFFFFF;
-        }}
+        /* ---------- menus e dicas ---------- */
 
         QMenu {{
-            background: #080B12;
-            border: 1px solid #273140;
-            color: #F3F6FF;
+            background: {c['surface-raised']};
+            border: 1px solid {c['hairline-strong']};
+            color: {c['ink']};
             padding: 6px;
         }}
 
         QMenu::item {{
             background: transparent;
-            border-radius: 6px;
+            border-radius: 2px;
             padding: 8px 28px 8px 12px;
         }}
 
         QMenu::item:selected {{
-            background: #14383F;
-            color: #FFFFFF;
+            background: {c['primary-tint']};
+            color: {c['ink']};
         }}
 
         QMenu::item:disabled {{
-            color: #687180;
+            color: {c['ink-faint']};
         }}
 
         QMenu::separator {{
             height: 1px;
-            background: #273140;
+            background: {c['hairline']};
             margin: 5px 4px;
         }}
 
-        QFrame#ModuleCard, QFrame#NeonPanel {{
-            background: #0D121B;
-            border: 1px solid #273140;
-            border-radius: 10px;
+        QToolTip {{
+            background: {c['surface-raised']};
+            border: 1px solid {c['hairline-strong']};
+            color: {c['ink']};
+            padding: 6px 8px;
         }}
 
-        QLabel#CardTitle {{
-            font-family: "{TITLE_FONT}";
-            font-size: 24px;
-            font-weight: 700;
-            color: #F3F6FF;
-        }}
+        /* ---------- campos ---------- */
 
-        QLabel#StatusPill {{
-            background: #0A0B12;
-            border: 1px solid #273140;
-            border-radius: 8px;
-            padding: 7px 10px;
-            color: #C7D0DD;
-            font-weight: 600;
-        }}
-
-        QLabel#ModuleStatusText {{
-            color: #D9E4EF;
-            font-size: 13px;
-            font-weight: 600;
-            padding-top: 4px;
-        }}
-
-        QLineEdit, QKeySequenceEdit, QComboBox, QSpinBox, QPlainTextEdit {{
-            background: #0B111A;
-            border: 1px solid #273140;
-            border-radius: 8px;
-            padding: 9px 10px;
-            color: #F3F6FF;
-            min-height: 20px;
+        QLineEdit, QKeySequenceEdit, QComboBox, QSpinBox, QPlainTextEdit, QTextEdit {{
+            background: {c['sunken']};
+            border: 1px solid {c['control-border']};
+            border-radius: 4px;
+            padding: 8px 10px;
+            color: {c['ink']};
+            min-height: 18px;
+            selection-background-color: {c['primary-tint']};
+            selection-color: {c['ink']};
         }}
 
         QLineEdit:focus, QKeySequenceEdit:focus, QComboBox:focus, QSpinBox:focus,
-        QPlainTextEdit:focus {{
-            border-color: #37F2FF;
-            background: #0D1621;
+        QPlainTextEdit:focus, QTextEdit:focus {{
+            border-color: {c['primary']};
         }}
 
-        QKeySequenceEdit[recording="true"] {{
-            background: #10242A;
-            border: 1px solid #37F2FF;
-            color: #FFFFFF;
+        QLineEdit:disabled, QComboBox:disabled, QSpinBox:disabled, QPlainTextEdit:disabled,
+        QTextEdit:disabled, QKeySequenceEdit:disabled {{
+            background: {c['surface']};
+            border-color: {c['hairline']};
+            color: {c['ink-faint']};
+        }}
+
+        QComboBox::drop-down {{
+            border: 0;
+            width: 26px;
+        }}
+
+        QComboBox::down-arrow {{
+            image: url("{arrow}");
+            width: 12px;
+            height: 12px;
+        }}
+
+        QComboBox QAbstractItemView {{
+            background: {c['surface-raised']};
+            border: 1px solid {c['hairline-strong']};
+            selection-background-color: {c['primary-tint']};
+            color: {c['ink']};
+            outline: 0;
+        }}
+
+        QComboBox QAbstractItemView::item {{
+            padding: 6px 10px;
+            min-height: 22px;
+        }}
+
+        QComboBox QAbstractItemView::item:hover {{
+            background: {c['surface']};
+        }}
+
+        QKeySequenceEdit[recording="true"], QKeySequenceEdit[recording="true"] QLineEdit {{
+            background: {c['primary-tint']};
+            border: 1px solid {c['primary']};
+            color: {c['ink']};
         }}
 
         QLabel#CaptureStatus {{
-            background: #0B111A;
-            border: 1px solid #273140;
-            border-radius: 8px;
-            padding: 8px 10px;
-            color: #A8B0BC;
+            background: {c['surface-raised']};
+            border: 0;
+            border-radius: 4px;
+            padding: 8px 12px;
+            color: {c['ink-muted']};
             font-weight: 600;
         }}
 
         QLabel#CaptureStatus[recording="true"] {{
-            background: #10242A;
-            border-color: #37F2FF;
-            color: #37F2FF;
+            background: {c['primary-tint']};
+            color: {c['primary']};
         }}
 
-        QListWidget {{
-            background: #0B111A;
-            border: 1px solid #273140;
-            border-radius: 8px;
-            padding: 8px;
-            color: #F3F6FF;
+        /* ---------- listas, abas e tabelas ---------- */
+
+        QListWidget, QListView, QTreeView, QTableView {{
+            background: {c['sunken']};
+            border: 1px solid {c['hairline']};
+            border-radius: 4px;
+            padding: 6px;
+            color: {c['ink']};
         }}
 
-        QListWidget::item {{
-            border-radius: 6px;
-            padding: 9px 10px;
+        QListWidget:focus, QListView:focus, QTreeView:focus, QTableView:focus {{
+            border-color: {c['primary']};
         }}
 
-        QListWidget::item:hover {{
-            background: #111B28;
-            color: #FFFFFF;
+        QListWidget::item, QListView::item, QTreeView::item, QTableView::item {{
+            border-radius: 2px;
+            padding: 8px 10px;
+            border-left: 2px solid transparent;
         }}
 
+        QListWidget::item:hover, QListView::item:hover, QTreeView::item:hover, QTableView::item:hover {{
+            background: {c['surface-raised']};
+        }}
+
+        QListView::item:selected, QTreeView::item:selected, QTableView::item:selected,
         QListWidget::item:selected {{
-            background: #142632;
-            color: #FFFFFF;
-            border: 1px solid #37F2FF;
+            background: {c['primary-tint']};
+            color: {c['ink']};
+            border-left: 2px solid {c['primary']};
         }}
 
-        QCheckBox {{
-            spacing: 8px;
-            color: #D9E4EF;
+        QCheckBox, QRadioButton {{
+            spacing: 10px;
+            color: {c['ink']};
         }}
 
         QCheckBox::indicator {{
             width: 18px;
             height: 18px;
-            border-radius: 5px;
-            border: 1px solid #596373;
-            background: #0B111A;
+            border-radius: 3px;
+            border: 1px solid {c['control-border']};
+            background: {c['sunken']};
+        }}
+
+        QCheckBox::indicator:hover {{
+            border-color: {c['primary']};
         }}
 
         QCheckBox::indicator:checked {{
-            background: #14383F;
-            border-color: #37F2FF;
+            background: {c['primary']};
+            border-color: {c['primary']};
+            image: url("{check}");
+        }}
+
+        QCheckBox::indicator:focus, QRadioButton::indicator:focus {{
+            border: 1px solid {c['ink']};
+        }}
+
+        QCheckBox::indicator:disabled, QRadioButton::indicator:disabled {{
+            background: {c['surface']};
+            border-color: {c['hairline']};
+        }}
+
+        QCheckBox::indicator:checked:disabled {{
+            background: {c['hairline']};
+        }}
+
+        QCheckBox:disabled, QRadioButton:disabled {{
+            color: {c['ink-faint']};
+        }}
+
+        QRadioButton::indicator {{
+            width: 18px;
+            height: 18px;
+            border-radius: 9px;
+            border: 1px solid {c['control-border']};
+            background: {c['sunken']};
+        }}
+
+        QRadioButton::indicator:hover {{
+            border-color: {c['primary']};
+        }}
+
+        QRadioButton::indicator:checked {{
+            background: {c['primary']};
+            border: 4px solid {c['sunken']};
         }}
 
         QTabWidget::pane {{
-            border: 1px solid #273140;
-            border-radius: 8px;
-            background: #0D121B;
+            border: 0;
+            border-top: 1px solid {c['hairline']};
+            background: transparent;
         }}
 
         QTabBar::tab {{
-            background: #0B111A;
-            border: 1px solid #273140;
-            padding: 9px 14px;
-            color: #A8B0BC;
+            background: transparent;
+            border: 0;
+            border-bottom: 2px solid transparent;
+            padding: 8px 14px;
+            color: {c['ink-muted']};
+            font-weight: 600;
+        }}
+
+        QTabBar::tab:hover {{
+            color: {c['ink']};
         }}
 
         QTabBar::tab:selected {{
-            color: #FFFFFF;
-            border-color: #37F2FF;
-            background: #101B28;
+            color: {c['ink']};
+            border-bottom: 2px solid {c['primary']};
+        }}
+
+        QTabBar::tab:focus {{
+            background: {c['surface-raised']};
+        }}
+
+        QTabBar::tab:disabled {{
+            color: {c['ink-faint']};
         }}
 
         QHeaderView::section {{
-            background: #101722;
-            color: #D9E4EF;
+            background: {c['surface-raised']};
+            color: {c['ink-muted']};
             border: 0;
-            border-bottom: 1px solid #273140;
+            border-bottom: 1px solid {c['hairline']};
             padding: 8px;
-            font-weight: 700;
+            font-weight: 600;
         }}
-        """
-    )
+
+        QProgressBar {{
+            background: {c['sunken']};
+            border: 1px solid {c['hairline']};
+            border-radius: 2px;
+            color: {c['ink']};
+            text-align: center;
+        }}
+
+        QProgressBar::chunk {{
+            background: {c['success']};
+        }}
+    """
+
+
+def _indicator_image(kind: str) -> str:
+    """Gera (uma vez) o PNG do check do QCheckBox e da seta do QComboBox.
+
+    QSS só aceita imagem por caminho; o arquivo vai para a pasta temporária.
+    """
+    folder = Path(tempfile.gettempdir()) / "streamer_sidekick_theme"
+    folder.mkdir(parents=True, exist_ok=True)
+    path = folder / f"{kind}.png"
+    size = 36  # desenhado em 2x e reduzido pelo QSS
+    pm = QPixmap(size, size)
+    pm.fill(Qt.GlobalColor.transparent)
+    p = QPainter(pm)
+    p.setRenderHint(QPainter.RenderHint.Antialiasing)
+    if kind == "check":
+        pen = QPen(tokens.color("on-primary"), 4.5, Qt.PenStyle.SolidLine, Qt.PenCapStyle.SquareCap,
+                   Qt.PenJoinStyle.MiterJoin)
+        p.setPen(pen)
+        path_ = QPainterPath(QPointF(8, 19))
+        path_.lineTo(15, 26)
+        path_.lineTo(28, 11)
+        p.drawPath(path_)
+    else:
+        pen = QPen(tokens.color("ink-muted"), 4, Qt.PenStyle.SolidLine, Qt.PenCapStyle.SquareCap,
+                   Qt.PenJoinStyle.MiterJoin)
+        p.setPen(pen)
+        path_ = QPainterPath(QPointF(8, 13))
+        path_.lineTo(18, 23)
+        path_.lineTo(28, 13)
+        p.drawPath(path_)
+    p.end()
+    pm.save(str(path), "PNG")
+    return path.as_posix()
 
 
 def _load_optional_fonts() -> None:
-    # Future-ready: drop .ttf/.otf files in assets/fonts and they will be registered.
-    # The current build uses Windows fallbacks so the app remains portable today.
-    try:
-        from pathlib import Path
-
-        root = Path(__file__).resolve().parents[2]
-        fonts = root / "assets" / "fonts"
-        if not fonts.exists():
-            return
-        for file in fonts.glob("*.*"):
-            if file.suffix.lower() in {".ttf", ".otf"}:
-                QFontDatabase.addApplicationFont(str(file))
-    except Exception:
-        pass
+    """Compatibilidade: as fontes agora são carregadas por ``tokens.load_fonts``."""
+    tokens.load_fonts()
