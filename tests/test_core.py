@@ -1000,8 +1000,10 @@ def test_feedback_dialog_monta_e_mostra_o_contexto():
 
     _app_qt()
     dlg = FeedbackDialog("0.8.7", [("ClipIt", "1.0.0")])
-    assert dlg.subject.placeholderText() == "Assunto"
-    textos = [w.text() for w in dlg.findChildren(type(dlg.subject).__mro__[0].__base__)] if False else []
     from PySide6.QtWidgets import QLabel
+    # "Assunto" é rótulo ligado ao campo (não placeholder): placeholder some ao digitar.
+    rotulos = {l.text(): l for l in dlg.findChildren(QLabel)}
+    assert rotulos["Assunto"].buddy() is dlg.subject
+    assert dlg.subject.placeholderText().endswith("…")
     labels = " ".join(l.text() for l in dlg.findChildren(QLabel))
     assert "0.8.7" in labels and "ClipIt 1.0.0" in labels, "o usuario ve o que vai junto"

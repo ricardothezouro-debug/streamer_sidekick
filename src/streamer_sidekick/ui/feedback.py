@@ -12,6 +12,7 @@ from PySide6.QtCore import QUrl, Qt
 from PySide6.QtGui import QDesktopServices
 from PySide6.QtWidgets import (
     QDialog,
+    QMessageBox,
     QHBoxLayout,
     QLabel,
     QLineEdit,
@@ -22,6 +23,7 @@ from PySide6.QtWidgets import (
 )
 
 from streamer_sidekick.core import feedback
+from streamer_sidekick.ui import tokens
 
 
 class FeedbackDialog(QDialog):
@@ -55,10 +57,17 @@ class FeedbackDialog(QDialog):
         layout.addWidget(hint)
 
         self.subject = QLineEdit()
-        self.subject.setPlaceholderText("Assunto")
+        self.subject.setPlaceholderText("Ex.: o contador não abre…")
+        subject_label = QLabel("Assunto")
+        subject_label.setBuddy(self.subject)
+        layout.addWidget(subject_label)
         layout.addWidget(self.subject)
 
         self.message = QPlainTextEdit()
+        self.message.setAccessibleName("Mensagem")
+        message_label = QLabel("Mensagem")
+        message_label.setBuddy(self.message)
+        layout.addWidget(message_label)
         self.message.setPlaceholderText(
             "O que aconteceu? O que você esperava? Se for um bug, o que "
             "apareceu na tela?"
@@ -70,7 +79,11 @@ class FeedbackDialog(QDialog):
         context_title.setObjectName("Muted")
         layout.addWidget(context_title)
         context = QLabel(feedback.contexto(versao, self.plugins).replace("—\n", ""))
-        context.setObjectName("StatusPill")
+        context.setObjectName("Caption")
+        context.setStyleSheet(
+            f"background: {tokens.hex_('surface-raised')}; border-radius: {tokens.RADII['sm']}px;"
+            " padding: 10px 12px;"
+        )
         context.setWordWrap(True)
         context.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
         layout.addWidget(context)
@@ -91,17 +104,37 @@ class FeedbackDialog(QDialog):
         buttons.addWidget(send)
         layout.addLayout(buttons)
 
+        # Sem mensagem não há o que mandar: os dois envios esperam o texto.
+        self._send_buttons = (send, other)
+        self.message.textChanged.connect(self._sync_send)
+        self._sync_send()
+
         self.subject.setFocus()
 
+    def _sync_send(self) -> None:
+        has_text = bool(self.message.toPlainText().strip())
+        for button in self._send_buttons:
+            button.setEnabled(has_text)
+            button.setToolTip("" if has_text else "Escreva a mensagem primeiro.")
+
     # -- destinos ---------------------------------------------------------
+    def _open(self, url: str) -> None:
+        if QDesktopServices.openUrl(QUrl(url)):
+            self.accept()
+            return
+        QMessageBox.warning(
+            self,
+            "Enviar feedback",
+            "Não consegui abrir o navegador nem o e-mail. Copie a mensagem e envie para "
+            f"{feedback.DESTINATARIO}.",
+        )
+
     def _open_gmail(self) -> None:
-        QDesktopServices.openUrl(QUrl(feedback.gmail_url(
+        self._open(feedback.gmail_url(
             self.subject.text(), self.message.toPlainText(), self.versao, self.plugins
-        )))
-        self.accept()
+        ))
 
     def _open_mailto(self) -> None:
-        QDesktopServices.openUrl(QUrl(feedback.mailto_url(
+        self._open(feedback.mailto_url(
             self.subject.text(), self.message.toPlainText(), self.versao, self.plugins
-        )))
-        self.accept()
+        ))

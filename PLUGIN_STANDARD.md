@@ -189,49 +189,64 @@ disponível** e mostrar o `changelog`.
 - Formato **PNG** com fundo **transparente**, quadrado, ~256×256 px.
 - Caminho declarado em `icon` (relativo à raiz do repo) e **versionado no Git**
   (se seu `.gitignore` ignora ícones gerados, destrave este).
-- O Sidekick renderiza esse PNG no card e na navegação; sem ele, cai num ícone
-  vetorial genérico.
-- Estilo recomendado: traço neon em gradiente ciano→magenta sobre um quadrado
-  arredondado escuro (combina com a identidade; ver paleta).
+- O Sidekick renderiza esse PNG no card (dentro de um quadro escuro de 56 px) e
+  na navegação; sem ele, cai no ícone de marca genérico de plugin.
+- Estilo recomendado (Sidekick OS, ver `DESIGN.md`, seção Iconography): pixel-art
+  em grade 12×12 com uma cor de papel e um acento, ou linha reta de traço
+  uniforme numa cor só. Nada de degradê.
 
 ---
 
 ## 6. Design system (para a página combinar com o hub)
 
-O tema é aplicado no `QApplication` inteiro, então **use `QWidget`/`QLabel`/
+A fonte da verdade é o [`DESIGN.md`](DESIGN.md) (linguagem **Sidekick OS**). O
+tema é aplicado no `QApplication` inteiro, então **use `QWidget`/`QLabel`/
 `QPushButton` padrão do PySide6** e nomeie os objetos (`setObjectName(...)`) para
-herdar o estilo. Não defina cores fixas na mão quando um `objectName` já resolve.
+herdar o estilo. Não defina fundo nem fonte da página: o hub já define.
 
-### Paleta
+### Cores e fontes: leia de `tokens`
 
-| Nome | Hex | Uso |
+Nunca escreva um hex na mão. Leia do módulo de tokens do hub, com fallback para
+quando o plugin roda sozinho:
+
+```python
+try:
+    from streamer_sidekick.ui import tokens
+    PRIMARY = tokens.hex_("primary")
+except ImportError:  # rodando fora do hub
+    PRIMARY = "#37F2FF"
+```
+
+| Token | Hex | Papel |
 |------|-----|-----|
-| Void Black | `#0A0B12` | Fundo geral |
-| Painel | `#0D121B` | Fundo de cards/painéis |
-| Border | `#273140` | Bordas |
-| Soft White | `#F3F6FF` | Texto principal |
-| Muted | `#A8B0BC` | Texto secundário |
-| **Electric Cyan** | `#37F2FF` | Destaque primário / foco |
-| **Neon Magenta** | `#FF4FD8` | Destaque secundário |
-| **Acid Lime** | `#B9FF43` | Sucesso / novidade |
+| `canvas` | `#090A12` | Fundo da janela |
+| `surface` / `surface-raised` | `#0F1320` / `#161B2C` | Painéis / barra de título, hover |
+| `hairline` | `#262E42` | Bordas e divisórias |
+| `ink` / `ink-muted` / `ink-faint` | `#EEF2FF` / `#A3ACC2` / `#7A84A0` | Texto principal / secundário / desabilitado |
+| **`primary`** (ciano) | `#37F2FF` | Ação: botão primário, foco, aba ativa |
+| **`brand`** (rosa) | `#FF4FD8` | Marca e "ao vivo". Não use em botões |
+| **`success`** (limão) | `#B9FF43` | Progresso e conquista |
+| `warning` / `danger` | `#FFC857` / `#FF5C7A` | Atenção / erro e ações destrutivas |
 
-### Tipografia
-
-- Títulos: **Bahnschrift** (fallback do Windows; o app é portátil).
-- Corpo: **Segoe UI**. Mono: **Consolas**.
+Fontes (embarcadas no app, iguais no Windows e no macOS): **Chakra Petch**
+(títulos), **IBM Plex Sans** (interface), **VT323** (rótulos de HUD e números),
+**IBM Plex Mono** (caminhos e atalhos). Use `tokens.font("numeric-md")` etc.
 
 ### `objectName`s já estilizados (use-os)
 
 | objectName | O que é |
 |------------|---------|
-| `PageTitle` | Título grande da página (38px). |
-| `SectionTitle` | Título de seção (18px, bold). |
-| `CardTitle` | Título de card (24px, Bahnschrift). |
-| `Muted` | Texto secundário acinzentado. |
-| `Kicker` | Numeração/etiqueta em ciano mono. |
-| `StatusPill` | "Pílula" de status com borda. |
-| `PrimaryButton` | Botão de ação principal (borda ciano). |
-| `NeonPanel` | Card de canto cortado com borda em gradiente. |
+| `PageTitle` | Título da página (32px, Chakra Petch). |
+| `SectionTitle` | Título de seção (20px). |
+| `CardTitle` | Título de card (18px). |
+| `Muted` / `Caption` | Texto secundário / legenda pequena. |
+| `Kicker` / `HudLabel` | Rótulo curto em VT323 (ciano / cinza). |
+| `Numeric` | Número em VT323 (contadores, "24/40"). |
+| `StatusPill` | Pílula de status. |
+| `PrimaryButton` | Ação principal (ciano sólido). **Um por área visível.** |
+| `GhostButton` | Ação leve, só texto ciano ("Voltar", "Ver todas"). |
+| `DangerButton` | Remover/apagar (contorno vermelho). Sempre com confirmação. |
+| `NeonPanel` | Painel-janela (veja abaixo). Em `QFrame` comum vira um card simples. |
 
 Exemplo mínimo de página no padrão:
 
@@ -256,9 +271,22 @@ class MinhaPagina(QWidget):
         layout.addStretch(1)
 ```
 
-Para o card de canto cortado com borda neon, reutilize o `NeonPanel` do Sidekick
-quando importável, ou replique o visual (fundo `#0D121B`, borda em gradiente
-ciano→magenta, cantos cortados).
+### Painel-janela e componentes prontos
+
+Quando o Sidekick é importável, reutilize os componentes dele (mesma família visual):
+
+```python
+from streamer_sidekick.ui.components import NeonPanel, StatusChip, SegmentedProgress
+
+painel = NeonPanel(title="Downloads", meta="3/5")   # barra de título em HUD, chanfro, sombra dura
+chip = StatusChip("Pronto para transmitir", "ok")    # estados: ok, warn, error, neutral, live, info
+barra = SegmentedProgress(); barra.setValue(62)      # progresso em blocos
+```
+
+`NeonPanel(featured=True)` acende o painel (borda ciano e faixa rosa): no máximo
+**um por tela**. Fora do hub, replique o visual: fundo `surface`, borda `hairline`,
+canto superior direito chanfrado em 10px e sombra dura deslocada 4px, sem desfoque.
+Ícones: use os de `streamer_sidekick.ui.icons` (linha HUD) e nunca emoji.
 
 ---
 
