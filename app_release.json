@@ -1,13 +1,13 @@
 {
-  "version": "0.9.0",
-  "zip_url": "https://github.com/ricardothezouro-debug/streamer_sidekick/releases/download/v0.9.0/StreamerSidekick-0.9.0-portable.zip",
-  "notes": "Cara nova: o Streamer Sidekick agora é o Sidekick OS, um visual de SO retrô com fundo future funk.\n- Papel de parede na área de conteúdo: Future funk, Noite roxa ou Liso (em Configurações).\n- Ícones novos, em linha na interface e em pixel-art nos cards, e fontes próprias, iguais no Windows e no macOS.\n- Nenhum texto cortado: nomes longos terminam em \"…\" e mostram o texto inteiro ao passar o mouse.\n- Zerar contadores, remover contador ou atalho agora pedem confirmação.\n- Listas vazias explicam o próximo passo, e as mensagens de erro dizem o que fazer.\n- Remover um plugin ou guia não trava mais a janela.",
+  "version": "0.9.1",
+  "zip_url": "https://github.com/ricardothezouro-debug/streamer_sidekick/releases/download/v0.9.1/StreamerSidekick-0.9.1-portable.zip",
+  "notes": "O topo do Início virou um espaço clicável: uma animação chama para o canal Gamoxkun no YouTube, e o clique abre o canal já com a caixa de inscrição.",
   "platforms": {
     "windows": {
-      "zip_url": "https://github.com/ricardothezouro-debug/streamer_sidekick/releases/download/v0.9.0/StreamerSidekick-0.9.0-portable.zip"
+      "zip_url": "https://github.com/ricardothezouro-debug/streamer_sidekick/releases/download/v0.9.1/StreamerSidekick-0.9.1-portable.zip"
     },
     "macos": {
-      "zip_url": "https://github.com/ricardothezouro-debug/streamer_sidekick/releases/download/v0.9.0/StreamerSidekick-0.9.0-macos.zip"
+      "zip_url": "https://github.com/ricardothezouro-debug/streamer_sidekick/releases/download/v0.9.1/StreamerSidekick-0.9.1-macos.zip"
     }
   }
 }
