@@ -1007,3 +1007,54 @@ def test_feedback_dialog_monta_e_mostra_o_contexto():
     assert dlg.subject.placeholderText().endswith("…")
     labels = " ".join(l.text() for l in dlg.findChildren(QLabel))
     assert "0.8.7" in labels and "ClipIt 1.0.0" in labels, "o usuario ve o que vai junto"
+
+
+# ---- espaço de divulgação do Início ----------------------------------------
+
+
+def test_gif_do_canal_e_valido_e_em_loop():
+    from PySide6.QtGui import QMovie
+
+    from streamer_sidekick.ui.components import PROMO_ASSET_DIR
+
+    _app_qt()
+    gif = PROMO_ASSET_DIR / "gamox_canal.gif"
+    movie = QMovie(str(gif))
+    assert movie.isValid(), "o GIF do Início tem de vir no pacote"
+    assert movie.frameCount() >= 100 and movie.loopCount() == -1, "loop infinito de ~10 s"
+
+
+def test_promo_slot_abre_o_link_no_clique_e_no_teclado(monkeypatch):
+    from PySide6.QtCore import QPointF, Qt
+    from PySide6.QtGui import QDesktopServices, QKeyEvent, QMouseEvent
+    from PySide6.QtCore import QEvent
+
+    from streamer_sidekick.ui.components import PROMO_ASSET_DIR, PromoSlot
+    from streamer_sidekick.ui.hub_window import CHANNEL_SUBSCRIBE_URL
+
+    _app_qt()
+    abertos = []
+    monkeypatch.setattr(QDesktopServices, "openUrl", lambda url: abertos.append(url.toString()))
+    slot = PromoSlot(PROMO_ASSET_DIR / "gamox_canal.gif", CHANNEL_SUBSCRIBE_URL, "Abrir o canal")
+    slot.resize(400, 150)
+    assert slot.accessibleName() and slot.toolTip(), "leitor de tela e dica sabem o que é"
+    assert slot.focusPolicy() == Qt.FocusPolicy.StrongFocus, "dá para chegar com Tab"
+    pos = QPointF(50, 50)
+    slot.mouseReleaseEvent(QMouseEvent(QEvent.Type.MouseButtonRelease, pos, pos, Qt.MouseButton.LeftButton,
+                                       Qt.MouseButton.NoButton, Qt.KeyboardModifier.NoModifier))
+    slot.keyPressEvent(QKeyEvent(QEvent.Type.KeyPress, Qt.Key.Key_Return, Qt.KeyboardModifier.NoModifier))
+    assert abertos == [CHANNEL_SUBSCRIBE_URL] * 2
+    assert "youtube.com/@Gamoxkun" in CHANNEL_SUBSCRIBE_URL and "sub_confirmation=1" in CHANNEL_SUBSCRIBE_URL
+
+
+def test_promo_slot_sem_gif_cai_na_arte_synthwave(tmp_path):
+    from PySide6.QtGui import QPixmap
+
+    from streamer_sidekick.ui.components import PromoSlot
+
+    _app_qt()
+    slot = PromoSlot(tmp_path / "nao_existe.gif", "", "Divulgação")
+    slot.resize(300, 150)
+    pm = QPixmap(slot.size())
+    slot.render(pm)  # não pode quebrar sem mídia
+    assert not slot.is_playing()
