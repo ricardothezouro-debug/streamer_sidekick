@@ -9,3 +9,6 @@ release/
 *.egg-info/
 *.spec.bak
 .streamer_sidekick/
+
+# Tickets e specs das skills de planejamento (docs/agents/issue-tracker.md): ficam so nesta maquina
+.scratch/
