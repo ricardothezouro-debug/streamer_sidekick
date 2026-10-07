@@ -57,7 +57,8 @@ from streamer_sidekick.ui.components import (
     NeonPanel,
     SectionHeader,
     StatusChip,
-    SynthHero,
+    PROMO_ASSET_DIR,
+    PromoSlot,
     WallpaperSurface,
     nav_qicon,
     neon_qicon,
@@ -76,6 +77,9 @@ except ImportError:
 
 
 APP_ICON_PATH = app_icon_path()
+CHANNEL_URL = "https://www.youtube.com/@Gamoxkun"
+# Abre o canal já com a caixa de "Inscrever-se" na frente.
+CHANNEL_SUBSCRIBE_URL = f"{CHANNEL_URL}?sub_confirmation=1"
 
 
 class _ReleasesWorker(QThread):
@@ -183,6 +187,7 @@ class HubWindow(QMainWindow):
         self.home_update_panel: Optional[NeonPanel] = None
         self.home_update_label: Optional[QLabel] = None
         self.home_update_chip: Optional[StatusChip] = None
+        self.home_promo: Optional[PromoSlot] = None
         self.home_update_button: Optional[QPushButton] = None
         self.home_favorites_grid: Optional[QGridLayout] = None
         self.home_favorite_cards: list[ModuleCard] = []
@@ -569,8 +574,17 @@ class HubWindow(QMainWindow):
         left.addLayout(actions)
         left.addStretch(1)
 
-        hero = SynthHero(height=150)
+        # Espaço de divulgação: hoje chama para o canal; no plano pago, a pessoa troca pelo GIF dela.
+        hero = PromoSlot(
+            PROMO_ASSET_DIR / "gamox_canal.gif",
+            CHANNEL_SUBSCRIBE_URL,
+            "Abrir o canal Gamoxkun no YouTube",
+            height=150,
+            safe_ratio=340 / 520,  # o conteúdo do GIF fica entre x=95 e x=425 (make_promo_gif.py)
+        )
+        hero.setObjectName("HomePromo")
         hero.setMaximumWidth(520)
+        self.home_promo = hero
         row.addLayout(left, 1)
         row.addWidget(hero, 1, Qt.AlignmentFlag.AlignTop)
         return header
@@ -1593,7 +1607,7 @@ class HubWindow(QMainWindow):
         return self._scrollable_page(page)
 
     def _open_youtube_channel(self) -> None:
-        QDesktopServices.openUrl(QUrl("https://www.youtube.com/@Gamoxkun"))
+        QDesktopServices.openUrl(QUrl(CHANNEL_URL))
 
     def _open_livepix(self) -> None:
         QDesktopServices.openUrl(QUrl("https://livepix.gg/gamoxkun"))

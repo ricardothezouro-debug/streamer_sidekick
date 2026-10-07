@@ -7,14 +7,16 @@ importam. O visual por baixo é o novo.
 from pathlib import Path
 from typing import Optional
 
-from PySide6.QtCore import QPointF, QRectF, QSize, Qt, QTimer, Signal
+from PySide6.QtCore import QPointF, QRectF, QSize, Qt, QTimer, QUrl, Signal
 from PySide6.QtGui import (
     QBrush,
     QColor,
+    QDesktopServices,
     QFont,
     QFontMetrics,
     QIcon,
     QLinearGradient,
+    QMovie,
     QPainter,
     QPainterPath,
     QPen,
@@ -36,6 +38,7 @@ ACID_LIME = tokens.hex_("success")
 PANEL_BORDER = tokens.hex_("hairline")
 MUTED = tokens.hex_("ink-muted")
 BRAND_ASSET_DIR = Path(__file__).resolve().parents[1] / "assets" / "brand"
+PROMO_ASSET_DIR = Path(__file__).resolve().parents[1] / "assets" / "promo"
 
 # icon_id antigo -> ícone de interface / ícone de marca
 # Plugins oficiais desenhados no próprio sistema de ícones: o hub usa o desenho dele
@@ -574,6 +577,119 @@ def paint_synth(p: QPainter, r: QRectF, cx: float = 0.5, sun: float = 0.42, hori
         p.setPen(QPen(tokens.color("hairline"), 1))
         p.drawRect(r.adjusted(0.5, 0.5, -0.5, -0.5))
 
+
+
+class PromoSlot(QWidget):
+    """Espaço de divulgação do Início: toca um GIF em loop e abre um link ao clicar.
+
+    Hoje mostra o convite para o canal; no plano pago, a pessoa poderá trocar o GIF
+    pelo dela (é só outro ``media``). O GIF preenche o espaço cortando as laterais,
+    então o conteúdo importante fica na faixa central. Sem GIF válido, cai na arte
+    synthwave de sempre. Pausa quando não está na tela.
+    """
+
+    clicked = Signal()
+
+    def __init__(self, media: str | Path, url: str, label: str, height: int = 150,
+                 safe_ratio: float = 0.0, parent: Optional[QWidget] = None) -> None:
+        super().__init__(parent)
+        self._url = url
+        # Fração da largura do GIF que nunca pode ser cortada (a faixa central com o conteúdo).
+        self._safe_ratio = safe_ratio
+        self._hover = False
+        self.setFixedHeight(height)
+        self.setMinimumWidth(160)
+        self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
+        self.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
+        self.setToolTip(label)
+        self.setAccessibleName(label)
+        self.setAttribute(Qt.WidgetAttribute.WA_Hover, True)
+        self._movie: Optional[QMovie] = QMovie(str(media), parent=self)
+        if not self._movie.isValid():
+            self._movie = None
+        else:
+            self._movie.setCacheMode(QMovie.CacheMode.CacheAll)
+            self._movie.frameChanged.connect(lambda _n: self.update())
+
+    def url(self) -> str:
+        return self._url
+
+    def is_playing(self) -> bool:
+        return self._movie is not None and self._movie.state() == QMovie.MovieState.Running
+
+    # tocar só quando visível
+    def showEvent(self, event) -> None:
+        super().showEvent(event)
+        if self._movie is not None:
+            if self._movie.state() == QMovie.MovieState.NotRunning:
+                self._movie.start()
+            else:
+                self._movie.setPaused(False)
+
+    def hideEvent(self, event) -> None:
+        super().hideEvent(event)
+        if self._movie is not None and self._movie.state() == QMovie.MovieState.Running:
+            self._movie.setPaused(True)
+
+    def enterEvent(self, event) -> None:
+        self._hover = True
+        self.update()
+        super().enterEvent(event)
+
+    def leaveEvent(self, event) -> None:
+        self._hover = False
+        self.update()
+        super().leaveEvent(event)
+
+    def mouseReleaseEvent(self, event) -> None:
+        if event.button() == Qt.MouseButton.LeftButton and self.rect().contains(event.position().toPoint()):
+            self._activate()
+            event.accept()
+            return
+        super().mouseReleaseEvent(event)
+
+    def keyPressEvent(self, event) -> None:
+        if event.key() in (Qt.Key.Key_Return, Qt.Key.Key_Enter, Qt.Key.Key_Space):
+            self._activate()
+            event.accept()
+            return
+        super().keyPressEvent(event)
+
+    def _activate(self) -> None:
+        self.clicked.emit()
+        if self._url:
+            QDesktopServices.openUrl(QUrl(self._url))
+
+    def paintEvent(self, event) -> None:
+        painter = QPainter(self)
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+        painter.setRenderHint(QPainter.RenderHint.SmoothPixmapTransform)
+        r = QRectF(self.rect())
+        frame = self._movie.currentPixmap() if self._movie is not None else QPixmap()
+        if frame.isNull():
+            paint_synth(painter, r, border=False)
+        else:
+            # "cover": altura cheia, corta as laterais por igual. Se o espaço ficar
+            # estreito demais para a faixa central, o GIF encolhe até ela caber,
+            # encostado embaixo, e o céu (topo do GIF) preenche o que sobrar em cima.
+            fw, fh = frame.width(), frame.height()
+            scale = max(r.width() / fw, r.height() / fh)
+            if self._safe_ratio > 0:
+                scale = min(scale, r.width() / (fw * self._safe_ratio))
+            dw, dh = fw * scale, fh * scale
+            painter.fillRect(r, frame.toImage().pixelColor(fw // 2, 1))
+            painter.save()
+            painter.setClipRect(r)
+            painter.drawPixmap(QRectF(r.center().x() - dw / 2, r.bottom() - dh, dw, dh), frame, QRectF(frame.rect()))
+            painter.restore()
+        painter.setBrush(Qt.BrushStyle.NoBrush)
+        if self.hasFocus():
+            painter.setPen(QPen(tokens.color("primary"), 2))
+            painter.drawRect(r.adjusted(1, 1, -1, -1))
+        else:
+            painter.setPen(QPen(tokens.color("primary" if self._hover else "hairline"), 1))
+            painter.drawRect(r.adjusted(0.5, 0.5, -0.5, -0.5))
 
 class BrandLogo(QWidget):
     def __init__(self, compact: bool = False, parent: Optional[QWidget] = None) -> None:
