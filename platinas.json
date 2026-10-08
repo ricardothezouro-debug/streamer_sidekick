@@ -65,6 +65,19 @@
       "icon": "assets/icon.png",
       "min_sidekick_version": "0.7.1",
       "changelog": "Builds do patch 5.0: Urso, Grifo e Gato, com as 12 habilidades para equipar, a ordem de compra pela árvore nova e onde achar cada conjunto no jogo base. A aba Regiões virou o mapa de cada região (contratos, Locais de Poder com foto e o que dá para ignorar) e parou de repetir os objetivos da aba Agora."
+    },
+    {
+      "id": "alan-wake-remastered",
+      "name": "Alan Wake Remastered: Platina",
+      "description": "Guia PT-BR do PS4/PS5: duas zeradas, os 298 coletáveis do jogo base na ordem e com foto, os perdíveis no ponto exato e os 51 troféus.",
+      "repo": "ricardothezouro-debug/Guia-de-Platina-Alan-wake-Remastered",
+      "ref": "main",
+      "version": "1.0.0",
+      "src_subdir": "src",
+      "module": "platina_alan_wake.module",
+      "accent": "#F2C14E",
+      "min_sidekick_version": "0.7.1",
+      "changelog": "Primeira versão: a rota dos seis episódios com cada página, garrafa, baú, pirâmide, rádio, TV e placa no ponto exato e com foto, os perdíveis avisados antes de passar do ponto, o plano de duas zeradas e os 51 troféus."
     }
   ]
 }
