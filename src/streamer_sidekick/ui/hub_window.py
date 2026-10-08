@@ -41,7 +41,7 @@ from streamer_sidekick.core.diagnostics import DiagnosticItem, DiagnosticService
 from streamer_sidekick.core.platform_utils import float_above_fullscreen
 from streamer_sidekick.core.hotkeys import HotkeyManager
 from streamer_sidekick.core.modules import ModuleInfo, ModuleRegistry
-from streamer_sidekick.core.platform_utils import app_icon_path, open_path
+from streamer_sidekick.core.platform_utils import app_icon_path, hard_exit, open_path
 from streamer_sidekick.core.plugins import CATEGORY_TOOL, InstalledPlugin, PluginManager, version_tuple
 from streamer_sidekick.core import app_update, startup
 from streamer_sidekick.modules.counter.overlay import CounterOverlay
@@ -2024,7 +2024,7 @@ class HubWindow(QMainWindow):
         if app is not None:
             app.processEvents()
             app.quit()
-        os._exit(0)
+        hard_exit(0)
 
     def closeEvent(self, event: QCloseEvent) -> None:
         if self._quitting:

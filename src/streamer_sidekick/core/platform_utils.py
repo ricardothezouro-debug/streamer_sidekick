@@ -23,6 +23,42 @@ def open_path(path: Path | str) -> None:
         subprocess.run(["xdg-open", target], check=False)
 
 
+def hard_exit(code: int = 0) -> None:
+    """Encerra o processo na hora, sem desmontar o Qt.
+
+    O app sai assim de propósito: uma QThread de terceiro (busca de release,
+    página de plugin) pode estar viva, e destruí-la faz o Qt abortar.
+
+    No Windows, ``os._exit`` passa pelo ExitProcess, que roda a limpeza de cada
+    DLL carregada. A partir do PySide6 6.12, a limpeza das DLLs do Qt com a
+    janela ainda viva dá violação de acesso, e o processo termina com erro em
+    vez de zero (foi o que deixou o smoke test do CI vermelho). O TerminateProcess encerra sem essa
+    etapa, que é o que o ``os._exit`` já prometia fazer. Nos outros sistemas o
+    ``os._exit`` não tem esse problema.
+
+    Nada é gravado em disco aqui: quem chama já salvou o que precisava.
+    """
+    for stream in (sys.stdout, sys.stderr):
+        try:
+            if stream is not None:
+                stream.flush()
+        except (OSError, ValueError):
+            pass
+    if sys.platform == "win32":
+        import ctypes
+        from ctypes import wintypes
+
+        kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
+        # Os tipos importam: sem eles o ctypes corta o handle de 64 bits do
+        # GetCurrentProcess, a chamada falha calada e o processo segue vivo.
+        kernel32.GetCurrentProcess.restype = wintypes.HANDLE
+        kernel32.TerminateProcess.argtypes = (wintypes.HANDLE, wintypes.UINT)
+        kernel32.TerminateProcess.restype = wintypes.BOOL
+        kernel32.TerminateProcess(kernel32.GetCurrentProcess(), code)
+    # Fora do Windows, ou se o TerminateProcess falhar por qualquer motivo.
+    os._exit(code)
+
+
 def app_icon_path() -> Path:
     """Devolve o melhor arquivo de icone para a plataforma atual.
 
