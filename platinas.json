@@ -72,12 +72,12 @@
       "description": "Guia PT-BR do PS4/PS5: duas zeradas, os 298 coletáveis do jogo base na ordem e com foto, os perdíveis no ponto exato e os 51 troféus.",
       "repo": "ricardothezouro-debug/Guia-de-Platina-Alan-wake-Remastered",
       "ref": "main",
-      "version": "1.0.0",
+      "version": "1.0.1",
       "src_subdir": "src",
       "module": "platina_alan_wake.module",
       "accent": "#F2C14E",
       "min_sidekick_version": "0.7.1",
-      "changelog": "Primeira versão: a rota dos seis episódios com cada página, garrafa, baú, pirâmide, rádio, TV e placa no ponto exato e com foto, os perdíveis avisados antes de passar do ponto, o plano de duas zeradas e os 51 troféus."
+      "changelog": "Fotos mais confiáveis: o guia tenta baixar de novo sozinho quando uma foto falha e, se ainda assim não vier, mostra o motivo e um botão “Tentar de novo” (ou “Recarregar fotos que falharam”, no topo da Rota). Antes algumas fotos ficavam como indisponíveis mesmo com o site no ar."
     }
   ]
 }
