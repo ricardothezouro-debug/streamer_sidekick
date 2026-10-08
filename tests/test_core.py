@@ -1058,3 +1058,40 @@ def test_promo_slot_sem_gif_cai_na_arte_synthwave(tmp_path):
     pm = QPixmap(slot.size())
     slot.render(pm)  # não pode quebrar sem mídia
     assert not slot.is_playing()
+
+
+def test_hard_exit_encerra_com_o_codigo_pedido(tmp_path: Path):
+    """O app sai por aqui ao fechar pela bandeja.
+
+    Com o PySide6 6.12 no Windows, o `os._exit` com uma janela Qt viva dava
+    violação de acesso na limpeza das DLLs. O processo precisa terminar já,
+    com o código pedido e com o que foi impresso antes chegando inteiro.
+    """
+    import os
+    import subprocess
+
+    codigo = (
+        "import sys\n"
+        "from PySide6.QtWidgets import QApplication, QLabel\n"
+        "from streamer_sidekick.core.platform_utils import hard_exit\n"
+        "app = QApplication(sys.argv)\n"
+        "janela = QLabel('viva')\n"
+        "janela.show()\n"
+        "app.processEvents()\n"
+        "print('antes de sair', end='')\n"
+        "hard_exit(7)\n"
+        "print('nao devia chegar aqui')\n"
+    )
+    src = Path(__file__).resolve().parents[1] / "src"
+    ambiente = dict(
+        os.environ,
+        PYTHONPATH=str(src),
+        QT_QPA_PLATFORM="offscreen",
+        APPDATA=str(tmp_path),
+        LOCALAPPDATA=str(tmp_path),
+    )
+    resultado = subprocess.run(
+        [sys.executable, "-c", codigo], env=ambiente, capture_output=True, text=True, timeout=60
+    )
+    assert resultado.returncode == 7, resultado.stderr
+    assert resultado.stdout == "antes de sair"
