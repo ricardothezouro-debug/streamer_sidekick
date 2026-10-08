@@ -11,7 +11,6 @@ Roda no CI (Windows e macOS) e tambem serve para conferir uma instalacao local:
 """
 from __future__ import annotations
 
-import os
 import sys
 import tempfile
 from pathlib import Path
@@ -26,6 +25,7 @@ from streamer_sidekick.core.diagnostics import DiagnosticService
 from streamer_sidekick.core.hotkeys import HotkeyManager
 from streamer_sidekick.core.modules import ModuleRegistry
 from streamer_sidekick.core.paths import app_data_dir
+from streamer_sidekick.core.platform_utils import hard_exit
 from streamer_sidekick.core.plugins import PluginManager
 from streamer_sidekick.modules.counter.overlay import CounterOverlay
 from streamer_sidekick.modules.counter.service import CounterService
@@ -91,13 +91,13 @@ def main() -> int:
         hotkeys.stop_global_hotkeys()
         window.close()
         print("smoke test OK")
-        sys.stdout.flush()
         # Sai como o app de verdade sai (ver HubWindow._quit_from_tray). As
         # threads que buscam releases podem estar no meio de um request, e
         # destruir um QThread vivo faz o Qt abortar o processo -- foi assim que
         # este smoke test ficou vermelho no CI mesmo tendo passado por tudo.
-        # Encerrar pelo mesmo caminho do app testa o que o usuario exercita.
-        os._exit(0)
+        # Encerrar pelo mesmo caminho do app testa o que o usuario exercita,
+        # inclusive o crash do os._exit com o PySide6 6.12 no Windows.
+        hard_exit(0)
 
     QTimer.singleShot(1500, finish)
     app.exec()
