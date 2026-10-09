@@ -78,6 +78,19 @@
       "accent": "#F2C14E",
       "min_sidekick_version": "0.7.1",
       "changelog": "Fotos mais confiáveis: o guia tenta baixar de novo sozinho quando uma foto falha e, se ainda assim não vier, mostra o motivo e um botão “Tentar de novo” (ou “Recarregar fotos que falharam”, no topo da Rota). Antes algumas fotos ficavam como indisponíveis mesmo com o site no ar."
+    },
+    {
+      "id": "re-code-veronica-x",
+      "name": "Resident Evil Code: Veronica X: Platina",
+      "description": "Guia PT-BR da versão de PS4 que roda no PS5: as runs, os perdíveis no ponto em que somem, os 23 arquivos, as regras do rank A, o Battle Game e os 30 troféus.",
+      "repo": "ricardothezouro-debug/Platina-Resident-evil-code-veronica",
+      "ref": "main",
+      "version": "1.0.0",
+      "src_subdir": "src",
+      "module": "platina_re_cv.module",
+      "accent": "#C7323E",
+      "min_sidekick_version": "0.7.1",
+      "changelog": "Primeira versão: o plano de runs (história limpando os perdíveis, Battle Game, rank A), os perdíveis na ordem com o ponto exato em que somem, o local dos 23 arquivos, a lista de conferência do rank A, o Battle Game com os cinco personagens e os 30 troféus."
     }
   ]
 }
