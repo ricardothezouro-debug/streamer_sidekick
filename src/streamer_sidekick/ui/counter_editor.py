@@ -27,6 +27,7 @@ from PySide6.QtWidgets import (
     QKeySequenceEdit,
 )
 
+from streamer_sidekick.modules.counter.icons import CounterIcons, IconError, img_tag
 from streamer_sidekick.modules.counter.service import default_counter_config
 
 
@@ -39,8 +40,10 @@ class CounterPresetDialog(QDialog):
         reserved_hotkeys: Optional[dict[str, str]] = None,
         marker_files: Optional[list[str]] = None,
         create_marker_file: Optional[Callable[[str], str]] = None,
+        icons: Optional[CounterIcons] = None,
     ) -> None:
         super().__init__(parent)
+        self.icons = icons if icons is not None else CounterIcons()
         self.setWindowTitle("Preset do contador")
         self.resize(860, 680)
         self.forms: list[CounterForm] = []
@@ -121,6 +124,7 @@ class CounterPresetDialog(QDialog):
             config or default_counter_config(index),
             marker_files=self.marker_files,
             create_marker_file=self._create_marker_file_from_form,
+            icons=self.icons,
         )
         self.forms.append(form)
         self.tabs.addTab(form, f"Contador {index + 1}")
@@ -289,10 +293,12 @@ class CounterForm(QWidget):
         config: dict[str, Any],
         marker_files: Optional[list[str]] = None,
         create_marker_file: Optional[Callable[[str], str]] = None,
+        icons: Optional[CounterIcons] = None,
     ) -> None:
         super().__init__()
         self.index = index
-        self.icon_path: Optional[str] = None
+        self.icons = icons if icons is not None else CounterIcons()
+        self.icon_name: Optional[str] = None  # só o nome: o arquivo fica na pasta de ícones
         self.marker_files = marker_files or []
         self.create_marker_file = create_marker_file
 
@@ -400,7 +406,7 @@ class CounterForm(QWidget):
             "marker_file": self.marker_file(),
             "fonte": self.font_input.currentText(),
             "font_size": self.font_size_input.value(),
-            "icone": self.icon_path,
+            "icone": self.icon_name,
             "icon_size": self.icon_size_input.value(),
             "largura": self.width_input.value(),
             "altura": self.height_input.value(),
@@ -434,8 +440,8 @@ class CounterForm(QWidget):
         self.font_size_input.setValue(int(config.get("font_size") or 48))
         self.width_input.setValue(int(config.get("largura") or 400))
         self.height_input.setValue(int(config.get("altura") or 160))
-        self.icon_path = str(config.get("icone")) if config.get("icone") else None
-        self.icon_label.setText(Path(self.icon_path).name if self.icon_path else "Nenhum ícone")
+        self.icon_name = str(config.get("icone")) if config.get("icone") else None
+        self.icon_label.setText(self.icon_name or "Nenhum ícone")
         self.icon_size_input.setValue(int(config.get("icon_size") or 48))
 
     def _wire_preview(self) -> None:
@@ -452,12 +458,16 @@ class CounterForm(QWidget):
         path, _ = QFileDialog.getOpenFileName(self, "Escolher imagem", "", "Imagens (*.png *.jpg *.jpeg *.webp)")
         if not path:
             return
-        self.icon_path = path
-        self.icon_label.setText(Path(path).name)
+        try:
+            self.icon_name = self.icons.import_image(Path(path))
+        except (IconError, OSError):
+            QMessageBox.warning(self, "Ícone", "Não deu para usar essa imagem: escolha outro PNG, JPG ou WEBP.")
+            return
+        self.icon_label.setText(self.icon_name)
         self._update_preview()
 
     def _clear_icon(self) -> None:
-        self.icon_path = None
+        self.icon_name = None
         self.icon_label.setText("Nenhum ícone")
         self._update_preview()
 
@@ -473,11 +483,11 @@ class CounterForm(QWidget):
         font = self.font_input.currentText()
         font_size = self.font_size_input.value()
 
-        if self.icon_path:
-            icon_size = self.icon_size_input.value()
+        icon = self.icons.path_for(self.icon_name)
+        if icon:
             self.preview.setText(
-                f'<img src="{self.icon_path}" height="{icon_size}"> '
-                f'<span style="font-family:{font}; font-size:{font_size}pt; color:white;">{text}</span>'
+                img_tag(icon, self.icon_size_input.value())
+                + f'<span style="font-family:{font}; font-size:{font_size}pt; color:white;">{text}</span>'
             )
         else:
             self.preview.setText(
