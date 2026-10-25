@@ -48,6 +48,7 @@ from streamer_sidekick.modules.counter.overlay import CounterOverlay
 from streamer_sidekick.modules.counter.service import CounterService
 from streamer_sidekick.modules.marker.service import MarkerService
 from streamer_sidekick.ui.counter_editor import CounterPresetDialog
+from streamer_sidekick.ui.favorites import MAX_FAVORITES, favorites_to_save, visible_favorites
 from streamer_sidekick.ui import tokens
 from streamer_sidekick.ui.components import (
     AddPluginTile,
@@ -94,7 +95,7 @@ class _ReleasesWorker(QThread):
             self.loaded.emit(None)
 
 
-MAX_FAVORITOS = 4
+MAX_FAVORITOS = MAX_FAVORITES
 
 
 def favorite_columns(disponivel: int, largura_do_card: int, espaco: int) -> int:
@@ -709,9 +710,9 @@ class HubWindow(QMainWindow):
 
         lookup = dict(self._favoritable_items())
         stored = list(self.config.get("hub.favorites", []) or [])
-        valid = [fid for fid in stored if fid in lookup][:MAX_FAVORITOS]
-        if valid != stored:  # limpa ids órfãos (plugin removido, etc.)
-            self.config.set("hub.favorites", valid)
+        # Só esconde o que não está instalado aqui: a lista salva fica inteira
+        # (com o modo nuvem, ela é a mesma em todos os PCs).
+        valid = visible_favorites(stored, lookup, MAX_FAVORITOS)
         if self.home_favorites_panel is not None:
             self.home_favorites_panel.set_meta(f"{len(valid)}/{MAX_FAVORITOS}")
 
@@ -745,7 +746,8 @@ class HubWindow(QMainWindow):
         intro.setWordWrap(True)
         layout.addWidget(intro)
 
-        current = set(self.config.get("hub.favorites", []) or [])
+        stored = list(self.config.get("hub.favorites", []) or [])
+        current = set(visible_favorites(stored, dict(items), MAX_FAVORITOS))
         checks: list[tuple[str, QCheckBox]] = []
         for fid, info in items:
             checkbox = QCheckBox(getattr(info, "title", "") or fid)
@@ -774,8 +776,8 @@ class HubWindow(QMainWindow):
         layout.addLayout(buttons)
 
         if dialog.exec() == QDialog.DialogCode.Accepted:
-            selected = [fid for fid, cb in checks if cb.isChecked()][:4]
-            self.config.set("hub.favorites", selected)
+            selected = [fid for fid, cb in checks if cb.isChecked()][:MAX_FAVORITOS]
+            self.config.set("hub.favorites", favorites_to_save(selected, stored, dict(items)))
             self._reflow_favorites()
 
     # ---- Início: últimas atualizações (releases do GitHub) -------------
