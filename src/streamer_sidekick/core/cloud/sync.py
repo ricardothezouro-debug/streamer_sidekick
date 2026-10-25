@@ -14,8 +14,10 @@ import base64
 import hashlib
 import json
 import os
+import shutil
 import urllib.parse
 from dataclasses import dataclass, field
+from datetime import date, datetime
 from pathlib import Path
 from typing import Any, Callable, Optional
 
@@ -33,6 +35,7 @@ class Relatorio:
     subiu: list[str] = field(default_factory=list)
     baixou: list[str] = field(default_factory=list)
     juntou: list[str] = field(default_factory=list)
+    excluiu: list[str] = field(default_factory=list)
     simulado: bool = False
 
 
@@ -65,6 +68,11 @@ class ArquivosRemotos:
             raise OSError(f"não deu para baixar {caminho} (HTTP {status})")
         return base64.b64decode(linhas[0]["content_b64"])
 
+    def excluir(self, caminho: str) -> None:
+        """Marca o arquivo como apagado. A linha fica, para os outros PCs saberem."""
+        self._gravar_linha({"user_id": self._acesso.usuario, "path": caminho, "content_b64": "",
+                            "sha256": "", "size": 0, "deleted": True}, caminho)
+
     def subir(self, caminho: str, conteudo: bytes) -> None:
         linha = {
             "user_id": self._acesso.usuario,
@@ -74,6 +82,9 @@ class ArquivosRemotos:
             "size": len(conteudo),  # tamanho e hash do conteúdo real, não do base64
             "deleted": False,
         }
+        self._gravar_linha(linha, caminho)
+
+    def _gravar_linha(self, linha: dict[str, Any], caminho: str) -> None:
         # Sem este Prefer o PostgREST faz INSERT puro e a segunda gravação do
         # mesmo caminho dá erro de duplicado.
         status, erro = self._chamar("POST", "/rest/v1/files?on_conflict=user_id,path",
@@ -83,51 +94,81 @@ class ArquivosRemotos:
             raise OSError(f"não deu para subir {caminho} (HTTP {status}): {erro}")
 
 
-def sincronizar(dados: Path, remotos: ArquivosRemotos, conta: Conta, simular: bool) -> Relatorio:
+def sincronizar(dados: Path, remotos: ArquivosRemotos, conta: Conta, simular: bool,
+                hoje: Optional[date] = None) -> Relatorio:
+    dados = Path(dados)
+    hoje = hoje or date.today()
     relatorio = Relatorio(conta=conta, simulado=simular)
-    base = _Base(Path(dados) / "cloud" / "base.json")
-    pasta = _pasta_do_marcador(Path(dados))
+    backup = _Backup(dados / "cloud" / "backup", hoje)
+    if not simular:
+        backup.limpar_antigos()
+    base = _Base(dados / "cloud" / "base.json")
+    pasta = _pasta_do_marcador(dados)
     locais = _locais(pasta)
+    # Exclusões vêm junto do índice: "deleted" é a marca de que alguém apagou.
     nuvem = {linha["path"].lower(): linha for linha in remotos.indice()
-             if linha.get("path", "").lower().startswith(MARCADOR) and not linha.get("deleted")}
+             if linha.get("path", "").lower().startswith(MARCADOR)}
 
-    for chave in sorted(set(locais) | set(nuvem)):
+    for chave in sorted(set(locais) | set(nuvem) | base.chaves(MARCADOR)):
         local, remoto, anterior = locais.get(chave), nuvem.get(chave), base.get(chave)
-        caminho_na_nuvem = remoto["path"] if remoto else local.caminho  # reaproveita a caixa da nuvem
+        vivo = remoto is not None and not remoto.get("deleted")
+        caminho = remoto["path"] if remoto else (local.caminho if local else chave)  # reaproveita a caixa da nuvem
 
-        if local and remoto and local.sha256 == remoto["sha256"]:
-            base.set(chave, local.sha256)
-        elif local and not remoto:
-            relatorio.subiu.append(caminho_na_nuvem)
+        def subir() -> None:
+            relatorio.subiu.append(caminho)
             if not simular:
-                remotos.subir(caminho_na_nuvem, local.conteudo)
+                remotos.subir(caminho, local.conteudo)
                 base.set(chave, local.sha256)
-        elif remoto and not local:
-            relatorio.baixou.append(caminho_na_nuvem)
+
+        def baixar() -> None:
+            relatorio.baixou.append(caminho)
             if not simular:
-                conteudo = remotos.baixar(caminho_na_nuvem)
-                _gravar(pasta / caminho_na_nuvem[len(MARCADOR):], conteudo)
+                conteudo = remotos.baixar(caminho)
+                if local:
+                    backup.guardar(caminho, local.conteudo)
+                _gravar(local.arquivo if local else pasta / caminho[len(MARCADOR):], conteudo)
                 base.set(chave, _hash(conteudo))
-        elif anterior == local.sha256:  # só a nuvem mudou desde a base
-            relatorio.baixou.append(caminho_na_nuvem)
-            if not simular:
-                conteudo = remotos.baixar(caminho_na_nuvem)
-                _gravar(local.arquivo, conteudo)
-                base.set(chave, _hash(conteudo))
-        elif anterior == remoto["sha256"]:  # só o PC mudou desde a base
-            relatorio.subiu.append(caminho_na_nuvem)
-            if not simular:
-                remotos.subir(caminho_na_nuvem, local.conteudo)
+
+        if local and vivo:
+            if local.sha256 == remoto["sha256"]:
                 base.set(chave, local.sha256)
-        else:  # mudou nos dois (ou primeira sincronização com os dois lados diferentes)
-            relatorio.juntou.append(caminho_na_nuvem)
-            if not simular:
-                da_nuvem = remotos.baixar(caminho_na_nuvem)
-                junto = unir_linhas(local.conteudo.decode("utf-8", "replace"),
-                                    da_nuvem.decode("utf-8", "replace")).encode("utf-8")
-                _gravar(local.arquivo, junto)
-                remotos.subir(caminho_na_nuvem, junto)
-                base.set(chave, _hash(junto))
+            elif anterior == local.sha256:  # só a nuvem mudou desde a base
+                baixar()
+            elif anterior == remoto["sha256"]:  # só o PC mudou desde a base
+                subir()
+            else:  # mudou nos dois (ou primeira sincronização com os dois lados diferentes)
+                relatorio.juntou.append(caminho)
+                if not simular:
+                    da_nuvem = remotos.baixar(caminho)
+                    junto = unir_linhas(local.conteudo.decode("utf-8", "replace"),
+                                        da_nuvem.decode("utf-8", "replace")).encode("utf-8")
+                    backup.guardar(caminho, local.conteudo)
+                    _gravar(local.arquivo, junto)
+                    remotos.subir(caminho, junto)
+                    base.set(chave, _hash(junto))
+        elif local:
+            if remoto is not None and anterior == local.sha256:
+                # Apagado em outro PC e intocado aqui desde a base: sai, mas para o backup.
+                relatorio.excluiu.append(caminho)
+                if not simular:
+                    backup.guardar(caminho, local.conteudo)
+                    local.arquivo.unlink()
+                    base.remover(chave)
+            else:
+                # Nunca esteve na nuvem, ou foi editado aqui depois de apagado lá
+                # (a exclusão perde para a edição, Q28). Ausência nunca é exclusão.
+                subir()
+        elif vivo:
+            if anterior is not None and anterior == remoto["sha256"]:
+                # Apagado aqui e intocado na nuvem desde a base: a exclusão sobe.
+                relatorio.excluiu.append(caminho)
+                if not simular:
+                    remotos.excluir(caminho)
+                    base.remover(chave)
+            else:
+                baixar()  # novo na nuvem, ou editado lá depois de apagado aqui (Q28)
+        elif not simular:
+            base.remover(chave)  # sumiu dos dois lados: nada a fazer
 
     if not simular:
         base.salvar()
@@ -184,6 +225,48 @@ class _Base:
     def set(self, chave: str, sha256: str) -> None:
         self._hashes[chave] = sha256
 
+    def remover(self, chave: str) -> None:
+        self._hashes.pop(chave, None)
+
+    def chaves(self, prefixo: str) -> set[str]:
+        return {chave for chave in self._hashes if chave.startswith(prefixo)}
+
     def salvar(self) -> None:
         self._arquivo.parent.mkdir(parents=True, exist_ok=True)
         _gravar(self._arquivo, json.dumps(self._hashes, indent=1, sort_keys=True).encode("utf-8"))
+
+
+class _Backup:
+    """Backup da nuvem (GLOSSARY.md): a versão do PC de tudo que a sincronização
+    sobrescreve ou tira do lugar, em ``cloud/backup/<AAAA-MM-DD>/<caminho lógico>``.
+    Pastas com mais de 30 dias são apagadas ao sincronizar (decisão Q21)."""
+
+    DIAS = 30
+
+    def __init__(self, pasta: Path, hoje: date) -> None:
+        self._pasta = pasta
+        self._hoje = hoje
+
+    def guardar(self, caminho_logico: str, conteudo: bytes) -> Path:
+        destino = self._pasta / self._hoje.isoformat() / caminho_logico
+        if destino.exists():  # segunda cópia no mesmo dia: ganha a hora no nome
+            hora = datetime.now().strftime("%H%M%S")
+            nome, extensao = destino.stem, destino.suffix
+            destino = destino.with_name(f"{nome}-{hora}{extensao}")
+            extra = 2
+            while destino.exists():
+                destino = destino.with_name(f"{nome}-{hora}-{extra}{extensao}")
+                extra += 1
+        _gravar(destino, conteudo)
+        return destino
+
+    def limpar_antigos(self) -> None:
+        if not self._pasta.is_dir():
+            return
+        for pasta in self._pasta.iterdir():
+            try:
+                dia = date.fromisoformat(pasta.name)
+            except ValueError:
+                continue  # não é pasta de backup do app: não mexe
+            if pasta.is_dir() and (self._hoje - dia).days > self.DIAS:
+                shutil.rmtree(pasta, ignore_errors=True)
