@@ -9,13 +9,13 @@ EMAIL = "gamox@exemplo.com"
 class PC:
     """Uma pasta de dados do app, como num computador, logada na conta."""
 
-    def __init__(self, raiz, falso, nome):
+    def __init__(self, raiz, falso, nome, **opcoes):
         from streamer_sidekick.core.cloud import Nuvem
 
         self.dados = raiz / nome
         self.marcacoes = self.dados / "markers"
         self.marcacoes.mkdir(parents=True)
-        self.nuvem = Nuvem(self.dados, transporte=falso, url=falso.URL, chave=falso.ANON)
+        self.nuvem = Nuvem(self.dados, transporte=falso, url=falso.URL, chave=falso.ANON, **opcoes)
         self.nuvem.entrar(lambda montar_url: falso.autorizar(montar_url("http://127.0.0.1:53682/callback"), EMAIL))
 
     def escrever(self, nome, texto):
@@ -26,7 +26,12 @@ class PC:
         return arquivo.read_text(encoding="utf-8") if arquivo.exists() else None
 
     def sincronizar(self, **opcoes):
-        return self.nuvem.sincronizar(**opcoes)
+        """O relatório só com os arquivos. As preferências sobem na primeira
+        sincronização de cada PC e são testadas em test_nuvem_preferencias.py."""
+        relatorio = self.nuvem.sincronizar(**opcoes)
+        for lista in (relatorio.subiu, relatorio.baixou, relatorio.juntou, relatorio.excluiu):
+            lista[:] = [caminho for caminho in lista if not caminho.startswith("preferencias/")]
+        return relatorio
 
 
 @pytest.fixture

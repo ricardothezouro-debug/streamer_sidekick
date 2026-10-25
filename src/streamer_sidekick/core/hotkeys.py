@@ -158,7 +158,7 @@ class HotkeyManager(QObject):
             key = str(item.get("key") or "").strip()
             message = str(item.get("message") or "").strip()
             sequence = str(item.get("sequence") or "").strip()
-            if key and message and sequence:
+            if key and message:  # sem sequência: aparece em Atalhos para escolher uma (Q35)
                 rows.append({"key": key, "message": message, "sequence": sequence})
         return rows
 
