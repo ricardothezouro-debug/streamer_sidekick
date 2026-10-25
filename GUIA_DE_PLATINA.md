@@ -179,6 +179,25 @@ from streamer_sidekick.core.paths import user_data_dir
 pasta = user_data_dir("platinas") / GUIDE_ID   # criada se não existir
 ```
 
+**Formato do progresso.** Grave o progresso em `pasta / "progress.json"` como uma
+**lista com os ids marcados**:
+
+```json
+["peixe-aal", "santuario-1", "doca-greater-marrow"]
+```
+
+É esse arquivo que o modo nuvem leva para os outros PCs, e ele é fundido em três
+vias: o que foi marcado num PC entra, o que foi desmarcado num PC sai (ADR 0003).
+Por isso:
+
+- Os ids precisam ser estáveis entre versões do guia. Renomear um id faz o passo
+  parecer desmarcado.
+- Não guarde mais nada no `progress.json`. O objeto com a lista em `done` também
+  é aceito, mas os outros campos dele seguem "a nuvem vence". Qualquer outro
+  formato perde marcações quando dois PCs mudam o progresso ao mesmo tempo.
+- O que é desta tela (a posição do balão no `ui.json`, o cache de imagens) fica
+  em outros arquivos da pasta. Eles nunca sobem.
+
 **Como baixar imagem.**
 
 ```python

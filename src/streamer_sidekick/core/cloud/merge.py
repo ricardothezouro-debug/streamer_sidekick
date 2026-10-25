@@ -2,11 +2,16 @@
 
 ``unir_linhas`` é a regra dos .txt do Marcador: junta os dois lados sem
 duplicar, mantendo a ordem do arquivo do PC (decisão Q20 da fase 1).
+
+``fundir_progresso`` é a regra do progresso das platinas (ADR 0003): fusão em
+três vias contra a base.
 """
 from __future__ import annotations
 
+import json
 import re
 from dataclasses import dataclass, field
+from typing import Any, Optional
 
 _DATA_E_HORA = re.compile(r"^\[(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2})\]")
 
@@ -72,3 +77,62 @@ def unir_linhas(pc: str, nuvem: str) -> str:
         linhas.append(bloco.cabeca)
         linhas.extend(bloco.grudadas)
     return "".join(linha + "\n" for linha in linhas)
+
+
+def fundir_progresso(base: Optional[bytes], pc: bytes, nuvem: bytes) -> Optional[bytes]:
+    """O que um lado marcou desde a base entra; o que um lado desmarcou sai.
+
+    Aceita a lista de ids marcados e o objeto com essa lista em ``done`` (os
+    outros campos seguem a nuvem). Formato desconhecido, ou diferente entre os
+    dois lados, devolve ``None``: aí vale "a nuvem vence" (Q39). Sem base (ou
+    base em outro formato), junta tudo: nada se perde.
+
+    A ordem é a do PC, e o que só a nuvem marcou vai no fim, na ordem dela (Q38).
+    """
+    do_pc, da_nuvem = _ler_json(pc), _ler_json(nuvem)
+    marcados_pc, marcados_nuvem = _marcados(do_pc), _marcados(da_nuvem)
+    if marcados_pc is None or marcados_nuvem is None or type(do_pc) is not type(da_nuvem):
+        return None
+    anterior = _ler_json(base) if base is not None else None
+    marcados_base = _marcados(anterior) if type(anterior) is type(do_pc) else None
+
+    no_pc = {_id(item) for item in marcados_pc}
+    na_nuvem = {_id(item) for item in marcados_nuvem}
+    desmarcados = {_id(item) for item in marcados_base or []
+                   if _id(item) not in no_pc or _id(item) not in na_nuvem}
+    resultado: list[Any] = []
+    vistos: set[str] = set()
+    for item in marcados_pc + marcados_nuvem:
+        chave = _id(item)
+        if chave not in desmarcados and chave not in vistos:
+            vistos.add(chave)
+            resultado.append(item)
+
+    if isinstance(da_nuvem, dict):
+        junto: Any = dict(da_nuvem, done=resultado)
+    else:
+        junto = resultado
+    return json.dumps(junto, ensure_ascii=False).encode("utf-8")
+
+
+_INVALIDO = object()
+
+
+def _ler_json(conteudo: bytes) -> Any:
+    try:
+        return json.loads(conteudo.decode("utf-8"))
+    except (UnicodeDecodeError, ValueError):
+        return _INVALIDO
+
+
+def _marcados(documento: Any) -> Optional[list[Any]]:
+    if isinstance(documento, list):
+        return documento
+    if isinstance(documento, dict) and isinstance(documento.get("done"), list):
+        return documento["done"]
+    return None
+
+
+def _id(item: Any) -> str:
+    # Compara como veio no JSON: "3" e 3 são ids diferentes.
+    return json.dumps(item, sort_keys=True)
