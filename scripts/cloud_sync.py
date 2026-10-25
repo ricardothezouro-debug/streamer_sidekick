@@ -81,10 +81,11 @@ def main() -> int:
         simulado = relatorio.simulado
         for rotulo, caminhos in (("subiria" if simulado else "subiu", relatorio.subiu),
                                  ("baixaria" if simulado else "baixou", relatorio.baixou),
-                                 ("juntaria" if simulado else "juntou", relatorio.juntou)):
+                                 ("juntaria" if simulado else "juntou", relatorio.juntou),
+                                 ("excluiria" if simulado else "excluiu", relatorio.excluiu)):
             for caminho in caminhos:
                 print(f"  {rotulo}: {caminho}")
-        if not (relatorio.subiu or relatorio.baixou or relatorio.juntou):
+        if not (relatorio.subiu or relatorio.baixou or relatorio.juntou or relatorio.excluiu):
             print("  tudo igual: nada a fazer")
         if simulado:
             print("(simulação: nada foi mudado)")
