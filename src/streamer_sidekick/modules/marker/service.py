@@ -170,11 +170,8 @@ class MarkerService:
         if len(remaining) == len(items):
             return False
 
-        self.config.data.setdefault("marker", {})["custom_hotkeys"] = remaining
-        hotkeys = self.config.data.get("hotkeys", {})
-        if isinstance(hotkeys, dict):
-            hotkeys.pop(key, None)
-        self.config.save()
+        self.config.set("marker.custom_hotkeys", remaining)
+        self.config.remove_in("hotkeys", key)
         return True
 
     def _legacy_folder(self) -> Optional[Path]:

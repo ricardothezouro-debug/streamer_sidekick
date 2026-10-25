@@ -5,7 +5,7 @@ from typing import Any, Optional
 from PySide6.QtCore import Qt, Signal
 from PySide6.QtWidgets import QLabel, QVBoxLayout, QWidget
 
-from streamer_sidekick.core import hotkey_backend
+from streamer_sidekick.core import events, hotkey_backend
 from streamer_sidekick.core.platform_utils import float_above_fullscreen
 
 
@@ -73,6 +73,7 @@ class CounterOverlay(QWidget):
         event.accept()
 
     def increment(self) -> None:
+        before = self.value
         if self.config.get("infinito", True):
             self.value += 1
         else:
@@ -81,11 +82,20 @@ class CounterOverlay(QWidget):
                 self.value += 1
         self._update_text()
         self._save_state()
+        self._publish_if_changed(before)
 
     def reset(self) -> None:
+        before = self.value
         self.value = 0
         self._update_text()
         self._save_state()
+        self._publish_if_changed(before)
+
+    def _publish_if_changed(self, before: int) -> None:
+        if self.value == before:
+            return
+        preset = self.save_file.stem.removesuffix("_state")
+        events.publish("counter.changed", {"preset": preset, "counter": self._window_title(), "value": self.value})
 
     def _register_hotkey(self) -> None:
         if self._hotkey_handle is not None:
