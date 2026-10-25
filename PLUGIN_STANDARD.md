@@ -452,6 +452,53 @@ Sidekick embarca o certifi. Fora dele, documente no README que é preciso
 instalar. Não adicione `certifi` como dependência do plugin: a regra 1 continua
 valendo, e o import tem de ficar dentro de um `try`.
 
+### 7.6 Eventos do hub
+
+A partir do Sidekick **0.9.2**, o hub avisa quando algo acontece, e o plugin
+pode reagir sem ficar lendo arquivo. Exemplo: o plugin assina `marker.saved`
+para saber de cada marcação.
+
+```python
+try:
+    from streamer_sidekick.core import events
+except ImportError:
+    events = None                  # Sidekick antigo ou rodando fora do hub
+
+class MinhaPagina(QWidget):
+    marcou = Signal(dict)          # leva o evento para a thread da GUI
+
+    def __init__(self):
+        super().__init__()
+        self.marcou.connect(self._ao_marcar)
+        self._cancelar = events.subscribe("marker.saved", self.marcou.emit) if events else None
+
+    def encerrar(self):
+        if self._cancelar:
+            self._cancelar()       # pode chamar mais de uma vez
+```
+
+| Evento | Quando | Dados |
+|---|---|---|
+| `marker.saved` | a cada marcação do hub: diálogo rápido, página do Marcador, mensagens rápidas e contador com marcação | `file` (nome do `.txt`), `text`, `when` (data e hora ISO, a mesma gravada na linha) |
+
+O que não está óbvio:
+
+- **O evento chega na thread de quem publicou.** Marcação feita por atalho
+  global chega numa thread de fundo. Para mexer em widget, faça como no exemplo:
+  emita um `Signal` e trate no slot.
+- **Cancele em `encerrar()`.** Sem isso, ao atualizar o plugin com o app aberto, a
+  página antiga continua recebendo os eventos.
+- **Um erro no seu ouvinte não derruba ninguém.** O hub registra o erro no log e
+  segue entregando aos outros. Ainda assim, não deixe exceção escapar de
+  propósito: o evento se perde para o seu plugin.
+- **Seus próprios eventos levam o id do plugin na frente** (`clipit.clip_created`)
+  e saem com `events.publish(nome, dados)`. Nunca publique um evento do hub
+  (`marker.*`, `counter.*`, `preferences.*`).
+- **Só sai o que passa pelo hub.** Se o plugin grava linha no `.txt` do Marcador
+  por conta própria, `marker.saved` não sai para essa linha.
+- Se o plugin depende de eventos, declare `"min_sidekick_version": "0.9.2"` no
+  catálogo.
+
 ---
 
 ## 8. Versionamento e atualização
