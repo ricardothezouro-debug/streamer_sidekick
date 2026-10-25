@@ -480,6 +480,9 @@ class MinhaPagina(QWidget):
 | Evento | Quando | Dados |
 |---|---|---|
 | `marker.saved` | a cada marcação do hub: diálogo rápido, página do Marcador, mensagens rápidas e contador com marcação | `file` (nome do `.txt`), `text`, `when` (data e hora ISO, a mesma gravada na linha) |
+| `counter.changed` | quando o valor de um contador muda: incremento (atalho do contador) e zerar (um ou todos). Contador no limite não publica de novo | `preset` (nome do preset), `counter` (título do contador), `value` (valor novo) |
+| `counter.preset_saved` | ao criar, editar, renomear e duplicar um preset (ao renomear, sai com o nome novo) | `preset` |
+| `preferences.changed` | quando muda uma preferência: favoritos, papel de parede, iniciar minimizado, fechar para a bandeja, arquivo ativo do Marcador, mensagens rápidas e atalhos. Configuração desta máquina (pastas, iniciar com o sistema) não publica | `key` (ex.: `hub.wallpaper`, `hotkeys.marker.open_event`). Leia o valor novo na config do hub (§7.4) |
 
 O que não está óbvio:
 

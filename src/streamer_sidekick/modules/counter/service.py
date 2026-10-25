@@ -2,6 +2,7 @@ import json
 from pathlib import Path
 from typing import Any, Optional
 
+from streamer_sidekick.core import events
 from streamer_sidekick.core.config import ConfigStore
 from streamer_sidekick.core.modules import ModuleInfo
 from streamer_sidekick.core.paths import user_data_dir
@@ -68,6 +69,8 @@ class CounterService:
         normalized = [_normalize_counter_config(counter, index) for index, counter in enumerate(counters)]
         path.write_text(json.dumps(normalized, indent=2, ensure_ascii=False), encoding="utf-8")
         self.config.set("counter.last_preset", str(path))
+        # Criar, editar, renomear e duplicar passam todos por aqui.
+        events.publish("counter.preset_saved", {"preset": path.stem})
         return path
 
     def delete_preset(self, path: Path) -> None:

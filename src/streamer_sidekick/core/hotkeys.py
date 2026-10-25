@@ -77,18 +77,14 @@ class HotkeyManager(QObject):
         conflict = self.find_conflict(key, sequence)
         if conflict:
             return conflict
-        hotkeys = self.config.data.setdefault("hotkeys", {})
-        hotkeys[key] = {"sequence": sequence, "enabled": enabled}
-        self.config.save()
+        self.config.set_in("hotkeys", key, {"sequence": sequence, "enabled": enabled})
         self.changed.emit()
         return None
 
     def set_enabled(self, key: str, enabled: bool) -> None:
-        hotkeys = self.config.data.setdefault("hotkeys", {})
-        current = hotkeys.get(key, {})
+        current = self.config.data.get("hotkeys", {}).get(key, {})
         sequence = current.get("sequence", self._default_sequence_for_key(key))
-        hotkeys[key] = {"sequence": sequence, "enabled": enabled}
-        self.config.save()
+        self.config.set_in("hotkeys", key, {"sequence": sequence, "enabled": enabled})
         self.changed.emit()
 
     def find_conflict(self, current_key: str, sequence: str) -> Optional[str]:
