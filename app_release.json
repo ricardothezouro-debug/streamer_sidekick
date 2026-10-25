@@ -1,13 +1,13 @@
 {
-  "version": "0.9.1",
-  "zip_url": "https://github.com/ricardothezouro-debug/streamer_sidekick/releases/download/v0.9.1/StreamerSidekick-0.9.1-portable.zip",
-  "notes": "O topo do Início virou um espaço clicável: uma animação chama para o canal Gamoxkun no YouTube, e o clique abre o canal já com a caixa de inscrição.",
+  "version": "0.9.2",
+  "zip_url": "https://github.com/ricardothezouro-debug/streamer_sidekick/releases/download/v0.9.2/StreamerSidekick-0.9.2-portable.zip",
+  "notes": "Melhoria por dentro, para os plugins: o app agora avisa quando você marca um momento, mexe num contador ou muda uma preferência. É a base para o ClipIt criar o clipe no mesmo atalho de marcar.",
   "platforms": {
     "windows": {
-      "zip_url": "https://github.com/ricardothezouro-debug/streamer_sidekick/releases/download/v0.9.1/StreamerSidekick-0.9.1-portable.zip"
+      "zip_url": "https://github.com/ricardothezouro-debug/streamer_sidekick/releases/download/v0.9.2/StreamerSidekick-0.9.2-portable.zip"
     },
     "macos": {
-      "zip_url": "https://github.com/ricardothezouro-debug/streamer_sidekick/releases/download/v0.9.1/StreamerSidekick-0.9.1-macos.zip"
+      "zip_url": "https://github.com/ricardothezouro-debug/streamer_sidekick/releases/download/v0.9.2/StreamerSidekick-0.9.2-macos.zip"
     }
   }
 }
