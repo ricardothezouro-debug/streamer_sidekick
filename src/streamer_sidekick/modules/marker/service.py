@@ -5,6 +5,7 @@ from pathlib import Path
 from typing import Optional
 from uuid import uuid4
 
+from streamer_sidekick.core import events
 from streamer_sidekick.core.config import ConfigStore
 from streamer_sidekick.core.modules import ModuleInfo
 from streamer_sidekick.core.paths import user_data_dir
@@ -88,9 +89,12 @@ class MarkerService:
             return self.marker_file(file_name) if file_name else self.active_file()
         target = self.marker_file(file_name) if file_name else self.active_file()
         target.parent.mkdir(parents=True, exist_ok=True)
-        stamp = datetime.now().strftime("[%Y-%m-%d %H:%M:%S]")
+        when = datetime.now().replace(microsecond=0)
         with target.open("a", encoding="utf-8") as file:
-            file.write(f"{stamp} {clean_text}\n")
+            file.write(f"[{when:%Y-%m-%d %H:%M:%S}] {clean_text}\n")
+        # Todo jeito de marcar do hub passa por aqui: diálogo rápido, página,
+        # mensagens rápidas e contador com marcação.
+        events.publish("marker.saved", {"file": target.name, "text": clean_text, "when": when.isoformat()})
         return target
 
     def normalize_file_name(self, file_name: str) -> str:
@@ -166,11 +170,8 @@ class MarkerService:
         if len(remaining) == len(items):
             return False
 
-        self.config.data.setdefault("marker", {})["custom_hotkeys"] = remaining
-        hotkeys = self.config.data.get("hotkeys", {})
-        if isinstance(hotkeys, dict):
-            hotkeys.pop(key, None)
-        self.config.save()
+        self.config.set("marker.custom_hotkeys", remaining)
+        self.config.remove_in("hotkeys", key)
         return True
 
     def _legacy_folder(self) -> Optional[Path]:
