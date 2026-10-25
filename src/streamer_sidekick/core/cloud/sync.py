@@ -8,11 +8,13 @@ Para cada caminho lógico:
 Hoje: os .txt do Marcador (``marcador/``, união de linhas), o Contador
 (``contador/presets/`` e ``contador/icones/``) e as preferências
 (``preferencias/``, montadas do config; veja ``preferences.py``). Nesses dois,
-a nuvem vence, com backup. O próximo ticket acrescenta as Platinas.
+a nuvem vence, com backup. O progresso das platinas (``platinas/``) é fundido
+em três vias contra a cópia da base (ADR 0003).
 """
 from __future__ import annotations
 
 import base64
+import fnmatch
 import hashlib
 import json
 import os
@@ -25,13 +27,14 @@ from typing import Any, Callable, Iterable, Optional
 
 from streamer_sidekick.core.cloud import preferences
 from streamer_sidekick.core.cloud.account import Acesso, Conta
-from streamer_sidekick.core.cloud.merge import unir_linhas
+from streamer_sidekick.core.cloud.merge import fundir_progresso, unir_linhas
 from streamer_sidekick.core.config import ConfigStore
 
 MARCADOR = "marcador/"
 PRESETS = "contador/presets/"
 ICONES = "contador/icones/"
 GERAL = "preferencias/geral.json"
+PLATINAS = "platinas/"
 #: Repete o arquivo ativo do config; é configuração da máquina, nunca sobe.
 _NUNCA_SOBEM = frozenset({"ultimo_jogo.txt"})
 #: Arquivos pela metade (gravação atômica do app e da sincronização).
@@ -146,11 +149,14 @@ def _sincronizar_um(chave: str, area: "_Area", local: Optional[_Local], remoto: 
     vivo = remoto is not None and not remoto.get("deleted")
     caminho = remoto["path"] if remoto else (local.caminho if local else chave)  # reaproveita a caixa da nuvem
 
+    def marcar(conteudo: bytes) -> None:
+        base.set(chave, _hash(conteudo), conteudo if area.guarda_base else None)
+
     def subir() -> None:
         relatorio.subiu.append(caminho)
         if not simular:
             remotos.subir(caminho, local.conteudo)
-            base.set(chave, local.sha256)
+            marcar(local.conteudo)
 
     def baixar() -> None:
         relatorio.baixou.append(caminho)
@@ -161,20 +167,20 @@ def _sincronizar_um(chave: str, area: "_Area", local: Optional[_Local], remoto: 
                 local.gravar(conteudo)
             else:
                 _gravar(area.pasta / caminho[len(area.prefixo):], conteudo)
-            base.set(chave, _hash(conteudo))
+            marcar(conteudo)
 
     if aberto:
         # Overlay aberto: o PC vence, mas só quando mudou aqui. Se só a nuvem
         # mudou, fica como está até o overlay fechar.
         if local and vivo and local.sha256 == remoto["sha256"]:
-            base.set(chave, local.sha256)
+            marcar(local.conteudo)
         elif local and anterior != local.sha256:
             subir()
         return
 
     if local and vivo:
         if local.sha256 == remoto["sha256"]:
-            base.set(chave, local.sha256)
+            marcar(local.conteudo)
         elif anterior == local.sha256:  # só a nuvem mudou desde a base
             baixar()
         elif anterior == remoto["sha256"]:  # só o PC mudou desde a base
@@ -182,13 +188,19 @@ def _sincronizar_um(chave: str, area: "_Area", local: Optional[_Local], remoto: 
         elif area.juntar is None:  # mudou nos dois: a nuvem vence, a versão do PC vai para o backup
             baixar()
         else:  # mudou nos dois (ou primeira sincronização com os dois lados diferentes)
-            relatorio.juntou.append(caminho)
+            # Ler a nuvem não muda nada: até simulando dá para saber se junta.
+            da_nuvem = remotos.baixar(caminho)
+            junto = area.juntar(local.conteudo, da_nuvem, base.conteudo(chave))
+            (relatorio.baixou if junto is None else relatorio.juntou).append(caminho)
             if not simular:
-                junto = area.juntar(local.conteudo, remotos.baixar(caminho))
                 backup.guardar(caminho, local.conteudo)
-                local.gravar(junto)
-                remotos.subir(caminho, junto)
-                base.set(chave, _hash(junto))
+                if junto is None:  # a regra não se aplica (formato desconhecido): a nuvem vence
+                    local.gravar(da_nuvem)
+                    marcar(da_nuvem)
+                else:
+                    local.gravar(junto)
+                    remotos.subir(caminho, junto)
+                    marcar(junto)
     elif local:
         if remoto is not None and anterior == local.sha256 and local.apagar is not None:
             # Apagado em outro PC e intocado aqui desde a base: sai, mas para o backup.
@@ -222,25 +234,39 @@ class _Area:
 
     prefixo: str
     ler: Callable[[], dict[str, _Local]]
-    #: Junta as duas versões; ``None``: a nuvem vence, com backup.
-    juntar: Optional[Callable[[bytes, bytes], bytes]]
+    #: Junta (PC, nuvem, base); ``None`` aqui ou no resultado: a nuvem vence, com backup.
+    juntar: Optional[Callable[[bytes, bytes, Optional[bytes]], Optional[bytes]]]
     #: Onde grava o que só existe na nuvem; ``None``: um arquivo só, que existe sempre.
     pasta: Optional[Path] = None
+    #: Quais arquivos da pasta entram (relativo à pasta).
+    padrao: str = "*"
+    #: Guarda uma cópia do conteúdo na base, para a fusão em três vias (Q37).
+    guarda_base: bool = False
 
     def inclui(self, caminho: str) -> bool:
         caminho = caminho.lower()
-        return caminho.startswith(self.prefixo) if self.pasta is not None else caminho == self.prefixo
+        if self.pasta is None:
+            return caminho == self.prefixo
+        relativo = caminho[len(self.prefixo):]
+        # Nada de ".." nem barra invertida: o que vem da nuvem nunca grava fora da pasta.
+        return (caminho.startswith(self.prefixo) and fnmatch.fnmatchcase(relativo, self.padrao)
+                and "\\" not in relativo and ".." not in relativo.split("/"))
 
 
 def _areas(dados: Path, config: ConfigStore, sistema: str) -> list[_Area]:
     marcacoes = _pasta(config, "marker.folder", dados / "markers")
     presets = _pasta(config, "counter.presets_folder", dados / "counter_presets")
     icones = dados / "counter_icons"
+    platinas = dados / "platinas"
     return [
-        _Area(MARCADOR, lambda: _arquivos(MARCADOR, marcacoes, "*.txt", _NUNCA_SOBEM), _unir, marcacoes),
+        _Area(MARCADOR, lambda: _arquivos(MARCADOR, marcacoes, "*.txt", _NUNCA_SOBEM), _unir, marcacoes, "*.txt"),
         # config.json na pasta de presets é de versões antigas do Contador, não é preset.
-        _Area(PRESETS, lambda: _arquivos(PRESETS, presets, "*.json", frozenset({"config.json"})), None, presets),
+        _Area(PRESETS, lambda: _arquivos(PRESETS, presets, "*.json", frozenset({"config.json"})), None, presets,
+              "*.json"),
         _Area(ICONES, lambda: _arquivos(ICONES, icones, "*", frozenset()), None, icones),
+        # Só o progresso: ui.json (posição do balão) e o cache de imagens ficam no PC.
+        _Area(PLATINAS, lambda: _arquivos(PLATINAS, platinas, "*/progress.json", frozenset()), _fundir,
+              platinas, "*/progress.json", guarda_base=True),
         _preferencia(GERAL, config, preferences.geral, preferences.aplicar_geral),
         _preferencia(preferences.caminho_dos_atalhos(sistema), config, preferences.atalhos,
                      preferences.aplicar_atalhos),
@@ -261,7 +287,11 @@ def _pasta(config: ConfigStore, chave: str, padrao: Path) -> Path:
     return Path(str(configurada)) if configurada else padrao
 
 
-def _unir(local: bytes, da_nuvem: bytes) -> bytes:
+def _fundir(local: bytes, da_nuvem: bytes, base: Optional[bytes]) -> Optional[bytes]:
+    return fundir_progresso(base, local, da_nuvem)
+
+
+def _unir(local: bytes, da_nuvem: bytes, _base: Optional[bytes]) -> bytes:
     return unir_linhas(local.decode("utf-8", "replace"), da_nuvem.decode("utf-8", "replace")).encode("utf-8")
 
 
@@ -274,7 +304,7 @@ def _arquivos(prefixo: str, pasta: Path, padrao: str, ignorados: frozenset[str])
         if nome in ignorados or nome.endswith(_TEMPORARIOS) or not arquivo.is_file():
             continue
         conteudo = arquivo.read_bytes()
-        caminho = prefixo + arquivo.name
+        caminho = prefixo + arquivo.relative_to(pasta).as_posix()
         locais[caminho.lower()] = _Local(caminho, conteudo, _hash(conteudo),
                                          lambda novo, alvo=arquivo: _gravar(alvo, novo), arquivo.unlink)
     return locais
@@ -292,10 +322,17 @@ def _gravar(arquivo: Path, conteudo: bytes) -> None:
 
 
 class _Base:
-    """O hash de cada arquivo ao fim da última sincronização, só neste PC."""
+    """O hash de cada arquivo ao fim da última sincronização, só neste PC.
+
+    Para a fusão em três vias (progresso das platinas, Q37), guarda também uma
+    cópia do conteúdo em ``cloud/base/<caminho lógico>``. As cópias ficam na
+    memória até ``salvar()``: se a sincronização falhar no meio, nem o
+    ``base.json`` nem as cópias mudam."""
 
     def __init__(self, arquivo: Path) -> None:
         self._arquivo = arquivo
+        self._copias = arquivo.parent / "base"
+        self._pendentes: dict[str, Optional[bytes]] = {}  # None: apagar a cópia
         try:
             self._hashes: dict[str, str] = json.loads(arquivo.read_text(encoding="utf-8"))
         except (OSError, ValueError):
@@ -304,17 +341,37 @@ class _Base:
     def get(self, chave: str) -> Optional[str]:
         return self._hashes.get(chave)
 
-    def set(self, chave: str, sha256: str) -> None:
+    def set(self, chave: str, sha256: str, conteudo: Optional[bytes] = None) -> None:
         self._hashes[chave] = sha256
+        if conteudo is not None:
+            self._pendentes[chave] = conteudo
+
+    def conteudo(self, chave: str) -> Optional[bytes]:
+        """A cópia da base, só se ela bate com o hash; senão é como não ter base."""
+        if chave in self._pendentes:
+            copia = self._pendentes[chave]
+        else:
+            try:
+                copia = (self._copias / chave).read_bytes()
+            except OSError:
+                copia = None
+        return copia if copia is not None and _hash(copia) == self._hashes.get(chave) else None
 
     def remover(self, chave: str) -> None:
         self._hashes.pop(chave, None)
+        self._pendentes[chave] = None
 
     def chaves(self, prefixo: str) -> set[str]:
         return {chave for chave in self._hashes if chave.startswith(prefixo)}
 
     def salvar(self) -> None:
         self._arquivo.parent.mkdir(parents=True, exist_ok=True)
+        for chave, copia in self._pendentes.items():
+            if copia is None:
+                (self._copias / chave).unlink(missing_ok=True)
+            else:
+                _gravar(self._copias / chave, copia)
+        self._pendentes.clear()
         _gravar(self._arquivo, json.dumps(self._hashes, indent=1, sort_keys=True).encode("utf-8"))
 
 
