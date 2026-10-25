@@ -8,7 +8,12 @@ progresso de verdade.
     python scripts/cloud_sync.py --dados C:\\teste-nuvem conta
     python scripts/cloud_sync.py --dados C:\\teste-nuvem sair
 
-Os próximos tickets acrescentam "sincronizar" (com --simular) e "baixar-tudo".
+    python scripts/cloud_sync.py --dados C:\\teste-nuvem sincronizar --simular
+    python scripts/cloud_sync.py --dados C:\\teste-nuvem sincronizar
+
+Hoje sincroniza os .txt do Marcador (a pasta configurada no config.json da pasta
+de dados, ou <dados>/markers). Os próximos tickets acrescentam o resto e
+"baixar-tudo".
 O projeto e a chave pública vêm do app; troque com SSK_SUPABASE_URL e
 SSK_SUPABASE_ANON_KEY para apontar para outro projeto.
 """
@@ -41,7 +46,9 @@ def main() -> int:
                         help="pasta de dados de teste (fica no lugar da pasta do app)")
     parser.add_argument("--permitir-dados-reais", action="store_true",
                         help="aceita usar a pasta de dados de verdade do app (só se você tiver certeza)")
-    parser.add_argument("comando", choices=["entrar", "conta", "sair"])
+    parser.add_argument("--simular", action="store_true",
+                        help="com sincronizar: mostra o que faria, sem mudar nada")
+    parser.add_argument("comando", choices=["entrar", "conta", "sair", "sincronizar"])
     args = parser.parse_args()
 
     dados = args.dados.expanduser().resolve()
@@ -66,6 +73,22 @@ def main() -> int:
         conta = nuvem.conta()
         print(_descrever(conta))
         return 0 if conta.estado == CONECTADA else 1
+    if args.comando == "sincronizar":
+        relatorio = nuvem.sincronizar(simular=args.simular)
+        print(_descrever(relatorio.conta))
+        if relatorio.conta.estado != CONECTADA:
+            return 1
+        simulado = relatorio.simulado
+        for rotulo, caminhos in (("subiria" if simulado else "subiu", relatorio.subiu),
+                                 ("baixaria" if simulado else "baixou", relatorio.baixou),
+                                 ("juntaria" if simulado else "juntou", relatorio.juntou)):
+            for caminho in caminhos:
+                print(f"  {rotulo}: {caminho}")
+        if not (relatorio.subiu or relatorio.baixou or relatorio.juntou):
+            print("  tudo igual: nada a fazer")
+        if simulado:
+            print("(simulação: nada foi mudado)")
+        return 0
     nuvem.sair()
     print("Sessão encerrada neste PC.")
     return 0

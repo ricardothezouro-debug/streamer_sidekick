@@ -46,6 +46,8 @@ class SupabaseFalso:
         self.fora_do_ar = False
         self.lento = False
         self.chamadas: list[tuple[str, str]] = []
+        self.arquivos: dict[tuple[str, str], dict[str, Any]] = {}  # (user_id, path) -> linha de files
+        self._relogio = itertools.count(1)
         self.ultimo_timeout: Optional[float] = None
 
     # ------------------------------------------------------------ controles
@@ -100,6 +102,8 @@ class SupabaseFalso:
             return 204, None
         if partes.path == "/rest/v1/profiles":
             return self._profiles(metodo, query, corpo, usuario)
+        if partes.path == "/rest/v1/files":
+            return self._files(metodo, query, corpo, usuario, cabecalhos.get("Prefer", ""))
         return 404, {"message": f"rota desconhecida {metodo} {partes.path}"}
 
     def _token(self, grant: Optional[str], corpo: dict[str, Any]) -> tuple[int, Any]:
@@ -149,6 +153,56 @@ class SupabaseFalso:
                 return 403, {"code": "42501", "message": "permission denied for table profiles"}
             return 204, None
         return 405, {"message": "método não permitido"}
+
+
+    # ------------------------------------------------------------ files
+    def arquivo(self, email: str, caminho: str) -> Optional[dict[str, Any]]:
+        """Para os testes: a linha de ``files`` de alguém, como está no banco."""
+        return self.arquivos.get((self._por_email(email).id, caminho))
+
+    def _files(self, metodo: str, query: dict[str, str], corpo: Any,
+               usuario: Optional[Usuario], prefer: str = "") -> tuple[int, Any]:
+        if usuario is None:
+            return 401, {"code": "42501", "message": "permission denied for table files"}
+        if not usuario.ativo:  # RLS: user_id = auth.uid() and is_active()
+            return (200, []) if metodo == "GET" else (403, {"code": "42501", "message": "conta desativada"})
+        if metodo == "GET":
+            linhas = [linha for (uid, _), linha in self.arquivos.items() if uid == usuario.id]
+            filtro = query.get("path", "")
+            if filtro.startswith("eq."):
+                linhas = [linha for linha in linhas if linha["path"] == filtro[3:]]
+            colunas = [c for c in query.get("select", "*").split(",") if c]
+            return 200, [linha if colunas == ["*"] else {c: linha.get(c) for c in colunas} for linha in linhas]
+        if metodo == "POST":
+            if query.get("on_conflict") != "user_id,path":
+                return 400, {"message": "o app sempre faz upsert por (user_id, path)"}
+            for linha in corpo if isinstance(corpo, list) else [corpo]:
+                # Como o PostgREST: sem "resolution=merge-duplicates" é INSERT puro,
+                # e o mesmo caminho de novo dá erro de duplicado.
+                if (usuario.id, linha.get("path")) in self.arquivos and "resolution=merge-duplicates" not in prefer:
+                    return 409, {"code": "23505", "message": "duplicate key value violates unique constraint"}
+                status, erro = self._gravar(usuario, linha)
+                if status != 201:
+                    return status, erro
+            return 201, None
+        return 405, {"message": "método não permitido"}
+
+    def _gravar(self, usuario: Usuario, linha: dict[str, Any]) -> tuple[int, Any]:
+        if linha.get("user_id") != usuario.id:
+            return 403, {"code": "42501", "message": "new row violates row-level security policy"}
+        caminho = linha["path"]
+        for (uid, outro), _ in self.arquivos.items():
+            if uid == usuario.id and outro != caminho and outro.lower() == caminho.lower():
+                return 409, {"code": "23505", "message": "duplicate key value violates unique constraint"}
+        self.arquivos[(usuario.id, caminho)] = {
+            "path": caminho,
+            "content_b64": linha.get("content_b64", ""),
+            "sha256": linha.get("sha256", ""),
+            "size": linha.get("size", 0),
+            "deleted": bool(linha.get("deleted", False)),
+            "updated_at": f"2026-10-25T12:00:{next(self._relogio):02d}+00:00",  # hora do servidor
+        }
+        return 201, None
 
 
 def _desafio(verificador: str) -> str:
