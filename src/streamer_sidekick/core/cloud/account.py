@@ -31,6 +31,14 @@ class Conta:
     motivo: str = ""
 
 
+@dataclass(frozen=True)
+class Acesso:
+    """O que uma chamada autenticada precisa: o token de acesso e de quem ele é."""
+
+    token: str
+    usuario: str
+
+
 class ErroDeLogin(Exception):
     """O login não terminou: código recusado, janela fechada, tempo esgotado."""
 
@@ -42,7 +50,8 @@ class _Indisponivel(Exception):
 class Nuvem:
     def __init__(self, dados: Path, transporte: Optional[Callable[..., Any]] = None,
                  url: Optional[str] = None, chave: Optional[str] = None, timeout: float = 10.0) -> None:
-        self._sessao = SessionStore(Path(dados) / "cloud")
+        self._dados = Path(dados)
+        self._sessao = SessionStore(self._dados / "cloud")
         self._transporte = transporte or transport.http
         self._url = (url or endpoint.url()).rstrip("/")
         self._chave = chave or endpoint.anon_key()
@@ -68,18 +77,30 @@ class Nuvem:
             if status != 200 or not isinstance(dados, dict) or "refresh_token" not in dados:
                 raise ErroDeLogin(_motivo(dados) or f"HTTP {status}")
             self._sessao.save(dados["refresh_token"])
-            return self._perfil(dados["access_token"])
+            return self._perfil(dados["access_token"])[0]
         except _Indisponivel as erro:
             raise ErroDeLogin(f"nuvem indisponível: {erro}") from erro
 
     def conta(self) -> Conta:
-        refresh = self._sessao.load()
-        if refresh is None:
-            return Conta(PRECISA_ENTRAR)
+        return self._abrir()[0]
+
+    def sincronizar(self, simular: bool = False):
+        """Sincroniza os dados deste PC com a nuvem (GLOSSARY.md: Sincronização).
+
+        Lê a conta primeiro: desconectada, desativada ou indisponível, nada muda.
+        Com ``simular``, só diz o que faria.
+        """
+        from streamer_sidekick.core.cloud import sync
+
+        conta, acesso = self._abrir()
+        if acesso is None:
+            return sync.Relatorio(conta=conta, simulado=simular)
         try:
-            return self._renovar(refresh)
-        except _Indisponivel as erro:
-            return Conta(INDISPONIVEL, motivo=str(erro))
+            return sync.sincronizar(self._dados, sync.ArquivosRemotos(self._chamar, acesso), conta, simular)
+        except (_Indisponivel, OSError) as erro:
+            # Falhou no meio: a base não foi salva, então a próxima sincronização
+            # refaz só o que faltou (o que já subiu aparece igual dos dois lados).
+            return sync.Relatorio(conta=Conta(INDISPONIVEL, motivo=str(erro)), simulado=simular)
 
     def sair(self) -> None:
         """Encerra a sessão: no servidor, quando dá; neste PC, sempre."""
@@ -96,36 +117,47 @@ class Nuvem:
             self._sessao.clear()
 
     # ------------------------------------------------------------ interno
-    def _renovar(self, refresh: str) -> Conta:
+    def _abrir(self) -> tuple[Conta, Optional[Acesso]]:
+        refresh = self._sessao.load()
+        if refresh is None:
+            return Conta(PRECISA_ENTRAR), None
+        try:
+            return self._renovar(refresh)
+        except _Indisponivel as erro:
+            return Conta(INDISPONIVEL, motivo=str(erro)), None
+
+    def _renovar(self, refresh: str) -> tuple[Conta, Optional[Acesso]]:
         status, dados = self._chamar("POST", "/auth/v1/token?grant_type=refresh_token",
                                      corpo={"refresh_token": refresh})
         if status in (400, 401):  # token revogado, expirado ou reusado: não volta a valer
             self._sessao.clear()
-            return Conta(PRECISA_ENTRAR, motivo=_motivo(dados))
+            return Conta(PRECISA_ENTRAR, motivo=_motivo(dados)), None
         if status != 200 or not isinstance(dados, dict) or "refresh_token" not in dados:
-            return Conta(INDISPONIVEL, motivo=_motivo(dados) or f"HTTP {status}")
+            return Conta(INDISPONIVEL, motivo=_motivo(dados) or f"HTTP {status}"), None
         self._sessao.save(dados["refresh_token"])  # rotação: o token usado já morreu
         return self._perfil(dados["access_token"])
 
-    def _perfil(self, acesso: str) -> Conta:
+    def _perfil(self, acesso: str) -> tuple[Conta, Optional[Acesso]]:
         status, usuario = self._chamar("GET", "/auth/v1/user", acesso=acesso)
         if status != 200 or not isinstance(usuario, dict):
-            return Conta(PRECISA_ENTRAR, motivo=_motivo(usuario))
+            return Conta(PRECISA_ENTRAR, motivo=_motivo(usuario)), None
         filtro = urllib.parse.urlencode({"id": f"eq.{usuario['id']}", "select": "email,is_admin,active"})
         status, perfis = self._chamar("GET", f"/rest/v1/profiles?{filtro}", acesso=acesso)
         perfil = perfis[0] if status == 200 and isinstance(perfis, list) and perfis else None
         if perfil is None:
-            return Conta(PRECISA_ENTRAR, motivo="perfil não encontrado")
+            return Conta(PRECISA_ENTRAR, motivo="perfil não encontrado"), None
         if perfil.get("active") is False:
             # Desativada pelo admin: a nuvem desliga neste PC. Só a sessão sai;
             # marcações, presets e progresso ficam como estão.
             self._sessao.clear()
-            return Conta(DESATIVADA, email=perfil.get("email", ""))
-        return Conta(CONECTADA, email=perfil.get("email") or usuario.get("email", ""),
-                     admin=bool(perfil.get("is_admin")))
+            return Conta(DESATIVADA, email=perfil.get("email", "")), None
+        conta = Conta(CONECTADA, email=perfil.get("email") or usuario.get("email", ""),
+                      admin=bool(perfil.get("is_admin")))
+        return conta, Acesso(acesso, usuario["id"])
 
-    def _chamar(self, metodo: str, caminho: str, acesso: str = "", corpo: Any = None) -> tuple[int, Any]:
-        cabecalhos = {"apikey": self._chave}
+    def _chamar(self, metodo: str, caminho: str, acesso: str = "", corpo: Any = None,
+                extra: Optional[dict[str, str]] = None) -> tuple[int, Any]:
+        cabecalhos = {"apikey": self._chave, **(extra or {})}
         if acesso:
             cabecalhos["Authorization"] = f"Bearer {acesso}"
         try:
