@@ -7,7 +7,7 @@ import secrets
 import urllib.parse
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Callable, Optional
+from typing import Any, Callable, Iterable, Optional
 
 from streamer_sidekick.core.cloud import endpoint, transport
 from streamer_sidekick.core.cloud.session import SessionStore
@@ -84,11 +84,12 @@ class Nuvem:
     def conta(self) -> Conta:
         return self._abrir()[0]
 
-    def sincronizar(self, simular: bool = False):
+    def sincronizar(self, simular: bool = False, presets_abertos: Iterable[str] = ()):
         """Sincroniza os dados deste PC com a nuvem (GLOSSARY.md: Sincronização).
 
         Lê a conta primeiro: desconectada, desativada ou indisponível, nada muda.
-        Com ``simular``, só diz o que faria.
+        Com ``simular``, só diz o que faria. ``presets_abertos``: presets do
+        Contador com o overlay aberto neste PC (o valor deles não é baixado).
         """
         from streamer_sidekick.core.cloud import sync
 
@@ -96,7 +97,8 @@ class Nuvem:
         if acesso is None:
             return sync.Relatorio(conta=conta, simulado=simular)
         try:
-            return sync.sincronizar(self._dados, sync.ArquivosRemotos(self._chamar, acesso), conta, simular)
+            return sync.sincronizar(self._dados, sync.ArquivosRemotos(self._chamar, acesso), conta, simular,
+                                    presets_abertos=presets_abertos)
         except (_Indisponivel, OSError) as erro:
             # Falhou no meio: a base não foi salva, então a próxima sincronização
             # refaz só o que faltou (o que já subiu aparece igual dos dois lados).
