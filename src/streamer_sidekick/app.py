@@ -32,6 +32,7 @@ def run() -> int:
     hotkeys = HotkeyManager(config)
     marker = MarkerService(config)
     counter = CounterService(config)
+    counter.migrate_icons()  # presets antigos guardavam o caminho da imagem
 
     modules = ModuleRegistry()
     modules.register(marker.module_info())

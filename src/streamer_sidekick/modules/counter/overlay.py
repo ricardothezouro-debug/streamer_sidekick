@@ -7,6 +7,7 @@ from PySide6.QtWidgets import QLabel, QVBoxLayout, QWidget
 
 from streamer_sidekick.core import events, hotkey_backend
 from streamer_sidekick.core.platform_utils import float_above_fullscreen
+from streamer_sidekick.modules.counter.icons import CounterIcons, img_tag
 
 
 class CounterOverlay(QWidget):
@@ -14,9 +15,17 @@ class CounterOverlay(QWidget):
     marker_saved = Signal(str)
     closed = Signal(object)
 
-    def __init__(self, config: dict[str, Any], save_file: Path, index: int, marker_service: Optional[Any] = None) -> None:
+    def __init__(
+        self,
+        config: dict[str, Any],
+        save_file: Path,
+        index: int,
+        marker_service: Optional[Any] = None,
+        icons: Optional[CounterIcons] = None,
+    ) -> None:
         super().__init__()
         self.config = config
+        self.icons = icons if icons is not None else CounterIcons()
         self.save_file = save_file
         self.index = index
         self.marker_service = marker_service
@@ -140,13 +149,13 @@ class CounterOverlay(QWidget):
 
         font = self.config.get("fonte", "Arial")
         font_size = int(self.config.get("font_size", 20) or 20)
-        icon = self.config.get("icone")
+        icon = self.icons.path_for(self.config.get("icone"))
 
         if icon:
             size = int(self.config.get("icon_size", 32) or 32)
             self.label.setText(
-                f'<img src="{icon}" height="{size}"> '
-                f'<span style="font-family:{font}; font-size:{font_size}pt; color:white;">{text}</span>'
+                img_tag(icon, size)
+                + f'<span style="font-family:{font}; font-size:{font_size}pt; color:white;">{text}</span>'
             )
         else:
             self.label.setText(

@@ -5,12 +5,14 @@ from typing import Any, Optional
 from streamer_sidekick.core import events
 from streamer_sidekick.core.config import ConfigStore
 from streamer_sidekick.core.modules import ModuleInfo
+from streamer_sidekick.modules.counter.icons import CounterIcons, IconError
 from streamer_sidekick.core.paths import user_data_dir
 
 
 class CounterService:
-    def __init__(self, config: ConfigStore) -> None:
+    def __init__(self, config: ConfigStore, icons: Optional[CounterIcons] = None) -> None:
         self.config = config
+        self.icons = icons if icons is not None else CounterIcons()
 
     def module_info(self) -> ModuleInfo:
         count = len(self.presets())
@@ -56,9 +58,36 @@ class CounterService:
     def load_preset(self, path: Path) -> list[dict[str, Any]]:
         with path.open("r", encoding="utf-8") as file:
             data = json.load(file)
-        if isinstance(data, list):
-            return [item for item in data if isinstance(item, dict)]
-        return []
+        if not isinstance(data, list):
+            return []
+        counters = [item for item in data if isinstance(item, dict)]
+        if self._migrate_icon_paths(counters):
+            path.write_text(json.dumps(data, indent=2, ensure_ascii=False), encoding="utf-8")
+        return counters
+
+    def migrate_icons(self) -> None:
+        """Migra os ícones de todos os presets (o app chama ao abrir)."""
+        for path in self.presets():
+            try:
+                self.load_preset(path)
+            except (OSError, ValueError):
+                continue  # preset quebrado: quem abrir vê o aviso de sempre
+
+    def _migrate_icon_paths(self, counters: list[dict[str, Any]]) -> bool:
+        """Presets antigos guardavam o caminho da imagem; agora guardam só o nome
+        do arquivo na pasta de ícones (decisão Q32). Se a imagem não existe mais,
+        o ícone fica vazio e o resto do preset continua igual."""
+        changed = False
+        for counter in counters:
+            icon = counter.get("icone")
+            if not icon or not _is_path(str(icon)):
+                continue
+            try:
+                counter["icone"] = self.icons.import_image(Path(str(icon))) if Path(str(icon)).is_file() else None
+            except IconError:
+                counter["icone"] = None
+            changed = True
+        return changed
 
     def save_preset(self, name: str, counters: list[dict[str, Any]], existing_path: Optional[Path] = None) -> Path:
         safe_name = _safe_file_name(name) or "preset"
@@ -132,6 +161,10 @@ def _normalize_counter_config(counter: dict[str, Any], index: int) -> dict[str, 
     base["largura"] = int(base.get("largura") or 400)
     base["altura"] = int(base.get("altura") or 160)
     return base
+
+
+def _is_path(icon: str) -> bool:
+    return "/" in icon or "\\" in icon or Path(icon).is_absolute()
 
 
 def _safe_file_name(name: str) -> str:

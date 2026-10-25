@@ -2745,7 +2745,8 @@ class HubWindow(QMainWindow):
 
         save_file = self.counter_service.state_file_for(preset_path)
         for index, config in enumerate(configs):
-            overlay = CounterOverlay(config, save_file, index, marker_service=self.marker_service)
+            overlay = CounterOverlay(config, save_file, index, marker_service=self.marker_service,
+                                     icons=self.counter_service.icons)
             overlay.closed.connect(self._on_counter_overlay_closed)
             overlay.marker_saved.connect(self._on_counter_marker_saved)
             overlay.show()
@@ -2759,6 +2760,7 @@ class HubWindow(QMainWindow):
             reserved_hotkeys=self._reserved_counter_hotkeys(),
             marker_files=self._marker_file_names(),
             create_marker_file=self._create_marker_file_for_counter,
+            icons=self.counter_service.icons,
         )
         if not dialog.exec():
             return
@@ -2785,6 +2787,7 @@ class HubWindow(QMainWindow):
             reserved_hotkeys=self._reserved_counter_hotkeys(),
             marker_files=self._marker_file_names(),
             create_marker_file=self._create_marker_file_for_counter,
+            icons=self.counter_service.icons,
         )
         if not dialog.exec():
             return

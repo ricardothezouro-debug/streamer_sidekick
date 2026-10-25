@@ -43,6 +43,8 @@ class BackupService:
 
         marker_files = list(_folder_files(marker_folder, skip_path))
         counter_files = list(_folder_files(counter_folder, skip_path))
+        icons_folder = self.counter.icons.folder
+        icon_files = list(_folder_files(icons_folder, skip_path))
         manifest = {
             "app": "StreamerSidekick",
             "format": self.FORMAT_VERSION,
@@ -57,10 +59,11 @@ class BackupService:
             archive.writestr("config/config.json", json.dumps(self.config.data, indent=2, ensure_ascii=False))
             _write_files(archive, marker_folder, marker_files, "markers")
             _write_files(archive, counter_folder, counter_files, "counter_presets")
+            _write_files(archive, icons_folder, icon_files, "counter_icons")
 
         return BackupSummary(
             marker_files=len(marker_files),
-            counter_files=len(counter_files),
+            counter_files=len(counter_files) + len(icon_files),
             config_saved=True,
         )
 
@@ -85,6 +88,8 @@ class BackupService:
             counter_folder = self.counter.presets_folder()
             marker_count = _restore_prefix(archive, "markers", marker_folder)
             counter_count = _restore_prefix(archive, "counter_presets", counter_folder)
+            # Backups de antes da 0.10 não têm a pasta de ícones: não restaura nada dela.
+            counter_count += _restore_prefix(archive, "counter_icons", self.counter.icons.folder)
 
         return BackupSummary(
             marker_files=marker_count,
