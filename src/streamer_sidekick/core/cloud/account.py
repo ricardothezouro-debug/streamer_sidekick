@@ -49,8 +49,14 @@ class _Indisponivel(Exception):
 
 class Nuvem:
     def __init__(self, dados: Path, transporte: Optional[Callable[..., Any]] = None,
-                 url: Optional[str] = None, chave: Optional[str] = None, timeout: float = 10.0) -> None:
+                 url: Optional[str] = None, chave: Optional[str] = None, timeout: float = 10.0,
+                 config: Optional[Any] = None, sistema: Optional[str] = None) -> None:
+        """``config``: o ``ConfigStore`` do app aberto (as preferências baixadas
+        são aplicadas nele). ``sistema``: ``windows``, ``macos`` ou ``linux``;
+        sem ele, o deste computador."""
         self._dados = Path(dados)
+        self._config = config
+        self._sistema = sistema
         self._sessao = SessionStore(self._dados / "cloud")
         self._transporte = transporte or transport.http
         self._url = (url or endpoint.url()).rstrip("/")
@@ -98,7 +104,7 @@ class Nuvem:
             return sync.Relatorio(conta=conta, simulado=simular)
         try:
             return sync.sincronizar(self._dados, sync.ArquivosRemotos(self._chamar, acesso), conta, simular,
-                                    presets_abertos=presets_abertos)
+                                    presets_abertos=presets_abertos, config=self._config, sistema=self._sistema)
         except (_Indisponivel, OSError) as erro:
             # Falhou no meio: a base não foi salva, então a próxima sincronização
             # refaz só o que faltou (o que já subiu aparece igual dos dois lados).

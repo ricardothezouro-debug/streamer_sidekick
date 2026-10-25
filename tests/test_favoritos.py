@@ -40,6 +40,11 @@ def _janela(tmp_path, monkeypatch, favoritos):
             pass
 
     monkeypatch.setattr(hub, "QSystemTrayIcon", BandejaMuda)
+    # Sem rede no teste: novidades, atualização do app e dos plugins, e as
+    # janelas de boas-vindas/atualização que abrem logo depois.
+    for metodo in ("_load_releases_async", "_check_app_update_async", "_check_plugin_updates_async",
+                   "_run_startup_dialogs"):
+        monkeypatch.setattr(hub.HubWindow, metodo, lambda *a, **k: None)
     app = QApplication.instance() or QApplication([])
     from streamer_sidekick.core.config import ConfigStore
     from streamer_sidekick.core.hotkeys import HotkeyManager
@@ -63,6 +68,14 @@ def _janela(tmp_path, monkeypatch, favoritos):
     return janela, config
 
 
+def _fechar(janela):
+    """Fecha só a janela. O close() normal, sem bandeja visível, agenda a saída
+    do app (hard_exit), e ela mataria o pytest no próximo teste que rodar eventos."""
+    janela._quitting = True
+    janela.close()
+    janela.deleteLater()
+
+
 def test_inicio_nao_poda_os_favoritos_salvos_e_conta_so_os_visiveis(tmp_path, monkeypatch):
     janela, config = _janela(tmp_path, monkeypatch, ["marker", "clipit", "counter"])  # sem o ClipIt aqui
     try:
@@ -72,4 +85,4 @@ def test_inicio_nao_poda_os_favoritos_salvos_e_conta_so_os_visiveis(tmp_path, mo
         assert [c.module.module_id for c in janela.home_favorite_cards] == ["marker", "counter"]
         assert janela.home_favorites_panel._meta == "2/4"
     finally:
-        janela.close()
+        _fechar(janela)

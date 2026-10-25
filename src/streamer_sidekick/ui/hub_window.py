@@ -2448,9 +2448,9 @@ class HubWindow(QMainWindow):
             return
 
         for binding in bindings:
-            item = QListWidgetItem(
-                f"{binding['sequence']}  |  {str(binding['label']).removeprefix('Mensagem: ')}"
-            )
+            # Mensagem criada no outro sistema chega pela nuvem sem atalho aqui (Q35).
+            sequence = str(binding["sequence"]) or "Sem atalho neste sistema"
+            item = QListWidgetItem(f"{sequence}  |  {str(binding['label']).removeprefix('Mensagem: ')}")
             item.setData(Qt.ItemDataRole.UserRole, binding["key"])
             self.marker_custom_hotkeys_list.addItem(item)
             if binding["key"] == selected_key:

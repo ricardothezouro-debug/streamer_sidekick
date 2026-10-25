@@ -11,10 +11,11 @@ progresso de verdade.
     python scripts/cloud_sync.py --dados C:\\teste-nuvem sincronizar --simular
     python scripts/cloud_sync.py --dados C:\\teste-nuvem sincronizar
 
-Hoje sincroniza os .txt do Marcador e o Contador (presets, valores e ícones). As
-pastas vêm do config.json da pasta de dados, ou <dados>/markers,
-<dados>/counter_presets e <dados>/counter_icons. Os próximos tickets acrescentam
-o resto e "baixar-tudo".
+Hoje sincroniza os .txt do Marcador, o Contador (presets, valores e ícones) e as
+preferências do config.json da pasta de dados (só as da lista do ADR 0004; os
+atalhos, separados por sistema). As pastas vêm desse config.json, ou
+<dados>/markers, <dados>/counter_presets e <dados>/counter_icons. Os próximos
+tickets acrescentam as Platinas e "baixar-tudo".
 O projeto e a chave pública vêm do app; troque com SSK_SUPABASE_URL e
 SSK_SUPABASE_ANON_KEY para apontar para outro projeto.
 """

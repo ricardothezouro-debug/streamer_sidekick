@@ -1,4 +1,5 @@
 import json
+import os
 from copy import deepcopy
 from pathlib import Path
 from typing import Any, Optional
@@ -107,9 +108,13 @@ class ConfigStore:
                 events.publish("preferences.changed", {"key": dotted_key})
 
     def save(self) -> None:
+        # Atômico: monta o texto antes e troca o arquivo de uma vez. Uma falha
+        # (ou o app fechando no meio) nunca deixa o config pela metade.
+        texto = json.dumps(self._data, indent=2, ensure_ascii=False)
         self.path.parent.mkdir(parents=True, exist_ok=True)
-        with self.path.open("w", encoding="utf-8") as file:
-            json.dump(self._data, file, indent=2, ensure_ascii=False)
+        temporario = self.path.with_name(self.path.name + ".gravando")
+        temporario.write_text(texto, encoding="utf-8")
+        os.replace(temporario, self.path)
 
     def reload(self) -> None:
         self._data = self._load()

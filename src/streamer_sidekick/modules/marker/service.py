@@ -142,7 +142,9 @@ class MarkerService:
             key = str(item.get("key") or "").strip()
             message = str(item.get("message") or "").strip()
             sequence = str(item.get("sequence") or "").strip()
-            if not key or not message or not sequence:
+            # Sem sequência: veio do outro sistema pela nuvem e ainda não tem
+            # atalho aqui (Q35). Fica na lista; só não é registrada.
+            if not key or not message:
                 continue
             normalized.append({"key": key, "message": message, "sequence": sequence})
         return normalized
